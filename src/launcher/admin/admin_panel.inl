@@ -1,4 +1,4 @@
-#include "platform/strprotect/strprotect.h"
+﻿#include "platform/strprotect/strprotect.h"
 
 
 
@@ -40,34 +40,34 @@ bool OpenExternal(const wchar_t* url, const char* failure) {
 
 const char* SectionTitle(Section section) {
     switch (section) {
-    case Section::Overview: return OGS_CSTR("Visão geral");
+    case Section::Overview: return OGS_CSTR("VisÃ£o geral");
     case Section::Users: return OGS_CSTR("Utilizadores");
-    case Section::Licenses: return OGS_CSTR("Licenças");
+    case Section::Licenses: return OGS_CSTR("LicenÃ§as");
     case Section::Analytics: return OGS_CSTR("Analytics");
     case Section::Games: return OGS_CSTR("Jogos e offsets");
     case Section::Builds: return OGS_CSTR("Builds e releases");
-    case Section::Security: return OGS_CSTR("Segurança e auditoria");
+    case Section::Security: return OGS_CSTR("SeguranÃ§a e auditoria");
     case Section::Developer: return OGS_CSTR("Ferramentas");
-    case Section::Support: return OGS_CSTR("Suporte e operações");
+    case Section::Support: return OGS_CSTR("Suporte e operaÃ§Ãµes");
     }
     return OGS_CSTR("Admin");
 }
 
 void DrawSectionNavigation() {
     static const struct Entry { Section section; std::string label; } entries[] = {
-        {Section::Overview, OGS_LIT("VISÃO GERAL")},
-        {Section::Users, OGS_LIT("UTILIZADORES")},
-        {Section::Licenses, OGS_LIT("LICENÇAS")},
-        {Section::Analytics, OGS_LIT("ANALYTICS")},
-        {Section::Games, OGS_LIT("JOGOS / OFFSETS")},
-        {Section::Builds, OGS_LIT("BUILDS / RELEASES")},
-        {Section::Security, OGS_LIT("SEGURANÇA")},
-        {Section::Developer, OGS_LIT("FERRAMENTAS")},
-        {Section::Support, OGS_LIT("SUPORTE")},
+        {Section::Overview, OGS_CSTR("VISÃƒO GERAL")},
+        {Section::Users, OGS_CSTR("UTILIZADORES")},
+        {Section::Licenses, OGS_CSTR("LICENÃ‡AS")},
+        {Section::Analytics, OGS_CSTR("ANALYTICS")},
+        {Section::Games, OGS_CSTR("JOGOS / OFFSETS")},
+        {Section::Builds, OGS_CSTR("BUILDS / RELEASES")},
+        {Section::Security, OGS_CSTR("SEGURANÃ‡A")},
+        {Section::Developer, OGS_CSTR("FERRAMENTAS")},
+        {Section::Support, OGS_CSTR("SUPORTE")},
     };
 
     UiState& state = State();
-    CyberWidgets::Badge(OGS_LIT("ADMIN CONTROL"), CyberWidgets::TextTone::Accent);
+    CyberWidgets::Badge(OGS_CSTR("ADMIN CONTROL"), CyberWidgets::TextTone::Accent);
     ImGui::Dummy(ImVec2(0.f, S(9.f)));
     for (const Entry& entry : entries) {
         const bool selected = state.section == entry.section;
@@ -88,15 +88,15 @@ void DrawSectionNavigation() {
 
 void DrawRemoteBoundary(const char* title, const char* description, bool keyAuth = true) {
     CyberWidgets::BeginCard(title, 0.f);
-    CyberWidgets::Badge(OGS_LIT("SERVIÇO REMOTO NECESSÁRIO"), CyberWidgets::TextTone::Warning);
+    CyberWidgets::Badge(OGS_CSTR("SERVIÃ‡O REMOTO NECESSÃRIO"), CyberWidgets::TextTone::Warning);
     ImGui::Dummy(ImVec2(0.f, S(7.f)));
     CyberWidgets::TextLine(description, CyberWidgets::TextTone::Primary);
     CyberWidgets::TextLine(
-        OGS_LIT("O cliente não guarda Seller API keys, tokens de CI ou credenciais administrativas."),
+        OGS_CSTR("O cliente nÃ£o guarda Seller API keys, tokens de CI ou credenciais administrativas."),
         CyberWidgets::TextTone::Secondary);
     ImGui::Dummy(ImVec2(0.f, S(9.f)));
-    if (keyAuth && CyberWidgets::GoldButton(OGS_LIT("ABRIR KEYAUTH"), ImVec2(S(160.f), S(34.f))))
-        OpenExternal(OGS_WIDE("https://keyauth.cc/app/"), OGS_LIT("Não foi possível abrir o painel KeyAuth."));
+    if (keyAuth && CyberWidgets::GoldButton(OGS_CSTR("ABRIR KEYAUTH"), ImVec2(S(160.f), S(34.f))))
+        OpenExternal(OGS_WCSTR("https://keyauth.cc/app/"), OGS_CSTR("NÃ£o foi possÃ­vel abrir o painel KeyAuth."));
     CyberWidgets::EndCard();
 }
 
@@ -119,79 +119,79 @@ void DrawAdminOverview() {
     const bool two = available >= S(720.f);
     const float width = two ? (available - gap) * .5f : available;
 
-    CyberWidgets::BeginCard(OGS_LIT("SESSÃO ADMINISTRATIVA"), width);
-    CyberWidgets::Badge(OGS_LIT("AUTORIZADA"), CyberWidgets::TextTone::Success);
+    CyberWidgets::BeginCard(OGS_CSTR("SESSÃƒO ADMINISTRATIVA"), width);
+    CyberWidgets::Badge(OGS_CSTR("AUTORIZADA"), CyberWidgets::TextTone::Success);
     ImGui::Dummy(ImVec2(0.f, S(7.f)));
-    CyberWidgets::KeyValueRow(OGS_LIT("Operador"), license.remoteUsername.empty() ? "—" : license.remoteUsername.c_str());
-    CyberWidgets::KeyValueRow(OGS_LIT("Subscrição"), OGS_LIT("Admin"));
-    CyberWidgets::KeyValueRow(OGS_LIT("Permissões de produto"), OGS_LIT("Todos os jogos"));
-    CyberWidgets::HealthRow(OGS_LIT("Sessão KeyAuth"), license.remoteAuthenticated ? OGS_LIT("Autenticada") : OGS_LIT("Inválida"),
+    CyberWidgets::KeyValueRow(OGS_CSTR("Operador"), license.remoteUsername.empty() ? "â€”" : license.remoteUsername.c_str());
+    CyberWidgets::KeyValueRow(OGS_CSTR("SubscriÃ§Ã£o"), OGS_CSTR("Admin"));
+    CyberWidgets::KeyValueRow(OGS_CSTR("PermissÃµes de produto"), OGS_CSTR("Todos os jogos"));
+    CyberWidgets::HealthRow(OGS_CSTR("SessÃ£o KeyAuth"), license.remoteAuthenticated ? OGS_CSTR("Autenticada") : OGS_CSTR("InvÃ¡lida"),
         license.remoteAuthenticated ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Error);
     CyberWidgets::EndCard();
 
     if (two) ImGui::SameLine(0.f, gap);
-    CyberWidgets::BeginCard(OGS_LIT("ESTADO OPERACIONAL"), width);
-    CyberWidgets::HealthRow("DMA", dma.deviceOpen ? OGS_LIT("Ligado") : (dma.deviceDetected ? OGS_LIT("Detetado") : OGS_LIT("Indisponível")),
+    CyberWidgets::BeginCard(OGS_CSTR("ESTADO OPERACIONAL"), width);
+    CyberWidgets::HealthRow("DMA", dma.deviceOpen ? OGS_CSTR("Ligado") : (dma.deviceDetected ? OGS_CSTR("Detetado") : OGS_CSTR("IndisponÃ­vel")),
         dma.deviceOpen ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
-    CyberWidgets::HealthRow(OGS_LIT("Integridade DMA"), dma.dependencyIntegrityOk ? OGS_LIT("Validada") : OGS_LIT("Requer atenção"),
+    CyberWidgets::HealthRow(OGS_CSTR("Integridade DMA"), dma.dependencyIntegrityOk ? OGS_CSTR("Validada") : OGS_CSTR("Requer atenÃ§Ã£o"),
         dma.dependencyIntegrityOk ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Error);
-    CyberWidgets::HealthRow(OGS_LIT("Atualizações"), UpdateStatusText(update),
+    CyberWidgets::HealthRow(OGS_CSTR("AtualizaÃ§Ãµes"), UpdateStatusText(update),
         update.status == OmniGhost::Update::Status::Error
             ? CyberWidgets::HealthStatus::Error : CyberWidgets::HealthStatus::Ok);
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0.f, gap));
-    CyberWidgets::BeginCard(OGS_LIT("RESUMO LOCAL"), 0.f);
-    CyberWidgets::KeyValueRow(OGS_LIT("Jogos instalados"), std::to_string(installed).c_str());
-    CyberWidgets::KeyValueRow(OGS_LIT("Jogos ativos"), std::to_string(running).c_str());
-    CyberWidgets::KeyValueRow(OGS_LIT("Sessões registadas neste dispositivo"), std::to_string(sessions).c_str());
-    CyberWidgets::KeyValueRow(OGS_LIT("Build"), OmniGhost::BuildInfo::BuildId);
+    CyberWidgets::BeginCard(OGS_CSTR("RESUMO LOCAL"), 0.f);
+    CyberWidgets::KeyValueRow(OGS_CSTR("Jogos instalados"), std::to_string(installed).c_str());
+    CyberWidgets::KeyValueRow(OGS_CSTR("Jogos ativos"), std::to_string(running).c_str());
+    CyberWidgets::KeyValueRow(OGS_CSTR("SessÃµes registadas neste dispositivo"), std::to_string(sessions).c_str());
+    CyberWidgets::KeyValueRow(OGS_CSTR("Build"), OmniGhost::BuildInfo::BuildId);
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0.f, gap));
-    CyberWidgets::BeginCard(OGS_LIT("AÇÕES RÁPIDAS"), 0.f);
-    if (CyberWidgets::Button(OGS_LIT("KEYAUTH"), CyberWidgets::ButtonStyle::Primary, ImVec2(S(130.f), S(34.f))))
-        OpenExternal(OGS_WIDE("https://keyauth.cc/app/"), OGS_LIT("Não foi possível abrir o painel KeyAuth."));
+    CyberWidgets::BeginCard(OGS_CSTR("AÃ‡Ã•ES RÃPIDAS"), 0.f);
+    if (CyberWidgets::Button(OGS_CSTR("KEYAUTH"), CyberWidgets::ButtonStyle::Primary, ImVec2(S(130.f), S(34.f))))
+        OpenExternal(OGS_WCSTR("https://keyauth.cc/app/"), OGS_CSTR("NÃ£o foi possÃ­vel abrir o painel KeyAuth."));
     ImGui::SameLine();
-    if (CyberWidgets::Button(OGS_LIT("GITHUB ACTIONS"), CyberWidgets::ButtonStyle::Secondary, ImVec2(S(175.f), S(34.f))))
-        OpenExternal(OGS_WIDE("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/actions"),
-                     OGS_LIT("Não foi possível abrir o GitHub Actions."));
+    if (CyberWidgets::Button(OGS_CSTR("GITHUB ACTIONS"), CyberWidgets::ButtonStyle::Secondary, ImVec2(S(175.f), S(34.f))))
+        OpenExternal(OGS_WCSTR("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/actions"),
+                     OGS_CSTR("NÃ£o foi possÃ­vel abrir o GitHub Actions."));
     ImGui::SameLine();
-    if (CyberWidgets::Button(OGS_LIT("VERIFICAR UPDATE"), CyberWidgets::ButtonStyle::Ghost, ImVec2(S(175.f), S(34.f))))
+    if (CyberWidgets::Button(OGS_CSTR("VERIFICAR UPDATE"), CyberWidgets::ButtonStyle::Ghost, ImVec2(S(175.f), S(34.f))))
         OmniGhost::Update::UpdateService::Instance().CheckAsync(true);
     CyberWidgets::EndCard();
 }
 
 void DrawAdminUsers() {
     UiState& state = State();
-    CyberWidgets::BeginCard(OGS_LIT("PESQUISA DE UTILIZADORES"), 0.f);
+    CyberWidgets::BeginCard(OGS_CSTR("PESQUISA DE UTILIZADORES"), 0.f);
     ImGui::SetNextItemWidth(-1.f);
     ImGui::InputTextWithHint(OGS_CSTR("##admin_user_filter"), OGS_CSTR("Username, email ou HWID..."),
                              state.userFilter, sizeof(state.userFilter));
-    CyberWidgets::TextLine(OGS_LIT("A sessão atual é mostrada localmente. A listagem global permanece no KeyAuth."),
+    CyberWidgets::TextLine(OGS_CSTR("A sessÃ£o atual Ã© mostrada localmente. A listagem global permanece no KeyAuth."),
                            CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0.f, S(12.f)));
     const auto license = OmniGhost::Licensing::GetSnapshot();
-    CyberWidgets::BeginCard(OGS_LIT("OPERADOR ATUAL"), 0.f);
-    CyberWidgets::KeyValueRow(OGS_LIT("Username"), license.remoteUsername.empty() ? "—" : license.remoteUsername.c_str());
-    CyberWidgets::KeyValueRow(OGS_LIT("Perfil"), OGS_LIT("Administrador"));
-    CyberWidgets::HealthRow(OGS_LIT("Autenticação"), license.remoteAuthenticated ? OGS_LIT("Ativa") : OGS_LIT("Expirada"),
+    CyberWidgets::BeginCard(OGS_CSTR("OPERADOR ATUAL"), 0.f);
+    CyberWidgets::KeyValueRow(OGS_CSTR("Username"), license.remoteUsername.empty() ? "â€”" : license.remoteUsername.c_str());
+    CyberWidgets::KeyValueRow(OGS_CSTR("Perfil"), OGS_CSTR("Administrador"));
+    CyberWidgets::HealthRow(OGS_CSTR("AutenticaÃ§Ã£o"), license.remoteAuthenticated ? OGS_CSTR("Ativa") : OGS_CSTR("Expirada"),
         license.remoteAuthenticated ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Error);
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0.f, S(12.f)));
-    DrawRemoteBoundary(OGS_LIT("GESTÃO DE CONTAS"),
-        OGS_LIT("Listar utilizadores, banir, remover bans, repor HWID, ações em massa e impersonation exigem autorização server-side e audit log."));
+    DrawRemoteBoundary(OGS_CSTR("GESTÃƒO DE CONTAS"),
+        OGS_CSTR("Listar utilizadores, banir, remover bans, repor HWID, aÃ§Ãµes em massa e impersonation exigem autorizaÃ§Ã£o server-side e audit log."));
 }
 
 void DrawAdminLicenses() {
     UiState& state = State();
     const auto license = OmniGhost::Licensing::GetSnapshot();
-    CyberWidgets::BeginCard(OGS_LIT("SUBSCRIÇÕES DA SESSÃO"), 0.f);
+    CyberWidgets::BeginCard(OGS_CSTR("SUBSCRIÃ‡Ã•ES DA SESSÃƒO"), 0.f);
     ImGui::SetNextItemWidth(-1.f);
-    ImGui::InputTextWithHint(OGS_CSTR("##admin_license_filter"), OGS_CSTR("Filtrar subscrições visíveis..."),
+    ImGui::InputTextWithHint(OGS_CSTR("##admin_license_filter"), OGS_CSTR("Filtrar subscriÃ§Ãµes visÃ­veis..."),
                              state.licenseFilter, sizeof(state.licenseFilter));
     bool shown = false;
     std::string filter = state.licenseFilter;
@@ -203,23 +203,23 @@ void DrawAdminLicenses() {
         if (!filter.empty() && normalized.find(filter) == std::string::npos)
             continue;
         shown = true;
-        const std::string remaining = entitlement.remaining.empty() ? OGS_LIT("Ativa") : entitlement.remaining;
+        const std::string remaining = entitlement.remaining.empty() ? OGS_CSTR("Ativa") : entitlement.remaining;
         CyberWidgets::HealthRow(name.c_str(), remaining.c_str(), CyberWidgets::HealthStatus::Ok);
     }
     if (!shown)
-        CyberWidgets::EmptyState(OGS_LIT("SEM RESULTADOS"), OGS_LIT("Nenhuma subscrição da sessão corresponde ao filtro."));
+        CyberWidgets::EmptyState(OGS_CSTR("SEM RESULTADOS"), OGS_CSTR("Nenhuma subscriÃ§Ã£o da sessÃ£o corresponde ao filtro."));
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0.f, S(12.f)));
-    DrawRemoteBoundary(OGS_LIT("OPERAÇÕES DE LICENCIAMENTO"),
-        OGS_LIT("Gerar, revogar, prolongar ou transferir licenças e criar promo codes são operações remotas privilegiadas."));
+    DrawRemoteBoundary(OGS_CSTR("OPERAÃ‡Ã•ES DE LICENCIAMENTO"),
+        OGS_CSTR("Gerar, revogar, prolongar ou transferir licenÃ§as e criar promo codes sÃ£o operaÃ§Ãµes remotas privilegiadas."));
 }
 
 void DrawAdminAnalytics() {
     std::uint64_t totalSessions = 0;
     std::uint64_t totalSeconds = 0;
     std::uint32_t mostSessions = 0;
-    const char* mostUsed = "—";
+    const char* mostUsed = "â€”";
     for (const GameRuntime& runtime : g_games) {
         if (!runtime.definition) continue;
         const GameHistory history = GetGameHistory(runtime.definition->launch_id);
@@ -231,13 +231,13 @@ void DrawAdminAnalytics() {
         }
     }
 
-    CyberWidgets::BeginCard(OGS_LIT("UTILIZAÇÃO LOCAL"), 0.f);
-    CyberWidgets::Badge(OGS_LIT("DADOS DESTE DISPOSITIVO"), CyberWidgets::TextTone::Info);
+    CyberWidgets::BeginCard(OGS_CSTR("UTILIZAÃ‡ÃƒO LOCAL"), 0.f);
+    CyberWidgets::Badge(OGS_CSTR("DADOS DESTE DISPOSITIVO"), CyberWidgets::TextTone::Info);
     ImGui::Dummy(ImVec2(0.f, S(7.f)));
-    CyberWidgets::KeyValueRow(OGS_LIT("Sessões"), std::to_string(totalSessions).c_str());
+    CyberWidgets::KeyValueRow(OGS_CSTR("SessÃµes"), std::to_string(totalSessions).c_str());
     const std::string duration = FormatActiveDuration(totalSeconds);
-    CyberWidgets::KeyValueRow(OGS_LIT("Tempo total de menu"), duration.c_str());
-    CyberWidgets::KeyValueRow(OGS_LIT("Jogo mais utilizado"), mostUsed);
+    CyberWidgets::KeyValueRow(OGS_CSTR("Tempo total de menu"), duration.c_str());
+    CyberWidgets::KeyValueRow(OGS_CSTR("Jogo mais utilizado"), mostUsed);
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0.f, S(12.f)));
@@ -246,17 +246,17 @@ void DrawAdminAnalytics() {
         const GameHistory history = GetGameHistory(runtime.definition->launch_id);
         ImGui::PushID(runtime.definition->id);
         CyberWidgets::BeginCard(runtime.definition->name, 0.f);
-        CyberWidgets::KeyValueRow(OGS_LIT("Sessões"), std::to_string(history.sessionCount).c_str());
+        CyberWidgets::KeyValueRow(OGS_CSTR("SessÃµes"), std::to_string(history.sessionCount).c_str());
         const std::string gameDuration = FormatActiveDuration(history.totalActiveSeconds);
-        CyberWidgets::KeyValueRow(OGS_LIT("Tempo acumulado"), gameDuration.c_str());
-        CyberWidgets::KeyValueRow(OGS_LIT("Último resultado"), SessionResultDisplay(history.lastResult));
+        CyberWidgets::KeyValueRow(OGS_CSTR("Tempo acumulado"), gameDuration.c_str());
+        CyberWidgets::KeyValueRow(OGS_CSTR("Ãšltimo resultado"), SessionResultDisplay(history.lastResult));
         CyberWidgets::EndCard();
         ImGui::PopID();
         ImGui::Dummy(ImVec2(0.f, S(8.f)));
     }
 
-    DrawRemoteBoundary(OGS_LIT("ANALYTICS GLOBAL"),
-        OGS_LIT("DAU/WAU/MAU, receita, geografia, crashes e feature usage requerem telemetria consentida e um backend agregado."), false);
+    DrawRemoteBoundary(OGS_CSTR("ANALYTICS GLOBAL"),
+        OGS_CSTR("DAU/WAU/MAU, receita, geografia, crashes e feature usage requerem telemetria consentida e um backend agregado."), false);
 }
 
 const char* OffsetStateText(OmniGhost::OffsetAuto::CompatibilityState state) {
@@ -265,8 +265,8 @@ const char* OffsetStateText(OmniGhost::OffsetAuto::CompatibilityState state) {
     case StateType::Checking: return OGS_CSTR("A verificar");
     case StateType::Ready: return OGS_CSTR("Prontos");
     case StateType::Outdated: return OGS_CSTR("Desatualizados");
-    case StateType::Unsupported: return OGS_CSTR("Sem atualização automática");
-    default: return OGS_CSTR("Ainda não validados");
+    case StateType::Unsupported: return OGS_CSTR("Sem atualizaÃ§Ã£o automÃ¡tica");
+    default: return OGS_CSTR("Ainda nÃ£o validados");
     }
 }
 
@@ -285,67 +285,67 @@ void DrawAdminGameConfig() {
         const auto compatibility = OmniGhost::OffsetAuto::Compatibility(active);
         ImGui::PushID(game.id);
         CyberWidgets::BeginCard(game.name, 0.f);
-        CyberWidgets::HealthRow(OGS_LIT("Instalação"), runtime.installed ? OGS_LIT("Detetada") : OGS_LIT("Não detetada"),
+        CyberWidgets::HealthRow(OGS_CSTR("InstalaÃ§Ã£o"), runtime.installed ? OGS_CSTR("Detetada") : OGS_CSTR("NÃ£o detetada"),
             runtime.installed ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
-        CyberWidgets::HealthRow(OGS_LIT("Acesso"), OmniGhost::Licensing::HasGameAccess(game.id) ? OGS_LIT("Autorizado") : OGS_LIT("Sem licença"),
+        CyberWidgets::HealthRow(OGS_CSTR("Acesso"), OmniGhost::Licensing::HasGameAccess(game.id) ? OGS_CSTR("Autorizado") : OGS_CSTR("Sem licenÃ§a"),
             OmniGhost::Licensing::HasGameAccess(game.id) ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Error);
-        CyberWidgets::HealthRow(OGS_LIT("Runtime"), CardStateLabel(runtime.state),
+        CyberWidgets::HealthRow(OGS_CSTR("Runtime"), CardStateLabel(runtime.state),
             runtime.state == CardState::Error || runtime.state == CardState::LaunchFailed
                 ? CyberWidgets::HealthStatus::Error : CyberWidgets::HealthStatus::Ok);
-        CyberWidgets::HealthRow(OGS_LIT("Offsets"), OffsetStateText(compatibility.state), OffsetHealth(compatibility.state));
+        CyberWidgets::HealthRow(OGS_CSTR("Offsets"), OffsetStateText(compatibility.state), OffsetHealth(compatibility.state));
         if (!compatibility.detail.empty())
             CyberWidgets::TextLine(compatibility.detail.c_str(), CyberWidgets::TextTone::Secondary);
         const bool canRefresh = !g_offset_refresh_pending &&
             OmniGhost::OffsetAuto::SupportsAutomaticRefresh(active);
-        if (CyberWidgets::Button(OGS_LIT("ATUALIZAR OFFSETS"), CyberWidgets::ButtonStyle::Secondary,
+        if (CyberWidgets::Button(OGS_CSTR("ATUALIZAR OFFSETS"), CyberWidgets::ButtonStyle::Secondary,
                                  ImVec2(S(180.f), S(32.f)), canRefresh))
             RequestOffsetRefresh(game.launch_id, false);
         CyberWidgets::EndCard();
         ImGui::PopID();
         ImGui::Dummy(ImVec2(0.f, S(9.f)));
     }
-    DrawRemoteBoundary(OGS_LIT("ROLLOUT E FEATURE FLAGS"),
-        OGS_LIT("Publicação de offsets, canary rollout e perfis oficiais precisam de artefactos validados por SHA-256 e de um serviço de configuração autenticado."), false);
+    DrawRemoteBoundary(OGS_CSTR("ROLLOUT E FEATURE FLAGS"),
+        OGS_CSTR("PublicaÃ§Ã£o de offsets, canary rollout e perfis oficiais precisam de artefactos validados por SHA-256 e de um serviÃ§o de configuraÃ§Ã£o autenticado."), false);
 }
 
 void DrawAdminBuildInfo() {
     const auto update = OmniGhost::Update::UpdateService::Instance().GetSnapshot();
-    CyberWidgets::BeginCard(OGS_LIT("BUILD ATUAL"), 0.f);
-    CyberWidgets::KeyValueRow(OGS_LIT("Versão"), OmniGhost::BuildInfo::AppVersion);
-    CyberWidgets::KeyValueRow(OGS_LIT("Build ID"), OmniGhost::BuildInfo::BuildId);
-    CyberWidgets::KeyValueRow(OGS_LIT("Commit"), OmniGhost::BuildInfo::CommitId);
-    CyberWidgets::KeyValueRow(OGS_LIT("Configuração"), OmniGhost::BuildInfo::Configuration);
-    CyberWidgets::KeyValueRow(OGS_LIT("Arquitetura"), OmniGhost::BuildInfo::Architecture);
-    CyberWidgets::KeyValueRow(OGS_LIT("Canal"), OmniGhost::BuildInfo::ReleaseChannel);
-    CyberWidgets::KeyValueRow(OGS_LIT("Toolchain"), OmniGhost::BuildInfo::ToolchainVersion);
-    CyberWidgets::HealthRow(OGS_LIT("Reprodutível"), OmniGhost::BuildInfo::Reproducible ? "Sim" : OGS_LIT("Não confirmado"),
+    CyberWidgets::BeginCard(OGS_CSTR("BUILD ATUAL"), 0.f);
+    CyberWidgets::KeyValueRow(OGS_CSTR("VersÃ£o"), OmniGhost::BuildInfo::AppVersion);
+    CyberWidgets::KeyValueRow(OGS_CSTR("Build ID"), OmniGhost::BuildInfo::BuildId);
+    CyberWidgets::KeyValueRow(OGS_CSTR("Commit"), OmniGhost::BuildInfo::CommitId);
+    CyberWidgets::KeyValueRow(OGS_CSTR("ConfiguraÃ§Ã£o"), OmniGhost::BuildInfo::Configuration);
+    CyberWidgets::KeyValueRow(OGS_CSTR("Arquitetura"), OmniGhost::BuildInfo::Architecture);
+    CyberWidgets::KeyValueRow(OGS_CSTR("Canal"), OmniGhost::BuildInfo::ReleaseChannel);
+    CyberWidgets::KeyValueRow(OGS_CSTR("Toolchain"), OmniGhost::BuildInfo::ToolchainVersion);
+    CyberWidgets::HealthRow(OGS_CSTR("ReprodutÃ­vel"), OmniGhost::BuildInfo::Reproducible ? "Sim" : OGS_CSTR("NÃ£o confirmado"),
         OmniGhost::BuildInfo::Reproducible ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0.f, S(12.f)));
-    CyberWidgets::BeginCard(OGS_LIT("UPDATE CLIENT"), 0.f);
-    CyberWidgets::HealthRow(OGS_LIT("Estado"), UpdateStatusText(update),
+    CyberWidgets::BeginCard(OGS_CSTR("UPDATE CLIENT"), 0.f);
+    CyberWidgets::HealthRow(OGS_CSTR("Estado"), UpdateStatusText(update),
         update.status == OmniGhost::Update::Status::Error
             ? CyberWidgets::HealthStatus::Error : CyberWidgets::HealthStatus::Ok);
-    CyberWidgets::KeyValueRow(OGS_LIT("Instalada"), update.installedVersion.empty() ? "—" : update.installedVersion.c_str());
-    CyberWidgets::KeyValueRow(OGS_LIT("Disponível"), update.availableVersion.empty() ? "—" : update.availableVersion.c_str());
-    if (CyberWidgets::Button(OGS_LIT("VERIFICAR AGORA"), CyberWidgets::ButtonStyle::Primary, ImVec2(S(165.f), S(34.f))))
+    CyberWidgets::KeyValueRow(OGS_CSTR("Instalada"), update.installedVersion.empty() ? "â€”" : update.installedVersion.c_str());
+    CyberWidgets::KeyValueRow(OGS_CSTR("DisponÃ­vel"), update.availableVersion.empty() ? "â€”" : update.availableVersion.c_str());
+    if (CyberWidgets::Button(OGS_CSTR("VERIFICAR AGORA"), CyberWidgets::ButtonStyle::Primary, ImVec2(S(165.f), S(34.f))))
         OmniGhost::Update::UpdateService::Instance().CheckAsync(true);
     ImGui::SameLine();
-    if (CyberWidgets::Button(OGS_LIT("GITHUB ACTIONS"), CyberWidgets::ButtonStyle::Secondary, ImVec2(S(170.f), S(34.f))))
-        OpenExternal(OGS_WIDE("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/actions"),
-                     OGS_LIT("Não foi possível abrir o GitHub Actions."));
+    if (CyberWidgets::Button(OGS_CSTR("GITHUB ACTIONS"), CyberWidgets::ButtonStyle::Secondary, ImVec2(S(170.f), S(34.f))))
+        OpenExternal(OGS_WCSTR("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/actions"),
+                     OGS_CSTR("NÃ£o foi possÃ­vel abrir o GitHub Actions."));
     ImGui::SameLine();
-    if (CyberWidgets::Button(OGS_LIT("RELEASES"), CyberWidgets::ButtonStyle::Ghost, ImVec2(S(120.f), S(34.f))))
-        OpenExternal(OGS_WIDE("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases"),
-                     OGS_LIT("Não foi possível abrir os releases."));
+    if (CyberWidgets::Button(OGS_CSTR("RELEASES"), CyberWidgets::ButtonStyle::Ghost, ImVec2(S(120.f), S(34.f))))
+        OpenExternal(OGS_WCSTR("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases"),
+                     OGS_CSTR("NÃ£o foi possÃ­vel abrir os releases."));
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0.f, S(12.f)));
     const auto changelog = ChangelogService::Instance().GetSnapshot();
-    CyberWidgets::BeginCard(OGS_LIT("RELEASES RECENTES"), 0.f);
+    CyberWidgets::BeginCard(OGS_CSTR("RELEASES RECENTES"), 0.f);
     if (changelog.releases.empty()) {
-        CyberWidgets::EmptyState(OGS_LIT("SEM DADOS"), OGS_LIT("Atualiza o changelog para consultar releases publicadas."));
+        CyberWidgets::EmptyState(OGS_CSTR("SEM DADOS"), OGS_CSTR("Atualiza o changelog para consultar releases publicadas."));
     } else {
         const std::size_t limit = (std::min<std::size_t>)(changelog.releases.size(), 5u);
         for (std::size_t index = 0; index < limit; ++index) {
@@ -353,7 +353,7 @@ void DrawAdminBuildInfo() {
             CyberWidgets::KeyValueRow(release.version.c_str(), release.title.c_str());
         }
     }
-    if (CyberWidgets::Button(OGS_LIT("ATUALIZAR LISTA"), CyberWidgets::ButtonStyle::Secondary, ImVec2(S(155.f), S(32.f))))
+    if (CyberWidgets::Button(OGS_CSTR("ATUALIZAR LISTA"), CyberWidgets::ButtonStyle::Secondary, ImVec2(S(155.f), S(32.f))))
         ChangelogService::Instance().RefreshAsync(true);
     CyberWidgets::EndCard();
 }
@@ -361,22 +361,22 @@ void DrawAdminBuildInfo() {
 void DrawAdminSecurity() {
     const bool protectedFeatures = OmniGhost::Security::SecurityManager::Instance().CanUseProtectedFeatures();
     const auto dma = mem.GetDiagnosticsSnapshot();
-    CyberWidgets::BeginCard(OGS_LIT("POSTURA DE SEGURANÇA"), 0.f);
-    CyberWidgets::HealthRow(OGS_LIT("Funcionalidades protegidas"), protectedFeatures ? OGS_LIT("Autorizadas") : OGS_LIT("Bloqueadas"),
+    CyberWidgets::BeginCard(OGS_CSTR("POSTURA DE SEGURANÃ‡A"), 0.f);
+    CyberWidgets::HealthRow(OGS_CSTR("Funcionalidades protegidas"), protectedFeatures ? OGS_CSTR("Autorizadas") : OGS_CSTR("Bloqueadas"),
         protectedFeatures ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Error);
-    CyberWidgets::HealthRow(OGS_LIT("Dependências DMA"), dma.dependencyIntegrityOk ? OGS_LIT("Íntegras") : OGS_LIT("Falha de integridade"),
+    CyberWidgets::HealthRow(OGS_CSTR("DependÃªncias DMA"), dma.dependencyIntegrityOk ? OGS_CSTR("Ãntegras") : OGS_CSTR("Falha de integridade"),
         dma.dependencyIntegrityOk ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Error);
-    CyberWidgets::KeyValueRow(OGS_LIT("Session generation"), std::to_string(dma.sessionGeneration).c_str());
-    CyberWidgets::KeyValueRow(OGS_LIT("Process generation"), std::to_string(dma.processGeneration).c_str());
-    CyberWidgets::KeyValueRow(OGS_LIT("Falhas de leitura"), std::to_string(dma.readFailureCount).c_str());
-    CyberWidgets::KeyValueRow(OGS_LIT("Chamadas bloqueadas"), std::to_string(dma.blockedDataCalls).c_str());
+    CyberWidgets::KeyValueRow(OGS_CSTR("Session generation"), std::to_string(dma.sessionGeneration).c_str());
+    CyberWidgets::KeyValueRow(OGS_CSTR("Process generation"), std::to_string(dma.processGeneration).c_str());
+    CyberWidgets::KeyValueRow(OGS_CSTR("Falhas de leitura"), std::to_string(dma.readFailureCount).c_str());
+    CyberWidgets::KeyValueRow(OGS_CSTR("Chamadas bloqueadas"), std::to_string(dma.blockedDataCalls).c_str());
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0.f, S(12.f)));
-    CyberWidgets::BeginCard(OGS_LIT("EVENTOS RECENTES"), 0.f);
+    CyberWidgets::BeginCard(OGS_CSTR("EVENTOS RECENTES"), 0.f);
     const auto events = OmniGhost::SessionLog::RecentEvents(12);
     if (events.empty()) {
-        CyberWidgets::EmptyState(OGS_LIT("SEM EVENTOS"), OGS_LIT("Não existem eventos registados nesta sessão."));
+        CyberWidgets::EmptyState(OGS_CSTR("SEM EVENTOS"), OGS_CSTR("NÃ£o existem eventos registados nesta sessÃ£o."));
     } else {
         for (const std::string& event : events) {
             const std::string safe = OmniGhost::SessionLog::RedactForSupport(event);
@@ -386,29 +386,29 @@ void DrawAdminSecurity() {
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0.f, S(12.f)));
-    DrawRemoteBoundary(OGS_LIT("AUDITORIA REMOTA"),
-        OGS_LIT("Bans de IP, tentativas de login e timelines por utilizador pertencem ao backend. Eventos locais não concedem autoridade remota."), false);
+    DrawRemoteBoundary(OGS_CSTR("AUDITORIA REMOTA"),
+        OGS_CSTR("Bans de IP, tentativas de login e timelines por utilizador pertencem ao backend. Eventos locais nÃ£o concedem autoridade remota."), false);
 }
 
 void DrawAdminDevTools() {
     UiState& state = State();
     const auto dma = mem.GetDiagnosticsSnapshot();
-    CyberWidgets::BeginCard(OGS_LIT("DMA / TRANSPORTE"), 0.f);
-    CyberWidgets::HealthRow(OGS_LIT("Dispositivo"), dma.deviceOpen ? OGS_LIT("Aberto") : (dma.deviceDetected ? OGS_LIT("Detetado") : OGS_LIT("Ausente")),
+    CyberWidgets::BeginCard(OGS_CSTR("DMA / TRANSPORTE"), 0.f);
+    CyberWidgets::HealthRow(OGS_CSTR("Dispositivo"), dma.deviceOpen ? OGS_CSTR("Aberto") : (dma.deviceDetected ? OGS_CSTR("Detetado") : OGS_CSTR("Ausente")),
         dma.deviceOpen ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
-    CyberWidgets::KeyValueRow(OGS_LIT("PID associado"), std::to_string(dma.processId).c_str());
-    CyberWidgets::KeyValueRow(OGS_LIT("Reads"), std::to_string(dma.readRequestCount).c_str());
-    CyberWidgets::KeyValueRow(OGS_LIT("Scatter batches"), std::to_string(dma.scatterReadBatchCount).c_str());
-    CyberWidgets::KeyValueRow(OGS_LIT("Scatter handles vivos"), std::to_string(dma.scatterHandlesLive).c_str());
-    CyberWidgets::KeyValueRow(OGS_LIT("VMM p95"), (std::to_string(dma.vmmLatencyP95Ms) + " ms").c_str());
-    CyberWidgets::KeyValueRow(OGS_LIT("VMM p99"), (std::to_string(dma.vmmLatencyP99Ms) + " ms").c_str());
+    CyberWidgets::KeyValueRow(OGS_CSTR("PID associado"), std::to_string(dma.processId).c_str());
+    CyberWidgets::KeyValueRow(OGS_CSTR("Reads"), std::to_string(dma.readRequestCount).c_str());
+    CyberWidgets::KeyValueRow(OGS_CSTR("Scatter batches"), std::to_string(dma.scatterReadBatchCount).c_str());
+    CyberWidgets::KeyValueRow(OGS_CSTR("Scatter handles vivos"), std::to_string(dma.scatterHandlesLive).c_str());
+    CyberWidgets::KeyValueRow(OGS_CSTR("VMM p95"), (std::to_string(dma.vmmLatencyP95Ms) + " ms").c_str());
+    CyberWidgets::KeyValueRow(OGS_CSTR("VMM p99"), (std::to_string(dma.vmmLatencyP99Ms) + " ms").c_str());
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0.f, S(12.f)));
-    CyberWidgets::BeginCard(OGS_LIT("FERRAMENTAS LOCAIS"), 0.f);
-    if (CyberWidgets::Button(OGS_LIT("ATUALIZAR CONFIGS"), CyberWidgets::ButtonStyle::Secondary, ImVec2(S(175.f), S(34.f)))) {
+    CyberWidgets::BeginCard(OGS_CSTR("FERRAMENTAS LOCAIS"), 0.f);
+    if (CyberWidgets::Button(OGS_CSTR("ATUALIZAR CONFIGS"), CyberWidgets::ButtonStyle::Secondary, ImVec2(S(175.f), S(34.f)))) {
         config_manager::RefreshList();
-        CyberWidgets::NotifyAdmin(OGS_LIT("Lista de configurações atualizada."), CyberWidgets::ToastType::Success);
+        CyberWidgets::NotifyAdmin(OGS_CSTR("Lista de configuraÃ§Ãµes atualizada."), CyberWidgets::ToastType::Success);
     }
     ImGui::SameLine();
 #if defined(NDEBUG)
@@ -417,15 +417,15 @@ void DrawAdminDevTools() {
 #else
     constexpr bool metricsAvailable = true;
 #endif
-    if (CyberWidgets::Button(state.showImGuiMetrics ? OGS_LIT("FECHAR IMGUI METRICS") : OGS_LIT("IMGUI METRICS"),
+    if (CyberWidgets::Button(state.showImGuiMetrics ? OGS_CSTR("FECHAR IMGUI METRICS") : OGS_CSTR("IMGUI METRICS"),
                              CyberWidgets::ButtonStyle::Ghost, ImVec2(S(190.f), S(34.f)), metricsAvailable))
         state.showImGuiMetrics = !state.showImGuiMetrics;
 #if defined(NDEBUG)
     CyberWidgets::InlineMessage(
-        OGS_LIT("Inspeção arbitrária de memória, simulação de falhas e force-crash não são expostos em builds Release."),
+        OGS_CSTR("InspeÃ§Ã£o arbitrÃ¡ria de memÃ³ria, simulaÃ§Ã£o de falhas e force-crash nÃ£o sÃ£o expostos em builds Release."),
         CyberWidgets::TextTone::Info);
 #else
-    CyberWidgets::InlineMessage(OGS_LIT("Build de desenvolvimento: ImGui Metrics está disponível para diagnóstico local."),
+    CyberWidgets::InlineMessage(OGS_CSTR("Build de desenvolvimento: ImGui Metrics estÃ¡ disponÃ­vel para diagnÃ³stico local."),
                                 CyberWidgets::TextTone::Warning);
 #endif
     CyberWidgets::EndCard();
@@ -437,33 +437,33 @@ void DrawAdminDevTools() {
 }
 
 void DrawAdminSupport() {
-    CyberWidgets::BeginCard(OGS_LIT("DIAGNÓSTICO E SUPORTE"), 0.f);
-    CyberWidgets::TextLine(OGS_LIT("Os pacotes de diagnóstico são limitados e redigidos; não incluem credenciais nem licenças."),
+    CyberWidgets::BeginCard(OGS_CSTR("DIAGNÃ“STICO E SUPORTE"), 0.f);
+    CyberWidgets::TextLine(OGS_CSTR("Os pacotes de diagnÃ³stico sÃ£o limitados e redigidos; nÃ£o incluem credenciais nem licenÃ§as."),
                            CyberWidgets::TextTone::Secondary);
-    if (CyberWidgets::Button(OGS_LIT("COPIAR DIAGNÓSTICO"), CyberWidgets::ButtonStyle::Secondary, ImVec2(S(190.f), S(34.f)))) {
+    if (CyberWidgets::Button(OGS_CSTR("COPIAR DIAGNÃ“STICO"), CyberWidgets::ButtonStyle::Secondary, ImVec2(S(190.f), S(34.f)))) {
         const std::string diagnostics = BuildDiagnosticsText();
-        CyberWidgets::CopyToClipboard(diagnostics.c_str(), OGS_LIT("Diagnóstico copiado"));
+        CyberWidgets::CopyToClipboard(diagnostics.c_str(), OGS_CSTR("DiagnÃ³stico copiado"));
     }
     ImGui::SameLine();
-    if (CyberWidgets::Button(OGS_LIT("ABRIR LOGS"), CyberWidgets::ButtonStyle::Ghost, ImVec2(S(135.f), S(34.f))))
+    if (CyberWidgets::Button(OGS_CSTR("ABRIR LOGS"), CyberWidgets::ButtonStyle::Ghost, ImVec2(S(135.f), S(34.f))))
         ShellExecuteW(nullptr, OGS_WCSTR("open"), OmniGhost::Paths::Logs().c_str(), nullptr, nullptr, SW_SHOWNORMAL);
     ImGui::SameLine();
-    if (CyberWidgets::Button(OGS_LIT("CRIAR PACOTE"), CyberWidgets::ButtonStyle::Primary, ImVec2(S(145.f), S(34.f)))) {
+    if (CyberWidgets::Button(OGS_CSTR("CRIAR PACOTE"), CyberWidgets::ButtonStyle::Primary, ImVec2(S(145.f), S(34.f)))) {
         std::filesystem::path packagePath;
         std::string error;
         if (OmniGhost::Diagnostics::CreatePackage(BuildDiagnosticsText(), packagePath, error)) {
-            CyberWidgets::NotifyAdmin(OGS_LIT("Pacote de diagnóstico criado."), CyberWidgets::ToastType::Success);
+            CyberWidgets::NotifyAdmin(OGS_CSTR("Pacote de diagnÃ³stico criado."), CyberWidgets::ToastType::Success);
             ShellExecuteW(nullptr, OGS_WCSTR("open"), packagePath.parent_path().c_str(), nullptr, nullptr, SW_SHOWNORMAL);
         } else {
-            CyberWidgets::NotifyAdmin(error.empty() ? OGS_LIT("Não foi possível criar o pacote.") : error.c_str(),
+            CyberWidgets::NotifyAdmin(error.empty() ? OGS_CSTR("NÃ£o foi possÃ­vel criar o pacote.") : error.c_str(),
                                  CyberWidgets::ToastType::Error);
         }
     }
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0.f, S(12.f)));
-    DrawRemoteBoundary(OGS_LIT("OPERAÇÕES E COMUNICAÇÕES"),
-        OGS_LIT("Tickets, anúncios, FAQ e janelas de manutenção precisam de um serviço editorial autenticado e histórico de auditoria."), false);
+    DrawRemoteBoundary(OGS_CSTR("OPERAÃ‡Ã•ES E COMUNICAÃ‡Ã•ES"),
+        OGS_CSTR("Tickets, anÃºncios, FAQ e janelas de manutenÃ§Ã£o precisam de um serviÃ§o editorial autenticado e histÃ³rico de auditoria."), false);
 }
 
 void DrawContent() {
@@ -486,14 +486,14 @@ void DrawContent() {
 }
 
 void DrawAdmin(ImVec2 display) {
-    BeginControlPage(OGS_LIT("##launcher_admin"), display);
+    BeginControlPage(OGS_CSTR("##launcher_admin"), display);
     DrawPageHeading(Loc::Tr("launcher.admin"), Loc::Tr("launcher.admin.subtitle"));
 
     if (!OmniGhost::Licensing::IsAdmin()) {
-        CyberWidgets::BeginCard(OGS_LIT("ACESSO NEGADO"), 0.f);
-        CyberWidgets::HealthRow(OGS_LIT("Admin"), OGS_LIT("Subscrição administrativa necessária"),
+        CyberWidgets::BeginCard(OGS_CSTR("ACESSO NEGADO"), 0.f);
+        CyberWidgets::HealthRow(OGS_CSTR("Admin"), OGS_CSTR("SubscriÃ§Ã£o administrativa necessÃ¡ria"),
                                 CyberWidgets::HealthStatus::Error);
-        CyberWidgets::TextLine(OGS_LIT("A sessão deixou de possuir autorização. Reautentica a conta para continuar."),
+        CyberWidgets::TextLine(OGS_CSTR("A sessÃ£o deixou de possuir autorizaÃ§Ã£o. Reautentica a conta para continuar."),
                                CyberWidgets::TextTone::Secondary);
         CyberWidgets::EndCard();
         EndControlPage();

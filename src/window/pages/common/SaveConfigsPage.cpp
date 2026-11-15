@@ -1,4 +1,4 @@
-#include "../../widgets.h"
+﻿#include "../../widgets.h"
 #include "../../theme.h"
 #include "../../localization.h"
 #include "../../../globals.h"
@@ -204,7 +204,7 @@ void DrawAimPreview() {
 
         ImVec2 info_pos(origin.x + 20.f, origin.y + 20.f);
         char fov_str[32];
-        std::snprintf(fov_str, sizeof(fov_str), "FOV: %.0f°", state.fov);
+        std::snprintf(fov_str, sizeof(fov_str), "FOV: %.0fÂ°", state.fov);
         draw->AddText(info_pos, CyberTheme::U32(CyberTheme::Colors.Text), fov_str);
 
         char bone_str[32];
@@ -244,31 +244,31 @@ void DrawCommunityConfigHub() {
     static char description[601]{};
     static char tags[160]{};
     static char changelog[501]{};
-    static char reportReason[301] = "Conteúdo incompatível ou enganador";
+    static char reportReason[301] = "ConteÃºdo incompatÃ­vel ou enganador";
     static std::string editConfigId;
     static bool loaded = false;
     const auto scopeValue = static_cast<config_manager::CommunityScope>(scope);
     const char* sortValue = sort == 1 ? "recent" : sort == 2 ? "rating" : "popular";
 
-    CyberWidgets::BeginCard(app_settings::T("CONFIG HUB · COMUNIDADE", "CONFIG HUB · COMMUNITY"));
+    CyberWidgets::BeginCard(app_settings::T("CONFIG HUB Â· COMUNIDADE", "CONFIG HUB Â· COMMUNITY"));
     CyberWidgets::TextLine(app_settings::T(
-        "Publica snapshots seguros, descobre presets do teu jogo e aplica-os com backup automático.",
+        "Publica snapshots seguros, descobre presets do teu jogo e aplica-os com backup automÃ¡tico.",
         "Publish safe snapshots, discover presets for your game and apply them with automatic backup."),
         CyberWidgets::TextTone::Secondary);
-    const char* scopes[] = { "Comunidade", "Marketplace", "As minhas", "Favoritos", "Histórico" };
+    const char* scopes[] = { "Comunidade", "Marketplace", "As minhas", "Favoritos", "HistÃ³rico" };
     const char* sorts[] = { "Populares", "Recentes", "Melhor avaliadas" };
     CyberWidgets::Combo("Origem", &scope, scopes, 5);
     ImGui::SameLine();
     CyberWidgets::Combo("Ordenar", &sort, sorts, 3);
-    CyberWidgets::InputField("##community_search", search, sizeof(search), "Pesquisar nome, autor ou código de partilha", 0, -1.f);
+    CyberWidgets::InputField("##community_search", search, sizeof(search), "Pesquisar nome, autor ou cÃ³digo de partilha", 0, -1.f);
     CyberWidgets::InputField("##community_style", styleFilter, sizeof(styleFilter), "Filtrar etiqueta/estilo", 0, -1.f);
-    CyberWidgets::ToggleSwitch("Apenas compatíveis com esta versão", &compatibleOnly);
+    CyberWidgets::ToggleSwitch("Apenas compatÃ­veis com esta versÃ£o", &compatibleOnly);
     if (CyberWidgets::GoldButton(app_settings::T("Atualizar", "Refresh"), ImVec2(130.f, 32.f))) {
         loaded = config_manager::RefreshCommunityConfigs(scopeValue, search, sortValue);
         CyberWidgets::Notify(config_manager::last_status.c_str(), loaded ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
     }
     ImGui::SameLine();
-    if (CyberWidgets::CyberButton(app_settings::T("Reverter última aplicação", "Revert last apply"), ImVec2(205.f, 32.f))) {
+    if (CyberWidgets::CyberButton(app_settings::T("Reverter Ãºltima aplicaÃ§Ã£o", "Revert last apply"), ImVec2(205.f, 32.f))) {
         const bool ok = config_manager::RevertCommunityConfig();
         CyberWidgets::Notify(config_manager::last_status.c_str(), ok ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
     }
@@ -287,18 +287,18 @@ void DrawCommunityConfigHub() {
             if (item.official) CyberWidgets::Badge("OFICIAL", CyberWidgets::TextTone::Accent);
             else if (item.verified) CyberWidgets::Badge("VERIFICADA", CyberWidgets::TextTone::Success);
             else CyberWidgets::Badge(item.status.c_str(), CyberWidgets::TextTone::Warning);
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%s · v%d · %d downloads · %.1f/5",
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%s Â· v%d Â· %d downloads Â· %.1f/5",
                 item.author.c_str(), item.version, item.downloads, item.rating);
             CyberWidgets::TextLineF(item.compatible ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning,
-                "Schema %d · Launcher mínimo %s · %s", item.schema_version, item.min_launcher_version.c_str(),
-                item.compatible ? "Compatível" : "Requer launcher mais recente");
+                "Schema %d Â· Launcher mÃ­nimo %s Â· %s", item.schema_version, item.min_launcher_version.c_str(),
+                item.compatible ? "CompatÃ­vel" : "Requer launcher mais recente");
             if (!item.description.empty()) CyberWidgets::TextLine(item.description.c_str(), CyberWidgets::TextTone::Secondary);
             if (!item.tags.empty()) {
                 std::string label;
-                for (const auto& tag : item.tags) { if (!label.empty()) label += " · "; label += tag; }
+                for (const auto& tag : item.tags) { if (!label.empty()) label += " Â· "; label += tag; }
                 CyberWidgets::TextLine(label.c_str(), CyberWidgets::TextTone::Accent);
             }
-            if (CyberWidgets::CyberButton("Pré-visualizar", ImVec2(130.f, 30.f))) {
+            if (CyberWidgets::CyberButton("PrÃ©-visualizar", ImVec2(130.f, 30.f))) {
                 const bool ok = config_manager::PreviewCommunityConfig(item.id);
                 CyberWidgets::Notify(config_manager::last_status.c_str(), ok ? CyberWidgets::ToastType::Info : CyberWidgets::ToastType::Error);
             }
@@ -321,14 +321,14 @@ void DrawCommunityConfigHub() {
             ImGui::SameLine();
             for (int star = 1; star <= 5; ++star) {
                 if (star > 1) ImGui::SameLine(0.f, 3.f);
-                const std::string label = (star <= item.my_rating ? "★##rate" : "☆##rate") + std::to_string(star);
+                const std::string label = (star <= item.my_rating ? "â˜…##rate" : "â˜†##rate") + std::to_string(star);
                 if (CyberWidgets::Button(label.c_str(), CyberWidgets::ButtonStyle::Ghost, ImVec2(30.f, 30.f))) {
                     const bool ok = config_manager::RateCommunityConfig(item.id, star);
                     if (ok) loaded = config_manager::RefreshCommunityConfigs(scopeValue, search, sortValue);
                 }
             }
             if (item.owned) {
-                if (CyberWidgets::CyberButton("Editar / nova versão", ImVec2(175.f, 30.f))) {
+                if (CyberWidgets::CyberButton("Editar / nova versÃ£o", ImVec2(175.f, 30.f))) {
                     editConfigId = item.id;
                     strncpy_s(title, item.title.c_str(), _TRUNCATE);
                     strncpy_s(description, item.description.c_str(), _TRUNCATE);
@@ -339,15 +339,15 @@ void DrawCommunityConfigHub() {
                     changelog[0] = 0;
                 }
                 ImGui::SameLine();
-                if (CyberWidgets::CyberButton("Copiar código", ImVec2(130.f, 30.f)))
-                    CyberWidgets::CopyToClipboard(item.id.c_str(), "Código de partilha copiado.");
-                if (CyberWidgets::DangerButton("Retirar publicação", ImVec2(170.f, 30.f))) {
+                if (CyberWidgets::CyberButton("Copiar cÃ³digo", ImVec2(130.f, 30.f)))
+                    CyberWidgets::CopyToClipboard(item.id.c_str(), "CÃ³digo de partilha copiado.");
+                if (CyberWidgets::DangerButton("Retirar publicaÃ§Ã£o", ImVec2(170.f, 30.f))) {
                     const bool ok = config_manager::WithdrawCommunityConfig(item.id);
                     if (ok) loaded = config_manager::RefreshCommunityConfigs(scopeValue, search, sortValue);
                     CyberWidgets::Notify(config_manager::last_status.c_str(), ok ? CyberWidgets::ToastType::Warning : CyberWidgets::ToastType::Error);
                 }
             } else {
-                CyberWidgets::InputField("##report_reason", reportReason, sizeof(reportReason), "Motivo da denúncia", 0, -1.f);
+                CyberWidgets::InputField("##report_reason", reportReason, sizeof(reportReason), "Motivo da denÃºncia", 0, -1.f);
                 if (CyberWidgets::DangerButton("Denunciar", ImVec2(120.f, 30.f))) {
                     const bool ok = config_manager::ReportCommunityConfig(item.id, reportReason);
                     CyberWidgets::Notify(config_manager::last_status.c_str(), ok ? CyberWidgets::ToastType::Info : CyberWidgets::ToastType::Error);
@@ -356,25 +356,25 @@ void DrawCommunityConfigHub() {
             CyberWidgets::EndCard();
             ImGui::PopID();
         }
-        if (configs.empty()) CyberWidgets::EmptyState("SEM CONFIGURAÇÕES", "Altera os filtros ou publica a primeira configuração deste jogo.");
+        if (configs.empty()) CyberWidgets::EmptyState("SEM CONFIGURAÃ‡Ã•ES", "Altera os filtros ou publica a primeira configuraÃ§Ã£o deste jogo.");
         CyberWidgets::EndSurfaceList();
     }
     CyberWidgets::EndCard();
 
-    CyberWidgets::BeginCard(app_settings::T("PUBLICAR CONFIGURAÇÃO", "PUBLISH CONFIG"));
-    CyberWidgets::TextLine("É publicado um snapshot imutável da configuração atualmente ativa.", CyberWidgets::TextTone::Secondary);
-    CyberWidgets::InputField("##community_title", title, sizeof(title), "Nome público", 0, -1.f);
+    CyberWidgets::BeginCard(app_settings::T("PUBLICAR CONFIGURAÃ‡ÃƒO", "PUBLISH CONFIG"));
+    CyberWidgets::TextLine("Ã‰ publicado um snapshot imutÃ¡vel da configuraÃ§Ã£o atualmente ativa.", CyberWidgets::TextTone::Secondary);
+    CyberWidgets::InputField("##community_title", title, sizeof(title), "Nome pÃºblico", 0, -1.f);
     ImGui::InputTextMultiline("##community_description", description, sizeof(description), ImVec2(-1.f, 72.f));
-    CyberWidgets::InputField("##community_tags", tags, sizeof(tags), "tags separadas por vírgulas", 0, -1.f);
-    CyberWidgets::InputField("##community_changelog", changelog, sizeof(changelog), "Alterações desta versão", 0, -1.f);
-    const char* visibilityItems[] = { "Privada", "Não listada", "Pública" };
+    CyberWidgets::InputField("##community_tags", tags, sizeof(tags), "tags separadas por vÃ­rgulas", 0, -1.f);
+    CyberWidgets::InputField("##community_changelog", changelog, sizeof(changelog), "AlteraÃ§Ãµes desta versÃ£o", 0, -1.f);
+    const char* visibilityItems[] = { "Privada", "NÃ£o listada", "PÃºblica" };
     CyberWidgets::Combo("Visibilidade", &visibility, visibilityItems, 3);
     if (!editConfigId.empty()) {
-        CyberWidgets::Badge("A EDITAR NOVA VERSÃO", CyberWidgets::TextTone::Warning);
+        CyberWidgets::Badge("A EDITAR NOVA VERSÃƒO", CyberWidgets::TextTone::Warning);
         ImGui::SameLine();
-        if (CyberWidgets::CyberButton("Cancelar edição", ImVec2(135.f, 30.f))) editConfigId.clear();
+        if (CyberWidgets::CyberButton("Cancelar ediÃ§Ã£o", ImVec2(135.f, 30.f))) editConfigId.clear();
     }
-    if (CyberWidgets::GoldButton(editConfigId.empty() ? "Publicar snapshot" : "Publicar nova versão", ImVec2(190.f, 34.f))) {
+    if (CyberWidgets::GoldButton(editConfigId.empty() ? "Publicar snapshot" : "Publicar nova versÃ£o", ImVec2(190.f, 34.f))) {
         const char* value = visibility == 0 ? "private" : visibility == 1 ? "unlisted" : "public";
         const bool ok = config_manager::PublishCommunityConfig(title, description, value, tags, changelog, editConfigId);
         CyberWidgets::Notify(config_manager::last_status.c_str(), ok ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
@@ -395,9 +395,9 @@ void DrawSaveConfigs()
     };
 
     CyberWidgets::BeginCard(app_settings::T("Perfis por jogo", "Game profiles"));
-    CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, app_settings::T("%s · perfil atual: %s", "%s · current profile: %s"),
+    CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, app_settings::T("%s Â· perfil atual: %s", "%s Â· current profile: %s"),
         ActiveGameName(), config_manager::CurrentGameProfileName());
-    CyberWidgets::TextLine(app_settings::T("Os perfis são apenas conjuntos de configuração; não indicam segurança nem deteção.",
+    CyberWidgets::TextLine(app_settings::T("Os perfis sÃ£o apenas conjuntos de configuraÃ§Ã£o; nÃ£o indicam seguranÃ§a nem deteÃ§Ã£o.",
                                           "Profiles are configuration sets; they do not indicate safety or detection."),
         CyberWidgets::TextTone::Secondary);
     CyberWidgets::CardGap(8.f);
@@ -408,9 +408,9 @@ void DrawSaveConfigs()
         CyberWidgets::Notify("Perfil predefinido aplicado", CyberWidgets::ToastType::Success);
     }
     ImGui::SameLine();
-    if (CyberWidgets::CyberButton(app_settings::T("Mínimo", "Minimal"), ImVec2(profileButtonWidth, 34))) {
+    if (CyberWidgets::CyberButton(app_settings::T("MÃ­nimo", "Minimal"), ImVec2(profileButtonWidth, 34))) {
         config_manager::ApplyGameProfile(config_manager::GameProfile::Minimal);
-        CyberWidgets::Notify("Perfil mínimo aplicado", CyberWidgets::ToastType::Info);
+        CyberWidgets::Notify("Perfil mÃ­nimo aplicado", CyberWidgets::ToastType::Info);
     }
     ImGui::SameLine();
     if (CyberWidgets::CyberButton("Visual", ImVec2(profileButtonWidth, 34))) {
@@ -500,12 +500,12 @@ void DrawSaveConfigs()
     ImGui::SameLine();
     if (CyberWidgets::CyberButton(app_settings::T("Repor jogo", "Reset game"), ImVec2(jsonButtonWidth, 32))) {
         config_manager::ResetActiveGameToDefaults();
-        CyberWidgets::Notify("Configuração do jogo reposta", CyberWidgets::ToastType::Warning);
+        CyberWidgets::Notify("ConfiguraÃ§Ã£o do jogo reposta", CyberWidgets::ToastType::Warning);
     }
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("CLOUD CONFIGS");
     CyberWidgets::TextLine(app_settings::T(
-        "Associadas à conta OmniGhost. O nome acima identifica o preset remoto.",
+        "Associadas Ã  conta OmniGhost. O nome acima identifica o preset remoto.",
         "Bound to the OmniGhost account. The name above identifies the remote preset."),
         CyberWidgets::TextTone::Secondary);
     const float cloudButtonWidth = rowButtonWidth(3);
@@ -531,8 +531,8 @@ void DrawSaveConfigs()
     DrawCommunityConfigHub();
 
     CyberWidgets::BeginCard(Loc::Tr("save.list"));
-    CyberWidgets::TextLine(app_settings::T("Duplo clique para marcar favorito — a estrela carrega ao iniciar",
-                                          "Double-click to favorite — the starred config loads at startup"),
+    CyberWidgets::TextLine(app_settings::T("Duplo clique para marcar favorito â€” a estrela carrega ao iniciar",
+                                          "Double-click to favorite â€” the starred config loads at startup"),
         CyberWidgets::TextTone::Secondary);
     CyberWidgets::BeginSurfaceList("##config_list", 240.0f);
     int moveFrom = -1, moveTo = -1;

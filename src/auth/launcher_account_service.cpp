@@ -218,7 +218,7 @@ public:
             return {0, {}, OGS_LIT("Pedido invÃ¡lido.")};
 
         auto session = OmniGhost::Platform::MakeWinHttpHandle(WinHttpOpen(
-            OGS_WIDE("OmniGhost-Launcher/2"), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+            OGS_WCSTR("OmniGhost-Launcher/2"), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
             WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0));
         if (!session) return {0, {}, OGS_LIT("NÃ£o foi possÃ­vel iniciar a ligaÃ§Ã£o segura.")};
         WinHttpSetTimeouts(session.get(), 10000, 10000, 15000, 15000);

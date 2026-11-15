@@ -342,7 +342,7 @@ bool Move(int x, int y) {
     x = std::clamp(x, -32767, 32767);
     y = std::clamp(y, -32767, 32767);
     char command[64]{};
-    std::snprintf(command, sizeof(command), OGS_LIT("km.move(%d,%d)\r\n"), x, y);
+    std::snprintf(command, sizeof(command), OGS_CSTR("km.move(%d,%d)\r\n"), x, y);
     return WriteCommand(command);
 }
 

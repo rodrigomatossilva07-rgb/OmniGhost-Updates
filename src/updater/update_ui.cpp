@@ -1,4 +1,4 @@
-#include "update_ui.h"
+﻿#include "update_ui.h"
 #include "update_service.h"
 #include "../app_version.h"
 #include "../platform/app_paths.h"
@@ -22,47 +22,47 @@ namespace OmniGhost::UpdateUI {
 namespace {
 
 std::string StageLabel(const std::string& stage) {
-    if (stage == OGS_LIT("release-resolution")) return OGS_LIT("Resolução da versão");
-    if (stage == OGS_LIT("check")) return OGS_LIT("Rede / transferência do manifesto");
-    if (stage == OGS_LIT("manifest")) return OGS_LIT("Validação do manifesto");
-    if (stage == OGS_LIT("integrity")) return OGS_LIT("Integridade da instalação");
-    if (stage == OGS_LIT("repair")) return OGS_LIT("Preparação da reparação");
-    if (stage == OGS_LIT("version")) return OGS_LIT("Comparação de versões");
-    if (stage == OGS_LIT("download")) return OGS_LIT("Transferência do pacote");
-    if (stage == OGS_LIT("sha256")) return OGS_LIT("Validação SHA-256");
-    if (stage == OGS_LIT("prepare")) return OGS_LIT("Preparação do pacote");
-    if (stage == OGS_LIT("launch-updater")) return OGS_LIT("Arranque do atualizador");
-    if (stage == OGS_LIT("installation")) return OGS_LIT("Instalação");
-    if (stage == OGS_LIT("restart")) return OGS_LIT("Reinício / confirmação de arranque");
-    return OGS_LIT("Etapa desconhecida");
+    if (stage == OGS_CSTR("release-resolution")) return OGS_CSTR("ResoluÃ§Ã£o da versÃ£o");
+    if (stage == OGS_CSTR("check")) return OGS_CSTR("Rede / transferÃªncia do manifesto");
+    if (stage == OGS_CSTR("manifest")) return OGS_CSTR("ValidaÃ§Ã£o do manifesto");
+    if (stage == OGS_CSTR("integrity")) return OGS_CSTR("Integridade da instalaÃ§Ã£o");
+    if (stage == OGS_CSTR("repair")) return OGS_CSTR("PreparaÃ§Ã£o da reparaÃ§Ã£o");
+    if (stage == OGS_CSTR("version")) return OGS_CSTR("ComparaÃ§Ã£o de versÃµes");
+    if (stage == OGS_CSTR("download")) return OGS_CSTR("TransferÃªncia do pacote");
+    if (stage == OGS_CSTR("sha256")) return OGS_CSTR("ValidaÃ§Ã£o SHA-256");
+    if (stage == OGS_CSTR("prepare")) return OGS_CSTR("PreparaÃ§Ã£o do pacote");
+    if (stage == OGS_CSTR("launch-updater")) return OGS_CSTR("Arranque do atualizador");
+    if (stage == OGS_CSTR("installation")) return OGS_CSTR("InstalaÃ§Ã£o");
+    if (stage == OGS_CSTR("restart")) return OGS_CSTR("ReinÃ­cio / confirmaÃ§Ã£o de arranque");
+    return OGS_CSTR("Etapa desconhecida");
 }
 
 std::string ClipboardDiagnostic(const Update::Snapshot& state) {
     std::ostringstream output;
-    output << OGS_LIT("Erro do atualizador OmniGhost\r\n")
-           << OGS_LIT("Versão instalada: ") << UiFormat::Version(OmniGhost::Version) << "\r\n"
-           << OGS_LIT("Versão disponível: ")
-           << (state.availableVersion.empty() ? "—" : UiFormat::Version(state.availableVersion)) << "\r\n"
-           << OGS_LIT("Etapa: ") << (state.errorStage.empty() ? OGS_LIT("desconhecida") : state.errorStage) << "\r\n"
-           << OGS_LIT("Mensagem: ") << state.userMessage << "\r\n"
-           << OGS_LIT("Detalhe técnico: ") << state.technicalDetail << "\r\n"
-           << OGS_LIT("Pasta dos registos: ") << OmniGhost::Paths::Logs().string();
+    output << OGS_CSTR("Erro do atualizador OmniGhost\r\n")
+           << OGS_CSTR("VersÃ£o instalada: ") << UiFormat::Version(OmniGhost::Version) << "\r\n"
+           << OGS_CSTR("VersÃ£o disponÃ­vel: ")
+           << (state.availableVersion.empty() ? "â€”" : UiFormat::Version(state.availableVersion)) << "\r\n"
+           << OGS_CSTR("Etapa: ") << (state.errorStage.empty() ? OGS_CSTR("desconhecida") : state.errorStage) << "\r\n"
+           << OGS_CSTR("Mensagem: ") << state.userMessage << "\r\n"
+           << OGS_CSTR("Detalhe tÃ©cnico: ") << state.technicalDetail << "\r\n"
+           << OGS_CSTR("Pasta dos registos: ") << OmniGhost::Paths::Logs().string();
     return output.str();
 }
 
 std::string TitleFor(const Update::Snapshot& state) {
     using Update::Status;
     switch (state.status) {
-    case Status::Checking: return OGS_LIT("A verificar atualizações");
-    case Status::UpToDate: return OGS_LIT("O launcher está atualizado");
-    case Status::Available: return state.mandatory ? OGS_LIT("Atualização necessária") : OGS_LIT("Atualização disponível");
-    case Status::Downloading: return OGS_LIT("A descarregar atualização");
-    case Status::Ready: return OGS_LIT("Atualização pronta");
-    case Status::Installing: return state.repairMode ? OGS_LIT("A reparar instalação") : OGS_LIT("A instalar atualização");
-    case Status::Completed: return OGS_LIT("Atualização concluída");
-    case Status::RolledBack: return OGS_LIT("Versão anterior restaurada");
-    case Status::Error: return state.errorTitle.empty() ? OGS_LIT("Não foi possível concluir a atualização") : state.errorTitle.c_str();
-    default: return OGS_LIT("Atualizações");
+    case Status::Checking: return OGS_CSTR("A verificar atualizaÃ§Ãµes");
+    case Status::UpToDate: return OGS_CSTR("O launcher estÃ¡ atualizado");
+    case Status::Available: return state.mandatory ? OGS_CSTR("AtualizaÃ§Ã£o necessÃ¡ria") : OGS_CSTR("AtualizaÃ§Ã£o disponÃ­vel");
+    case Status::Downloading: return OGS_CSTR("A descarregar atualizaÃ§Ã£o");
+    case Status::Ready: return OGS_CSTR("AtualizaÃ§Ã£o pronta");
+    case Status::Installing: return state.repairMode ? OGS_CSTR("A reparar instalaÃ§Ã£o") : OGS_CSTR("A instalar atualizaÃ§Ã£o");
+    case Status::Completed: return OGS_CSTR("AtualizaÃ§Ã£o concluÃ­da");
+    case Status::RolledBack: return OGS_CSTR("VersÃ£o anterior restaurada");
+    case Status::Error: return state.errorTitle.empty() ? OGS_CSTR("NÃ£o foi possÃ­vel concluir a atualizaÃ§Ã£o") : state.errorTitle.c_str();
+    default: return OGS_CSTR("AtualizaÃ§Ãµes");
     }
 }
 
@@ -87,12 +87,12 @@ void DrawVersionLine(const Update::Snapshot& state) {
     const std::string installed = UiFormat::Version(OmniGhost::Version);
     if (state.availableVersion.empty()) {
         CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-            OGS_LIT("Versão instalada: %s"), installed.c_str());
+            OGS_CSTR("VersÃ£o instalada: %s"), installed.c_str());
         return;
     }
     const std::string available = UiFormat::Version(state.availableVersion);
     CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-        "%s  →  %s", installed.c_str(), available.c_str());
+        "%s  â†’  %s", installed.c_str(), available.c_str());
 }
 
 }
@@ -159,9 +159,9 @@ void Draw() {
     CyberWidgets::TextLine(title.c_str(), CyberWidgets::TextTone::Accent);
 
     if (state.status == Status::Checking) {
-        CyberWidgets::Spinner(OGS_LIT("update_check_spinner"), CyberTheme::Px(7.0f), CyberTheme::Px(1.8f));
+        CyberWidgets::Spinner(OGS_CSTR("update_check_spinner"), CyberTheme::Px(7.0f), CyberTheme::Px(1.8f));
         ImGui::SameLine(0.0f, CyberTheme::Spacing::Sm);
-        ImGui::TextColored(CyberTheme::Colors.TextDisabled, "%s", OGS_CSTR("A procurar uma versão mais recente…"));
+        ImGui::TextColored(CyberTheme::Colors.TextDisabled, "%s", OGS_CSTR("A procurar uma versÃ£o mais recenteâ€¦"));
     } else {
         DrawVersionLine(state);
         if (!state.userMessage.empty())
@@ -175,7 +175,7 @@ void Draw() {
                 ImGuiWindowFlags_AlwaysVerticalScrollbar);
             ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
             ImGui::TextColored(CyberTheme::Colors.TextDisabled, "%s",
-                state.technicalDetail.empty() ? OGS_CSTR("Nenhum detalhe técnico disponível.") : state.technicalDetail.c_str());
+                state.technicalDetail.empty() ? OGS_CSTR("Nenhum detalhe tÃ©cnico disponÃ­vel.") : state.technicalDetail.c_str());
             ImGui::PopTextWrapPos();
             ImGui::EndChild();
             ImGui::Dummy(ImVec2(0.0f, CyberTheme::Spacing::Xs));
@@ -189,57 +189,57 @@ void Draw() {
             fraction = std::clamp(fraction, 0.0f, 1.0f);
         }
         char overlay[96]{};
-        std::snprintf(overlay, sizeof(overlay), "%.1f / %.1f MB · %.1f MB/s",
+        std::snprintf(overlay, sizeof(overlay), "%.1f / %.1f MB Â· %.1f MB/s",
             static_cast<double>(state.bytesReceived) / 1048576.0,
             static_cast<double>(state.bytesTotal) / 1048576.0,
             state.bytesPerSecond / 1048576.0);
         ImGui::ProgressBar(fraction, ImVec2(-1.0f, CyberTheme::Px(16.0f)), overlay);
-        if (CyberWidgets::Button(OGS_LIT("Cancelar"), CyberWidgets::ButtonStyle::Secondary,
+        if (CyberWidgets::Button(OGS_CSTR("Cancelar"), CyberWidgets::ButtonStyle::Secondary,
                 ImVec2(CyberTheme::Px(120.0f), CyberTheme::Px(34.0f))))
             service.Cancel();
     } else if (state.status == Status::Available) {
         if (state.bytesTotal > 0)
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, OGS_LIT("Pacote: %.1f MB"),
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, OGS_CSTR("Pacote: %.1f MB"),
                 static_cast<double>(state.bytesTotal) / 1048576.0);
-        if (CyberWidgets::Button(state.mandatory ? OGS_LIT("Instalar atualização") : OGS_LIT("Instalar agora"),
+        if (CyberWidgets::Button(state.mandatory ? OGS_CSTR("Instalar atualizaÃ§Ã£o") : OGS_CSTR("Instalar agora"),
                 CyberWidgets::ButtonStyle::Primary, ImVec2(CyberTheme::Px(180.0f), CyberTheme::Px(34.0f))))
             service.InstallUpdateAsync();
         if (!state.mandatory) {
             ImGui::SameLine();
-            if (CyberWidgets::Button(OGS_LIT("Instalar ao sair"), CyberWidgets::ButtonStyle::Secondary,
+            if (CyberWidgets::Button(OGS_CSTR("Instalar ao sair"), CyberWidgets::ButtonStyle::Secondary,
                     ImVec2(CyberTheme::Px(142.0f), CyberTheme::Px(34.0f))))
                 service.DownloadAndScheduleInstallOnExitAsync();
-            if (CyberWidgets::Button(OGS_LIT("Mais tarde"), CyberWidgets::ButtonStyle::Ghost,
+            if (CyberWidgets::Button(OGS_CSTR("Mais tarde"), CyberWidgets::ButtonStyle::Ghost,
                     ImVec2(CyberTheme::Px(110.0f), CyberTheme::Px(32.0f))))
                 service.DeferForSession();
             if (!state.releaseNotesUrl.empty()) {
                 ImGui::SameLine();
-                if (CyberWidgets::Button(OGS_LIT("Notas"), CyberWidgets::ButtonStyle::Ghost,
+                if (CyberWidgets::Button(OGS_CSTR("Notas"), CyberWidgets::ButtonStyle::Ghost,
                         ImVec2(CyberTheme::Px(90.0f), CyberTheme::Px(32.0f))))
                     ShellExecuteA(nullptr, OGS_CSTR("open"), state.releaseNotesUrl.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
             }
         }
     } else if (state.status == Status::Ready) {
         if (state.bytesTotal > 0)
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Success, OGS_LIT("Pacote validado: %.1f MB"),
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Success, OGS_CSTR("Pacote validado: %.1f MB"),
                 static_cast<double>(state.bytesTotal) / 1048576.0);
-        if (CyberWidgets::Button(state.repairMode ? OGS_LIT("Reparar e reiniciar") : OGS_LIT("Instalar agora"),
+        if (CyberWidgets::Button(state.repairMode ? OGS_CSTR("Reparar e reiniciar") : OGS_CSTR("Instalar agora"),
                 CyberWidgets::ButtonStyle::Primary, ImVec2(CyberTheme::Px(170.0f), CyberTheme::Px(34.0f))))
             service.InstallPreparedUpdateAsync();
         if (!state.mandatory) {
             ImGui::SameLine();
-            if (CyberWidgets::Button(state.installOnExit ? OGS_LIT("Instalar ao sair ✓") : OGS_LIT("Instalar ao sair"),
+            if (CyberWidgets::Button(state.installOnExit ? OGS_CSTR("Instalar ao sair âœ“") : OGS_CSTR("Instalar ao sair"),
                     CyberWidgets::ButtonStyle::Secondary, ImVec2(CyberTheme::Px(150.0f), CyberTheme::Px(34.0f))))
                 service.ScheduleInstallOnExit();
-            if (CyberWidgets::Button(OGS_LIT("Mais tarde"), CyberWidgets::ButtonStyle::Ghost,
+            if (CyberWidgets::Button(OGS_CSTR("Mais tarde"), CyberWidgets::ButtonStyle::Ghost,
                     ImVec2(CyberTheme::Px(110.0f), CyberTheme::Px(32.0f))))
                 service.DeferForSession();
         }
     } else if (state.status == Status::Installing) {
         const float elapsed = static_cast<float>(ImGui::GetTime());
         OmniGhost::UI::DrawTransitionOverlay({
-            state.repairMode ? OGS_LIT("A reparar o OmniGhost") : OGS_LIT("A instalar atualização"),
-            OGS_LIT("A aplicação reiniciará automaticamente quando estiver pronta"),
+            state.repairMode ? OGS_CSTR("A reparar o OmniGhost") : OGS_CSTR("A instalar atualizaÃ§Ã£o"),
+            OGS_CSTR("A aplicaÃ§Ã£o reiniciarÃ¡ automaticamente quando estiver pronta"),
             elapsed,
             1.0f,
             false
@@ -248,60 +248,60 @@ void Draw() {
         if (!state.updateFromVersion.empty()) {
             const std::string from = UiFormat::Version(state.updateFromVersion);
             const std::string to = UiFormat::Version(OmniGhost::Version);
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Success, "%s → %s", from.c_str(), to.c_str());
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Success, "%s â†’ %s", from.c_str(), to.c_str());
         }
         if (!state.releaseNotesForCompletedUpdate.empty()) {
-            if (CyberWidgets::Button(OGS_LIT("O que há de novo"), CyberWidgets::ButtonStyle::Secondary,
+            if (CyberWidgets::Button(OGS_CSTR("O que hÃ¡ de novo"), CyberWidgets::ButtonStyle::Secondary,
                     ImVec2(CyberTheme::Px(150.0f), CyberTheme::Px(34.0f))))
                 ShellExecuteA(nullptr, OGS_CSTR("open"), state.releaseNotesForCompletedUpdate.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
             ImGui::SameLine();
         }
-        if (CyberWidgets::Button(OGS_LIT("Concluir"), CyberWidgets::ButtonStyle::Primary,
+        if (CyberWidgets::Button(OGS_CSTR("Concluir"), CyberWidgets::ButtonStyle::Primary,
                 ImVec2(CyberTheme::Px(110.0f), CyberTheme::Px(34.0f))))
             service.DismissStartupNotice();
     } else if (state.status == Status::RolledBack) {
         if (!state.availableVersion.empty()) {
             const std::string failed = UiFormat::Version(state.availableVersion);
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Warning, OGS_LIT("Falhou: %s"), failed.c_str());
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Warning, OGS_CSTR("Falhou: %s"), failed.c_str());
         }
         if (!state.errorStage.empty())
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, OGS_LIT("Etapa: %s"), StageLabel(state.errorStage));
-        if (CyberWidgets::Button(OGS_LIT("Tentar novamente"), CyberWidgets::ButtonStyle::Primary,
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, OGS_CSTR("Etapa: %s"), StageLabel(state.errorStage));
+        if (CyberWidgets::Button(OGS_CSTR("Tentar novamente"), CyberWidgets::ButtonStyle::Primary,
                 ImVec2(CyberTheme::Px(150.0f), CyberTheme::Px(34.0f)))) {
             service.DismissStartupNotice();
             service.CheckAsync(true);
         }
         ImGui::SameLine();
-        if (CyberWidgets::Button(OGS_LIT("Abrir logs"), CyberWidgets::ButtonStyle::Secondary,
+        if (CyberWidgets::Button(OGS_CSTR("Abrir logs"), CyberWidgets::ButtonStyle::Secondary,
                 ImVec2(CyberTheme::Px(110.0f), CyberTheme::Px(34.0f))))
             OpenLogs();
         ImGui::SameLine();
-        if (CyberWidgets::Button(OGS_LIT("Ignorar"), CyberWidgets::ButtonStyle::Ghost,
+        if (CyberWidgets::Button(OGS_CSTR("Ignorar"), CyberWidgets::ButtonStyle::Ghost,
                 ImVec2(CyberTheme::Px(90.0f), CyberTheme::Px(34.0f))))
             service.DismissStartupNotice();
     } else if (state.status == Status::Error) {
-        if (CyberWidgets::Button(OGS_LIT("Tentar novamente"), CyberWidgets::ButtonStyle::Primary,
+        if (CyberWidgets::Button(OGS_CSTR("Tentar novamente"), CyberWidgets::ButtonStyle::Primary,
                 ImVec2(CyberTheme::Px(150.0f), CyberTheme::Px(34.0f))))
             service.RetryLastFailure();
         if (!state.mandatory) {
             ImGui::SameLine();
-            if (CyberWidgets::Button(OGS_LIT("Fechar"), CyberWidgets::ButtonStyle::Ghost,
+            if (CyberWidgets::Button(OGS_CSTR("Fechar"), CyberWidgets::ButtonStyle::Ghost,
                     ImVec2(CyberTheme::Px(90.0f), CyberTheme::Px(34.0f))))
                 service.DeferForSession();
         }
         ImGui::SameLine();
-        if (CyberWidgets::Button(technicalDetailsExpanded ? OGS_LIT("Ocultar detalhes") : OGS_LIT("Detalhes"),
+        if (CyberWidgets::Button(technicalDetailsExpanded ? OGS_CSTR("Ocultar detalhes") : OGS_CSTR("Detalhes"),
                 CyberWidgets::ButtonStyle::Secondary, ImVec2(CyberTheme::Px(120.0f), CyberTheme::Px(34.0f))))
             technicalDetailsExpanded = !technicalDetailsExpanded;
 
         if (technicalDetailsExpanded) {
-            if (CyberWidgets::Button(OGS_LIT("Copiar erro"), CyberWidgets::ButtonStyle::Ghost,
+            if (CyberWidgets::Button(OGS_CSTR("Copiar erro"), CyberWidgets::ButtonStyle::Ghost,
                     ImVec2(CyberTheme::Px(115.0f), CyberTheme::Px(32.0f)))) {
                 const std::string diagnostic = ClipboardDiagnostic(state);
-                CyberWidgets::CopyToClipboard(diagnostic.c_str(), OGS_LIT("Erro copiado"));
+                CyberWidgets::CopyToClipboard(diagnostic.c_str(), OGS_CSTR("Erro copiado"));
             }
             ImGui::SameLine();
-            if (CyberWidgets::Button(OGS_LIT("Abrir logs"), CyberWidgets::ButtonStyle::Ghost,
+            if (CyberWidgets::Button(OGS_CSTR("Abrir logs"), CyberWidgets::ButtonStyle::Ghost,
                     ImVec2(CyberTheme::Px(105.0f), CyberTheme::Px(32.0f))))
                 OpenLogs();
         }

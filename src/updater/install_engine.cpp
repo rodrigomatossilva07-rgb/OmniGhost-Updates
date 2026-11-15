@@ -170,7 +170,7 @@ bool RestrictPathToCurrentUser(const fs::path& path, bool directory, std::string
     const std::wstring sid(rawSid);
     LocalFree(rawSid);
 
-    const wchar_t* inherit = directory ? OGS_WIDE("OICI") : L"";
+    const wchar_t* inherit = directory ? OGS_WCSTR("OICI") : L"";
     const std::wstring sddl =
         L"D:P(A;" + std::wstring(inherit) + L";FA;;;SY)" +
         L"(A;" + std::wstring(inherit) + L";FA;;;BA)" +
@@ -357,7 +357,7 @@ InstallResult InstallSingleExecutable(const InstallOptions& options) {
 	}
 	const std::uint64_t required = TreeSize(options.staging) + 64ull * 1024ull * 1024ull;
     if (!HasEnoughDiskSpace(options.target, required, result.error)) return result;
-	if (failInjected(OGS_LIT("replace")) || failInjected(OGS_LIT("copy"))) {
+	if (failInjected(OGS_CSTR("replace")) || failInjected(OGS_CSTR("copy"))) {
 		result.error = OGS_LIT("Falha simulada ao substituir o executável.");
 		return result;
 	}

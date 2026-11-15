@@ -274,7 +274,7 @@ namespace OmniGhost::Update {
 
             handles.session.reset(
                 InternetOpenW(
-                    OGS_WIDE("OmniGhost-Updater/1.2"),
+                    OGS_WCSTR("OmniGhost-Updater/1.2"),
                     direct
                     ? INTERNET_OPEN_TYPE_DIRECT
                     : INTERNET_OPEN_TYPE_PRECONFIG,
@@ -286,7 +286,7 @@ namespace OmniGhost::Update {
                 const DWORD code = GetLastError();
 
                 error = BuildInternetFailure(
-                    OGS_LIT("InternetOpen"),
+                    OGS_CSTR("InternetOpen"),
                     code,
                     url,
                     direct);
@@ -334,7 +334,7 @@ namespace OmniGhost::Update {
                 const DWORD code = GetLastError();
 
                 error = BuildInternetFailure(
-                    OGS_LIT("InternetOpenUrl"),
+                    OGS_CSTR("InternetOpenUrl"),
                     code,
                     url,
                     direct);
@@ -436,7 +436,7 @@ namespace OmniGhost::Update {
                 const DWORD code = GetLastError();
 
                 error = BuildInternetFailure(
-                    OGS_LIT("HttpQueryInfo(status)"),
+                    OGS_CSTR("HttpQueryInfo(status)"),
                     code,
                     {},
                     direct);
@@ -582,7 +582,7 @@ namespace OmniGhost::Update {
         if (!OpenRequestWithFallback(
             url,
             timeoutMilliseconds,
-            OGS_WIDE("application/json, text/plain;q=0.9, application/octet-stream;q=0.8, */*;q=0.1"),
+            OGS_WCSTR("application/json, text/plain;q=0.9, application/octet-stream;q=0.8, */*;q=0.1"),
             handles,
             result.error)) {
             return result;
@@ -652,7 +652,7 @@ namespace OmniGhost::Update {
 
                 result.error =
                     BuildInternetFailure(
-                        OGS_LIT("InternetReadFile"),
+                        OGS_CSTR("InternetReadFile"),
                         code,
                         finalUrl.empty()
                         ? url
@@ -713,7 +713,7 @@ namespace OmniGhost::Update {
         if (!OpenRequestWithFallback(
             url,
             timeoutMilliseconds,
-            OGS_WIDE("application/octet-stream, application/zip, */*;q=0.1"),
+            OGS_WCSTR("application/octet-stream, application/zip, */*;q=0.1"),
             handles,
             result.error)) {
             return result;
@@ -836,7 +836,7 @@ namespace OmniGhost::Update {
 
                 result.error =
                     BuildInternetFailure(
-                        OGS_LIT("InternetReadFile"),
+                        OGS_CSTR("InternetReadFile"),
                         code,
                         finalUrl.empty()
                         ? url

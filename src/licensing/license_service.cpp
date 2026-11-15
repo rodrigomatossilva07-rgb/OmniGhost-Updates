@@ -111,7 +111,7 @@ OmniGhost::Auth::LicenseGateway& RemoteGateway() {
         } catch (const std::exception& ex) {
             LogLicenseFailure(ex.what());
         } catch (...) {
-            LogLicenseFailure(OGS_LIT("unknown exception"));
+            LogLicenseFailure(OGS_CSTR("unknown exception"));
         }
         if (!gateway) {
 
@@ -125,15 +125,15 @@ OmniGhost::Auth::LicenseGateway& RemoteGateway() {
             } catch (const std::exception& ex) {
                 LogLicenseFailure(ex.what());
             } catch (...) {
-                LogLicenseFailure(OGS_LIT("unknown exception building fallback gateway"));
+                LogLicenseFailure(OGS_CSTR("unknown exception building fallback gateway"));
             }
         }
         if (!gateway) {
 
 
 
-            LogLicenseFailure(OGS_LIT("gateway unavailable; licensing will report NotConfigured"));
-            throw std::runtime_error(OGS_LIT("Licensing gateway unavailable"));
+            LogLicenseFailure(OGS_CSTR("gateway unavailable; licensing will report NotConfigured"));
+            throw std::runtime_error(OGS_CSTR("Licensing gateway unavailable"));
         }
     });
     return *gateway;
@@ -275,7 +275,7 @@ bool ProtectForCurrentUser(std::string_view plaintext, std::vector<unsigned char
     input.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(plaintext.data()));
     input.cbData = static_cast<DWORD>(plaintext.size());
     DATA_BLOB encrypted{};
-    if (!CryptProtectData(&input, OGS_WIDE("OmniGhost remembered account"), nullptr, nullptr, nullptr,
+    if (!CryptProtectData(&input, OGS_WCSTR("OmniGhost remembered account"), nullptr, nullptr, nullptr,
                           CRYPTPROTECT_UI_FORBIDDEN, &encrypted)) return false;
     auto cleanup = OmniGhost::Platform::MakeScopeExit([&] { if (encrypted.pbData) LocalFree(encrypted.pbData); });
     output.assign(std::begin(kProtectedMagic), std::end(kProtectedMagic));
@@ -436,7 +436,7 @@ void LogoutRemote() noexcept {
         } catch (const std::exception& exception) {
             LogRemoteLogoutFailure(exception.what());
         } catch (...) {
-            LogRemoteLogoutFailure(OGS_LIT("unknown exception"));
+            LogRemoteLogoutFailure(OGS_CSTR("unknown exception"));
         }
     }
     ClearRememberedRemoteCredentials();

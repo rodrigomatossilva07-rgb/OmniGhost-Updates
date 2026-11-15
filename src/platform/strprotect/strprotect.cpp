@@ -147,13 +147,13 @@ bool TestLiteralRoundtrip() noexcept
             return false;
     }
 
-    const char* lit = OGS_LIT("Lazy decryption stays cached and stable");
+    const char* lit = OGS_CSTR("Lazy decryption stays cached and stable");
     if (std::string_view(lit) != "Lazy decryption stays cached and stable")
         return false;
     if (lit != OGS_LIT("Lazy decryption stays cached and stable"))
         return false;
 
-    const auto& wide = ogs::ToWide(OGS_LIT("Acentuação: ção, ünïcøde").view());
+    const auto& wide = ogs::ToWide(std::string_view{OGS_CSTR("Acentuação: ção, ünïcøde")});
     if (wide.empty())
         return false;
     return true;
@@ -200,7 +200,7 @@ bool TestLocPack() noexcept
 
 bool TestWideLit() noexcept
 {
-    const wchar_t* wide = OGS_WIDE("Wide UTF-16: ção ✓");
+    const wchar_t* wide = OGS_WCSTR("Wide UTF-16: ção ✓");
     if (std::wstring_view(wide) != ogs::ToWide("Wide UTF-16: ção ✓"))
         return false;
     if (wide != OGS_WIDE("Wide UTF-16: ção ✓"))
@@ -213,7 +213,7 @@ bool TestWideLit() noexcept
 
 bool TestConcurrency() noexcept
 {
-    const char* lit = OGS_LIT("Concurrent first-touch must stay consistent");
+    const char* lit = OGS_CSTR("Concurrent first-touch must stay consistent");
     constexpr std::string_view expected{"Concurrent first-touch must stay consistent"};
     std::atomic<int> failures{0};
     std::atomic<int> ready{0};

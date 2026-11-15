@@ -57,7 +57,7 @@ bool Protect(const std::vector<std::uint8_t>& plaintext, std::vector<std::uint8_
     input.pbData = const_cast<BYTE*>(plaintext.data());
     input.cbData = static_cast<DWORD>(plaintext.size());
     DATA_BLOB encrypted{};
-    if (!CryptProtectData(&input, OGS_WIDE("OmniGhost local account"), nullptr, nullptr, nullptr,
+    if (!CryptProtectData(&input, OGS_WCSTR("OmniGhost local account"), nullptr, nullptr, nullptr,
                           CRYPTPROTECT_UI_FORBIDDEN, &encrypted))
         return false;
     auto cleanup = OmniGhost::Platform::MakeScopeExit([&] {

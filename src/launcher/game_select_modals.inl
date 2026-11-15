@@ -1,4 +1,4 @@
-
+﻿
 
 
 void DrawLauncherModals(ImDrawList* draw, ImVec2 display) {
@@ -13,8 +13,8 @@ void DrawLauncherModals(ImDrawList* draw, ImVec2 display) {
             game ? game->name : "este jogo");
         CyberWidgets::OpenModal("##launcher_reset_game");
         const auto result = CyberWidgets::ConfirmModal(
-            "##launcher_reset_game", "Repor configuração do jogo", detail,
-            "Repor configuração", "Cancelar", CyberWidgets::ButtonStyle::Destructive, S(500.f));
+            "##launcher_reset_game", "Repor configuraÃ§Ã£o do jogo", detail,
+            "Repor configuraÃ§Ã£o", "Cancelar", CyberWidgets::ButtonStyle::Destructive, S(500.f));
         if (result == CyberWidgets::ModalResult::Cancelled) {
             g_reset_settings_game = GameId::None;
         } else if (result == CyberWidgets::ModalResult::Confirmed) {
@@ -34,25 +34,25 @@ void DrawLauncherModals(ImDrawList* draw, ImVec2 display) {
         }
         const GameHistory history = GetGameHistory(g_history_game);
         CyberWidgets::OpenModal("##launcher_session_history");
-        if (!CyberWidgets::BeginModal("##launcher_session_history", "Histórico de sessões", S(500.f)))
+        if (!CyberWidgets::BeginModal("##launcher_session_history", "HistÃ³rico de sessÃµes", S(500.f)))
             return;
         CyberWidgets::TextLine(game->name, CyberWidgets::TextTone::Primary);
         const std::string total = FormatActiveDuration(history.totalActiveSeconds);
         const std::string last = FormatActiveDuration(history.lastSessionSeconds);
-        CyberWidgets::KeyValueRow("Sessões com menu ativo", std::to_string(history.sessionCount).c_str());
+        CyberWidgets::KeyValueRow("SessÃµes com menu ativo", std::to_string(history.sessionCount).c_str());
         CyberWidgets::KeyValueRow("Tempo total", total.c_str());
         if (history.sessionCount)
-            CyberWidgets::KeyValueRow("Última sessão", last.c_str());
+            CyberWidgets::KeyValueRow("Ãšltima sessÃ£o", last.c_str());
         ImGui::Separator();
         if (history.recentSessions.empty()) {
-            CyberWidgets::TextLine("As próximas sessões concluídas aparecerão aqui.",
+            CyberWidgets::TextLine("As prÃ³ximas sessÃµes concluÃ­das aparecerÃ£o aqui.",
                 CyberWidgets::TextTone::Secondary);
         } else {
             for (const auto& session : history.recentSessions) {
                 const std::string when = FormatLastUsed(session.endedUnix);
                 const std::string duration = FormatActiveDuration(session.activeSeconds);
                 CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-                    "%s · %s · %s", when.c_str(), duration.c_str(),
+                    "%s Â· %s Â· %s", when.c_str(), duration.c_str(),
                     SessionResultDisplay(session.result));
             }
         }
@@ -158,11 +158,11 @@ void DrawNews(ImDrawList* draw, ImVec2 display) {
     const float left = S(32.f);
     const float top = S(82.f);
     if (title) ImGui::PushFont(title);
-    draw->AddText(ImVec2(left, top), C_TEXT(), "Notícias");
+    draw->AddText(ImVec2(left, top), C_TEXT(), "NotÃ­cias");
     if (title) ImGui::PopFont();
     if (body) ImGui::PushFont(body);
     draw->AddText(ImVec2(left, top + S(34.f)), C_MUTED(),
-        "Anúncios, eventos e comunicação da OmniGhost.");
+        "AnÃºncios, eventos e comunicaÃ§Ã£o da OmniGhost.");
     const ImVec2 panel_min(left, top + S(82.f));
     const ImVec2 panel_max(display.x - left, display.y - S(76.f));
     draw->AddRectFilled(ImVec2(panel_min.x, panel_min.y + CyberTheme::Shadow::SoftOffsetY),
@@ -170,8 +170,8 @@ void DrawNews(ImDrawList* draw, ImVec2 display) {
         CyberTheme::SafeShadowU32(CyberTheme::Shadow::SoftAlpha), CyberTheme::Radius::Md);
     draw->AddRectFilled(panel_min, panel_max, C_CARD(244), CyberTheme::Radius::Md);
     draw->AddRect(panel_min, panel_max, CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.46f), CyberTheme::Radius::Md);
-    const char* heading = "Ainda não existem notícias";
-    const char* detail = "Os anúncios e novidades gerais serão apresentados aqui.";
+    const char* heading = "Ainda nÃ£o existem notÃ­cias";
+    const char* detail = "Os anÃºncios e novidades gerais serÃ£o apresentados aqui.";
     const ImVec2 heading_size = ImGui::CalcTextSize(heading);
     const ImVec2 detail_size = ImGui::CalcTextSize(detail);
     const float center = (panel_min.y + panel_max.y) * .5f;

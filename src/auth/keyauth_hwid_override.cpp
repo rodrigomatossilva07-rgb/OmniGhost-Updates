@@ -26,7 +26,7 @@ bool ReadMachineGuid(std::wstring& out) {
     wchar_t buffer[256]{};
     DWORD size = sizeof(buffer);
     const LSTATUS status = RegGetValueW(HKEY_LOCAL_MACHINE,
-        OGS_WIDE("SOFTWARE\\Microsoft\\Cryptography"), OGS_WIDE("MachineGuid"),
+        OGS_WCSTR("SOFTWARE\\Microsoft\\Cryptography"), OGS_WCSTR("MachineGuid"),
         RRF_RT_REG_SZ, nullptr, buffer, &size);
     if (status != ERROR_SUCCESS)
         return false;

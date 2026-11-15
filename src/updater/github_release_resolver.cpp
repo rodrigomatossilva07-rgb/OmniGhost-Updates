@@ -1,4 +1,4 @@
-#include "github_release_resolver.h"
+﻿#include "github_release_resolver.h"
 #include "json.h"
 
 #include <algorithm>
@@ -15,9 +15,9 @@ constexpr std::size_t kMaximumReleaseCount = 100;
 constexpr std::size_t kMaximumAssetCount = 128;
 constexpr std::size_t kMaximumStringLength = 4096;
 const std::string kReleaseDownloadPrefix =
-    OGS_LIT("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/download/");
+    OGS_CSTR("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/download/");
 const std::string kReleasePagePrefix =
-    OGS_LIT("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/tag/");
+    OGS_CSTR("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/tag/");
 
 const Json::Value* Field(const Json::Object& object, const char* name) {
     return Json::Field(object, name);
@@ -73,7 +73,7 @@ GitHubReleaseResult ResolveHighestStableGitHubRelease(const std::string& json) {
     };
 
     if (json.empty() || json.size() > kMaximumResponseBytes) {
-        return fail(OGS_LIT("A resposta da API de versões está vazia ou excede o limite permitido."));
+        return fail(OGS_CSTR("A resposta da API de versÃµes estÃ¡ vazia ou excede o limite permitido."));
     }
 
     Json::Value root;
@@ -83,12 +83,12 @@ GitHubReleaseResult ResolveHighestStableGitHubRelease(const std::string& json) {
     limits.maximumNodes = 50000;
     const Json::ParseResult parsed = Json::Parse(json, root, limits);
     if (!parsed.ok) {
-        return fail(OGS_LIT("A resposta da API de versões não contém JSON válido."));
+        return fail(OGS_CSTR("A resposta da API de versÃµes nÃ£o contÃ©m JSON vÃ¡lido."));
     }
 
     const Json::Array* releases = Json::AsArray(root);
     if (!releases || releases->size() > kMaximumReleaseCount) {
-        return fail(OGS_LIT("A API de versões não devolveu uma lista válida."));
+        return fail(OGS_CSTR("A API de versÃµes nÃ£o devolveu uma lista vÃ¡lida."));
     }
 
     std::optional<GitHubReleaseSelection> best;
@@ -104,9 +104,9 @@ GitHubReleaseResult ResolveHighestStableGitHubRelease(const std::string& json) {
         std::string tag;
         std::string releaseUrl;
 
-        if (!Boolean(*release, OGS_LIT("draft"), draft) ||
-            !Boolean(*release, OGS_LIT("prerelease"), prerelease) ||
-            !Text(*release, OGS_LIT("tag_name"), tag) ||
+        if (!Boolean(*release, OGS_CSTR("draft"), draft) ||
+            !Boolean(*release, OGS_CSTR("prerelease"), prerelease) ||
+            !Text(*release, OGS_CSTR("tag_name"), tag) ||
             draft || prerelease) {
             continue;
         }
@@ -116,7 +116,7 @@ GitHubReleaseResult ResolveHighestStableGitHubRelease(const std::string& json) {
             continue;
         }
 
-        if (!Text(*release, OGS_LIT("html_url"), releaseUrl) ||
+        if (!Text(*release, OGS_CSTR("html_url"), releaseUrl) ||
             !SafeReleaseUrl(releaseUrl, tag)) {
             continue;
         }
@@ -127,7 +127,7 @@ GitHubReleaseResult ResolveHighestStableGitHubRelease(const std::string& json) {
             highestPublishedTag = tag;
         }
 
-        const Json::Value* assetsField = Field(*release, OGS_LIT("assets"));
+        const Json::Value* assetsField = Field(*release, OGS_CSTR("assets"));
         const Json::Array* assets = assetsField ? Json::AsArray(*assetsField) : nullptr;
         if (!assets || assets->size() > kMaximumAssetCount) {
             continue;
@@ -141,8 +141,8 @@ GitHubReleaseResult ResolveHighestStableGitHubRelease(const std::string& json) {
 
             std::string name;
             std::string downloadUrl;
-            if (!Text(*asset, OGS_LIT("name"), name) ||
-                !Text(*asset, OGS_LIT("browser_download_url"), downloadUrl)) {
+            if (!Text(*asset, OGS_CSTR("name"), name) ||
+                !Text(*asset, OGS_CSTR("browser_download_url"), downloadUrl)) {
                 continue;
             }
 
@@ -172,13 +172,13 @@ GitHubReleaseResult ResolveHighestStableGitHubRelease(const std::string& json) {
     }
 
     if (!highestPublishedVersion) {
-        return fail(OGS_LIT("Não foi encontrada nenhuma versão estável publicada."));
+        return fail(OGS_CSTR("NÃ£o foi encontrada nenhuma versÃ£o estÃ¡vel publicada."));
     }
 
     if (!best || best->version.Compare(*highestPublishedVersion) != 0) {
         return fail(
-            OGS_LIT("A versão estável mais recente publicada (") + highestPublishedTag +
-            OGS_LIT(") não contém um asset update.json válido."));
+            OGS_CSTR("A versÃ£o estÃ¡vel mais recente publicada (") + highestPublishedTag +
+            OGS_CSTR(") nÃ£o contÃ©m um asset update.json vÃ¡lido."));
     }
 
     return GitHubReleaseResult{std::move(best), {}};

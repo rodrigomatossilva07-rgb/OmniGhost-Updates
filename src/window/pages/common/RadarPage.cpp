@@ -1,4 +1,4 @@
-#include "../../widgets.h"
+﻿#include "../../widgets.h"
 #include "../../theme.h"
 #include "config/app_settings.h"
 #include "../../../project/third_party/keyauth/x64/lib/QRCode/qrcode.hpp"
@@ -58,7 +58,7 @@ void DrawPublicLinkQr(const std::string& url)
         }
     }
     ImGui::Dummy(ImVec2(side, side));
-    CyberWidgets::TextLine(app_settings::T("Lê o QR Code para abrir o link público.",
+    CyberWidgets::TextLine(app_settings::T("LÃª o QR Code para abrir o link pÃºblico.",
                                           "Scan the QR code to open the public link."),
                            CyberWidgets::TextTone::Secondary);
 }
@@ -78,12 +78,12 @@ void DrawRadar()
         CyberWidgets::ToggleSwitch(app_settings::T("Radar quadrado", "Square radar"), &esp::config.square_radar);
         CyberWidgets::ToggleSwitch(app_settings::T("Rodar com o jogador", "Rotate with player"), &esp::config.radar_rotate);
         CyberWidgets::ToggleSwitch(app_settings::T("Mostrar jogadores", "Show players"), &esp::config.radar_show_players);
-        CyberWidgets::ToggleSwitch(app_settings::T("Mostrar veículos", "Show vehicles"), &esp::config.radar_show_vehicles);
+        CyberWidgets::ToggleSwitch(app_settings::T("Mostrar veÃ­culos", "Show vehicles"), &esp::config.radar_show_vehicles);
         CyberWidgets::ToggleSwitch(app_settings::T("Nomes", "Names"), &esp::config.radar_show_names);
-        CyberWidgets::ToggleSwitch(app_settings::T("Distâncias", "Distances"), &esp::config.radar_show_distances);
-        CyberWidgets::ToggleSwitch(app_settings::T("Diferença de altura", "Height difference"), &esp::config.radar_show_height);
-        CyberWidgets::ToggleSwitch(app_settings::T("Círculos de distância", "Distance rings"), &esp::config.radar_show_rings);
-        CyberWidgets::ToggleSwitch(app_settings::T("Agrupar marcadores próximos", "Group nearby markers"), &esp::config.radar_group_markers);
+        CyberWidgets::ToggleSwitch(app_settings::T("DistÃ¢ncias", "Distances"), &esp::config.radar_show_distances);
+        CyberWidgets::ToggleSwitch(app_settings::T("DiferenÃ§a de altura", "Height difference"), &esp::config.radar_show_height);
+        CyberWidgets::ToggleSwitch(app_settings::T("CÃ­rculos de distÃ¢ncia", "Distance rings"), &esp::config.radar_show_rings);
+        CyberWidgets::ToggleSwitch(app_settings::T("Agrupar marcadores prÃ³ximos", "Group nearby markers"), &esp::config.radar_group_markers);
         CyberWidgets::ToggleSwitch(app_settings::T("Trilhos curtos", "Short trails"), &esp::config.radar_trails);
         CyberWidgets::ToggleSwitch(app_settings::T("Modo compacto", "Compact mode"), &esp::config.radar_compact);
         CyberWidgets::ToggleSwitch(app_settings::T("Indicadores triangulares", "Triangle indicators"), &esp::config.triangle_radar);
@@ -92,12 +92,12 @@ void DrawRadar()
         CyberWidgets::SliderFloat(app_settings::T("Alcance", "Range"), &esp::config.radar_range, 100.f, 2000.f, "%.0f m");
         CyberWidgets::SliderFloat(app_settings::T("Tamanho", "Size"), &esp::config.radar_size, 90.f, 320.f, "%.0f px");
         CyberWidgets::SliderFloat(app_settings::T("Tamanho dos marcadores", "Marker size"), &esp::config.radar_marker_size, 2.f, 12.f, "%.1f px");
-        CyberWidgets::SliderFloat(app_settings::T("Suavização", "Smoothing"), &esp::config.radar_smoothing, 1.f, 30.f, "%.0f");
-        CyberWidgets::TextLine(app_settings::T("Com o menu aberto, arrasta o radar diretamente no ecrã.",
+        CyberWidgets::SliderFloat(app_settings::T("SuavizaÃ§Ã£o", "Smoothing"), &esp::config.radar_smoothing, 1.f, 30.f, "%.0f");
+        CyberWidgets::TextLine(app_settings::T("Com o menu aberto, arrasta o radar diretamente no ecrÃ£.",
                                               "With the menu open, drag the radar directly on screen."),
             CyberWidgets::TextTone::Secondary);
-        CyberWidgets::SliderFloat(app_settings::T("Posição horizontal", "Horizontal position"), &esp::config.radar_pos_x, .05f, .95f, "%.2f");
-        CyberWidgets::SliderFloat(app_settings::T("Posição vertical", "Vertical position"), &esp::config.radar_pos_y, .05f, .95f, "%.2f");
+        CyberWidgets::SliderFloat(app_settings::T("PosiÃ§Ã£o horizontal", "Horizontal position"), &esp::config.radar_pos_x, .05f, .95f, "%.2f");
+        CyberWidgets::SliderFloat(app_settings::T("PosiÃ§Ã£o vertical", "Vertical position"), &esp::config.radar_pos_y, .05f, .95f, "%.2f");
     } else {
         CyberWidgets::TextLine(app_settings::T("Radar desativado.", "Radar disabled."), CyberWidgets::TextTone::Secondary);
     }
@@ -115,7 +115,7 @@ void DrawRadar()
     if (enabled) {
         if (!FiveM::WebRadar::IsRunning()) FiveM::WebRadar::Start(esp::config.web_radar_port);
         CyberWidgets::Separator();
-        CyberWidgets::SectionTitle(app_settings::T("AQUISIÇÃO", "ACQUISITION"));
+        CyberWidgets::SectionTitle(app_settings::T("AQUISIÃ‡ÃƒO", "ACQUISITION"));
         const char* radarModes[] = {
             app_settings::T("Equilibrado", "Balanced"),
             app_settings::T("Cobertura", "Coverage"),
@@ -137,20 +137,20 @@ void DrawRadar()
                 esp::config.web_radar_update_hz = 10.f;
             }
         }
-        CyberWidgets::SliderFloat(app_settings::T("Distância do radar", "Radar distance"),
+        CyberWidgets::SliderFloat(app_settings::T("DistÃ¢ncia do radar", "Radar distance"),
             &esp::config.web_radar_distance, 100.f, 5000.f, "%.0f m");
         const float compactSliderWidth = (std::min)(260.f, ImGui::GetContentRegionAvail().x * .42f);
-        CyberWidgets::TextLine(app_settings::T("Máximo de jogadores", "Maximum players"),
+        CyberWidgets::TextLine(app_settings::T("MÃ¡ximo de jogadores", "Maximum players"),
             CyberWidgets::TextTone::Secondary);
         ImGui::SetNextItemWidth(compactSliderWidth);
         ImGui::SliderInt("##fivem_web_radar_max_players", &esp::config.web_radar_max_players,
             8, 110, "%d jogadores");
-        CyberWidgets::TextLine(app_settings::T("Máximo de veículos", "Maximum vehicles"),
+        CyberWidgets::TextLine(app_settings::T("MÃ¡ximo de veÃ­culos", "Maximum vehicles"),
             CyberWidgets::TextTone::Secondary);
         ImGui::SetNextItemWidth(compactSliderWidth);
         ImGui::SliderInt("##fivem_web_radar_max_vehicles", &esp::config.web_radar_max_vehicles,
-            8, 64, "%d veículos");
-        CyberWidgets::SliderFloat(app_settings::T("Atualização", "Update rate"),
+            8, 64, "%d veÃ­culos");
+        CyberWidgets::SliderFloat(app_settings::T("AtualizaÃ§Ã£o", "Update rate"),
             &esp::config.web_radar_update_hz, 2.f, 30.f, "%.0f Hz");
         FiveM::WebRadar::Configure({
             esp::config.web_radar_distance,
@@ -166,14 +166,14 @@ void DrawRadar()
         bool cloud = esp::config.web_radar_cloudflare;
         if (cloud && !FiveM::WebRadar::CloudflareRunning() && FiveM::WebRadar::PublicUrl().empty())
             FiveM::WebRadar::StartCloudflare();
-        if (CyberWidgets::ToggleSwitch(app_settings::T("Link público Cloudflare", "Cloudflare public link"), &cloud)) {
+        if (CyberWidgets::ToggleSwitch(app_settings::T("Link pÃºblico Cloudflare", "Cloudflare public link"), &cloud)) {
             esp::config.web_radar_cloudflare = cloud;
             if (cloud) FiveM::WebRadar::StartCloudflare(); else FiveM::WebRadar::StopCloudflare();
         }
         const auto d = FiveM::WebRadar::GetDiagnostics();
         CyberWidgets::KeyValueRow(app_settings::T("Fonte de dados", "Data source"),
             d.sourceFresh ? app_settings::T("Em direto", "Live") : app_settings::T("A aguardar", "Waiting"));
-        CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%u jogadores | %u veículos | %u ligações",
+        CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%u jogadores | %u veÃ­culos | %u ligaÃ§Ãµes",
             d.players, d.vehicles, d.clients);
         CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
             "%.1f / %.0f Hz | amostra %llu ms | %.0f m",
@@ -186,7 +186,7 @@ void DrawRadar()
         if (cloud) {
             const auto publicUrl = FiveM::WebRadar::PublicUrl();
             if (!publicUrl.empty()) {
-                if (CyberWidgets::CyberButton(app_settings::T("Abrir link público", "Open public link"), ImVec2(180.f, 34.f)))
+                if (CyberWidgets::CyberButton(app_settings::T("Abrir link pÃºblico", "Open public link"), ImVec2(180.f, 34.f)))
                     ShellExecuteA(nullptr, "open", publicUrl.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
                 ImGui::SameLine();
                 if (CyberWidgets::CyberButton(app_settings::T("Copiar link", "Copy link"), ImVec2(140.f, 34.f)))
@@ -196,7 +196,7 @@ void DrawRadar()
             const auto status = FiveM::WebRadar::CloudflareStatus();
             if (!status.empty()) CyberWidgets::TextLine(status.c_str(), CyberWidgets::TextTone::Secondary);
         }
-        CyberWidgets::TextLine(app_settings::T("O token privado fica no fragmento do link e nunca é incluído nos dados do mapa.",
+        CyberWidgets::TextLine(app_settings::T("O token privado fica no fragmento do link e nunca Ã© incluÃ­do nos dados do mapa.",
             "The private token remains in the URL fragment and is never included in map data."), CyberWidgets::TextTone::Secondary);
     }
     CyberWidgets::EndCard();

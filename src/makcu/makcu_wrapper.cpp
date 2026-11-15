@@ -1,4 +1,4 @@
-#include "makcu_wrapper.h"
+﻿#include "makcu_wrapper.h"
 #include "../platform/session_log.h"
 #include <Windows.h>
 #include <iostream>
@@ -50,8 +50,8 @@ namespace makcu_wrapper {
     static void LogDeviceFailure(const char* operation) {
         OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Warning,
             OmniGhost::SessionLog::Subsystem::Input,
-            OGS_LIT("MAKCU operation failed and was isolated."),
-            {{OGS_LIT("operation"), operation ? operation : OGS_LIT("unknown"), false}});
+            OGS_CSTR("MAKCU operation failed and was isolated."),
+            {{OGS_CSTR("operation"), operation ? operation : OGS_CSTR("unknown"), false}});
     }
 
     void NotifyMaskFromDevice(uint8_t mask) {
@@ -131,7 +131,7 @@ namespace makcu_wrapper {
             }
         }
         if (target_port.empty()) {
-            const std::string error = device ? device->getLastError() : OGS_LIT("No MAKCU device instance.");
+            const std::string error = device ? device->getLastError() : OGS_CSTR("No MAKCU device instance.");
             std::lock_guard<std::mutex> lock(diag_mutex);
             std::snprintf(g_state.faultInfo, sizeof(g_state.faultInfo), "%s", error.c_str());
             return;
@@ -154,13 +154,13 @@ namespace makcu_wrapper {
         OmniGhost::SessionLog::Write(
             OmniGhost::SessionLog::Severity::Info,
             OmniGhost::SessionLog::Subsystem::Input,
-            OGS_LIT("MAKCU firmware detected"),
-            {{OGS_LIT("family"), makcu::FirmwareFamilyName(firmware.family), false},
-             {OGS_LIT("version"), makcu::FirmwareVersionText(firmware), false},
-             {OGS_LIT("baud"), std::to_string(firmware.baudRate), false},
-             {OGS_LIT("numeric_version_known"), firmware.numericVersionKnown ? "yes" : "no", false},
-             {OGS_LIT("device_kinds_known"), firmware.deviceKindsKnown ? "yes" : "no", false},
-             {OGS_LIT("compatible"), firmware.compatible ? "yes" : "no", false}});
+            OGS_CSTR("MAKCU firmware detected"),
+            {{OGS_CSTR("family"), makcu::FirmwareFamilyName(firmware.family), false},
+             {OGS_CSTR("version"), makcu::FirmwareVersionText(firmware), false},
+             {OGS_CSTR("baud"), std::to_string(firmware.baudRate), false},
+             {OGS_CSTR("numeric_version_known"), firmware.numericVersionKnown ? "yes" : "no", false},
+             {OGS_CSTR("device_kinds_known"), firmware.deviceKindsKnown ? "yes" : "no", false},
+             {OGS_CSTR("compatible"), firmware.compatible ? "yes" : "no", false}});
 
         g_state.monitoringRequested = true;
         (void)device->enableButtonMonitoring(true);
@@ -171,8 +171,8 @@ namespace makcu_wrapper {
         std::unique_lock deviceLock(device_mutex);
         connected = false;
         if (device) {
-            try { device->enableButtonMonitoring(false); } catch (const std::exception& ex) { std::string msg = OGS_LIT("disable monitoring: ") + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure(OGS_LIT("disable monitoring: unknown exception")); }
-            try { device->disconnect(); } catch (const std::exception& ex) { std::string msg = OGS_LIT("disconnect: ") + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure(OGS_LIT("disconnect: unknown exception")); }
+            try { device->enableButtonMonitoring(false); } catch (const std::exception& ex) { std::string msg = OGS_CSTR("disable monitoring: ") + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure(OGS_CSTR("disable monitoring: unknown exception")); }
+            try { device->disconnect(); } catch (const std::exception& ex) { std::string msg = OGS_CSTR("disconnect: ") + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure(OGS_CSTR("disconnect: unknown exception")); }
 
 
 
@@ -338,9 +338,9 @@ namespace makcu_wrapper {
         g_state.lastChangeTick.store(NowMs());
         std::shared_lock deviceLock(device_mutex);
         if (device) {
-            try { (void)device->forceReleaseAll(); } catch (const std::exception& ex) { std::string msg = OGS_LIT("force release: ") + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure(OGS_LIT("force release: unknown exception")); }
+            try { (void)device->forceReleaseAll(); } catch (const std::exception& ex) { std::string msg = OGS_CSTR("force release: ") + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure(OGS_CSTR("force release: unknown exception")); }
             if (device->isConnected()) {
-                try { device->enableButtonMonitoring(true); } catch (const std::exception& ex) { std::string msg = OGS_LIT("resume monitoring: ") + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure(OGS_LIT("resume monitoring: unknown exception")); }
+                try { device->enableButtonMonitoring(true); } catch (const std::exception& ex) { std::string msg = OGS_CSTR("resume monitoring: ") + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure(OGS_CSTR("resume monitoring: unknown exception")); }
             }
         }
     }
@@ -379,7 +379,7 @@ namespace makcu_wrapper {
 
         g_state.monitoringRequested = true;
 
-        try { device->enableButtonMonitoring(true); } catch (const std::exception& ex) { std::string msg = OGS_LIT("diagnostic monitoring: ") + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure(OGS_LIT("diagnostic monitoring: unknown exception")); }
+        try { device->enableButtonMonitoring(true); } catch (const std::exception& ex) { std::string msg = OGS_CSTR("diagnostic monitoring: ") + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure(OGS_CSTR("diagnostic monitoring: unknown exception")); }
     }
 
     bool IsKeyJustPressed(int virtual_key) {
@@ -417,9 +417,9 @@ namespace makcu_wrapper {
         std::memcpy(d.faultInfo, g_state.faultInfo, sizeof(d.faultInfo));
         std::memcpy(d.buttonsStatus, g_state.buttonsStatus, sizeof(d.buttonsStatus));
         const int src = g_state.lastSource.load();
-        if (src == 1) std::snprintf(d.lastSource, sizeof(d.lastSource), OGS_LIT("MAKCU"));
-        else if (src == 2) std::snprintf(d.lastSource, sizeof(d.lastSource), OGS_LIT("Windows local"));
-        else std::snprintf(d.lastSource, sizeof(d.lastSource), OGS_LIT("nenhuma"));
+        if (src == 1) std::snprintf(d.lastSource, sizeof(d.lastSource), OGS_CSTR("MAKCU"));
+        else if (src == 2) std::snprintf(d.lastSource, sizeof(d.lastSource), OGS_CSTR("Windows local"));
+        else std::snprintf(d.lastSource, sizeof(d.lastSource), OGS_CSTR("nenhuma"));
         return d;
     }
 
@@ -428,33 +428,33 @@ namespace makcu_wrapper {
         auto d = GetDiagnostics();
         if (!d.connected) {
             if (d.faultInfo[0])
-                std::snprintf(buf, sizeof(buf), OGS_LIT("Makcu DESLIGADO: %.120s"), d.faultInfo);
+                std::snprintf(buf, sizeof(buf), OGS_CSTR("Makcu DESLIGADO: %.120s"), d.faultInfo);
             else
-                std::snprintf(buf, sizeof(buf), OGS_LIT("Makcu DESLIGADO"));
+                std::snprintf(buf, sizeof(buf), OGS_CSTR("Makcu DESLIGADO"));
             return buf;
         }
         if (!d.monitoringConfirmed) {
             std::snprintf(buf, sizeof(buf),
-                OGS_LIT("makcu=ligado fluxo=NÃO máscara=0x%02X (clica no rato dentro do JOGO)"),
+                OGS_CSTR("makcu=ligado fluxo=NÃƒO mÃ¡scara=0x%02X (clica no rato dentro do JOGO)"),
                 d.buttonMask);
             return buf;
         }
         std::snprintf(buf, sizeof(buf),
-            OGS_LIT("makcu=ligado máscara=0x%02X origem=%s"),
+            OGS_CSTR("makcu=ligado mÃ¡scara=0x%02X origem=%s"),
             d.buttonMask, d.lastSource);
         return buf;
     }
 
     std::vector<std::string> GetAvailableMouseButtons() {
-        return { OGS_LIT("Left Mouse"), OGS_LIT("Right Mouse"), OGS_LIT("Middle Mouse"), OGS_LIT("Mouse 4"), OGS_LIT("Mouse 5") };
+        return { OGS_CSTR("Left Mouse"), OGS_CSTR("Right Mouse"), OGS_CSTR("Middle Mouse"), OGS_CSTR("Mouse 4"), OGS_CSTR("Mouse 5") };
     }
 
     int GetMouseButtonKeyCode(const std::string& button_name) {
-        if (button_name == OGS_LIT("Left Mouse")) return 1;
-        if (button_name == OGS_LIT("Right Mouse")) return 2;
-        if (button_name == OGS_LIT("Middle Mouse")) return 4;
-        if (button_name == OGS_LIT("Mouse 4")) return 5;
-        if (button_name == OGS_LIT("Mouse 5")) return 6;
+        if (button_name == OGS_CSTR("Left Mouse")) return 1;
+        if (button_name == OGS_CSTR("Right Mouse")) return 2;
+        if (button_name == OGS_CSTR("Middle Mouse")) return 4;
+        if (button_name == OGS_CSTR("Mouse 4")) return 5;
+        if (button_name == OGS_CSTR("Mouse 5")) return 6;
         return 1;
     }
 
@@ -476,13 +476,13 @@ namespace makcu_wrapper {
 
 
         std::shared_lock deviceLock(device_mutex);
-        if (!device) return OGS_LIT("Nenhuma instância do dispositivo");
+        if (!device) return OGS_CSTR("Nenhuma instÃ¢ncia do dispositivo");
         switch (device->getStatus()) {
-        case makcu::ConnectionStatus::CONNECTED: return OGS_LIT("Ligado");
-        case makcu::ConnectionStatus::CONNECTING: return OGS_LIT("A ligar...");
-        case makcu::ConnectionStatus::DISCONNECTED: return OGS_LIT("Desligado");
-        case makcu::ConnectionStatus::CONNECTION_ERROR: return OGS_LIT("Erro de ligação");
-        default: return OGS_LIT("Desconhecido");
+        case makcu::ConnectionStatus::CONNECTED: return OGS_CSTR("Ligado");
+        case makcu::ConnectionStatus::CONNECTING: return OGS_CSTR("A ligar...");
+        case makcu::ConnectionStatus::DISCONNECTED: return OGS_CSTR("Desligado");
+        case makcu::ConnectionStatus::CONNECTION_ERROR: return OGS_CSTR("Erro de ligaÃ§Ã£o");
+        default: return OGS_CSTR("Desconhecido");
         }
     }
 }

@@ -22,7 +22,7 @@ public:
             return Failure();
         SkipWhitespace();
         if (position_ != text_.size()) {
-            SetError(OGS_LIT("unexpected trailing JSON content"));
+            SetError(OGS_CSTR("unexpected trailing JSON content"));
             return Failure();
         }
         return {true, {}, 0};
@@ -30,18 +30,18 @@ public:
 
 private:
     ParseResult Failure() const {
-        return {false, error_.empty() ? OGS_LIT("invalid JSON") : error_, errorOffset_};
+        return {false, error_.empty() ? OGS_CSTR("invalid JSON") : error_, errorOffset_};
     }
 
     void SetError(const char* message) {
         if (!error_.empty()) return;
-        error_ = message ? message : OGS_LIT("invalid JSON");
+        error_ = message ? message : OGS_CSTR("invalid JSON");
         errorOffset_ = position_;
     }
 
     bool CountNode() {
         if (++nodes_ > limits_.maximumNodes) {
-            SetError(OGS_LIT("JSON node limit exceeded"));
+            SetError(OGS_CSTR("JSON node limit exceeded"));
             return false;
         }
         return true;
@@ -49,13 +49,13 @@ private:
 
     bool ParseValue(Value& output, std::size_t depth) {
         if (depth > limits_.maximumDepth) {
-            SetError(OGS_LIT("JSON nesting depth limit exceeded"));
+            SetError(OGS_CSTR("JSON nesting depth limit exceeded"));
             return false;
         }
         if (!CountNode()) return false;
         SkipWhitespace();
         if (position_ >= text_.size()) {
-            SetError(OGS_LIT("unexpected end of JSON"));
+            SetError(OGS_CSTR("unexpected end of JSON"));
             return false;
         }
 
@@ -99,20 +99,20 @@ private:
         while (position_ < text_.size()) {
             SkipWhitespace();
             if (position_ >= text_.size() || text_[position_] != '"') {
-                SetError(OGS_LIT("object key must be a string"));
+                SetError(OGS_CSTR("object key must be a string"));
                 return false;
             }
             std::string key;
             if (!ParseString(key)) return false;
             SkipWhitespace();
             if (position_ >= text_.size() || text_[position_++] != ':') {
-                SetError(OGS_LIT("missing ':' after object key"));
+                SetError(OGS_CSTR("missing ':' after object key"));
                 return false;
             }
             Value value;
             if (!ParseValue(value, depth)) return false;
             if (output.contains(key)) {
-                SetError(OGS_LIT("duplicate object key"));
+                SetError(OGS_CSTR("duplicate object key"));
                 return false;
             }
             output.emplace(std::move(key), std::move(value));
@@ -122,11 +122,11 @@ private:
                 return true;
             }
             if (position_ >= text_.size() || text_[position_++] != ',') {
-                SetError(OGS_LIT("missing ',' between object members"));
+                SetError(OGS_CSTR("missing ',' between object members"));
                 return false;
             }
         }
-        SetError(OGS_LIT("unterminated object"));
+        SetError(OGS_CSTR("unterminated object"));
         return false;
     }
 
@@ -147,11 +147,11 @@ private:
                 return true;
             }
             if (position_ >= text_.size() || text_[position_++] != ',') {
-                SetError(OGS_LIT("missing ',' between array elements"));
+                SetError(OGS_CSTR("missing ',' between array elements"));
                 return false;
             }
         }
-        SetError(OGS_LIT("unterminated array"));
+        SetError(OGS_CSTR("unterminated array"));
         return false;
     }
 
@@ -164,14 +164,14 @@ private:
 
     bool ParseHex4(unsigned& codeUnit) {
         if (position_ + 4 > text_.size()) {
-            SetError(OGS_LIT("truncated Unicode escape"));
+            SetError(OGS_CSTR("truncated Unicode escape"));
             return false;
         }
         codeUnit = 0;
         for (int i = 0; i < 4; ++i) {
             unsigned nibble = 0;
             if (!HexValue(text_[position_ + static_cast<std::size_t>(i)], nibble)) {
-                SetError(OGS_LIT("invalid Unicode escape"));
+                SetError(OGS_CSTR("invalid Unicode escape"));
                 return false;
             }
             codeUnit = (codeUnit << 4u) | nibble;
@@ -203,21 +203,21 @@ private:
 
     bool ParseString(std::string& output) {
         if (position_ >= text_.size() || text_[position_++] != '"') {
-            SetError(OGS_LIT("expected string"));
+            SetError(OGS_CSTR("expected string"));
             return false;
         }
         while (position_ < text_.size()) {
             const unsigned char character = static_cast<unsigned char>(text_[position_++]);
             if (character == '"') return true;
             if (character < 0x20u) {
-                SetError(OGS_LIT("unescaped control character in string"));
+                SetError(OGS_CSTR("unescaped control character in string"));
                 return false;
             }
             if (character != '\\') {
                 output.push_back(static_cast<char>(character));
             } else {
                 if (position_ >= text_.size()) {
-                    SetError(OGS_LIT("truncated string escape"));
+                    SetError(OGS_CSTR("truncated string escape"));
                     return false;
                 }
                 const char escape = text_[position_++];
@@ -236,37 +236,37 @@ private:
                     unsigned codepoint = first;
                     if (first >= 0xD800u && first <= 0xDBFFu) {
                         if (position_ + 2 > text_.size() || text_[position_] != '\\' || text_[position_ + 1] != 'u') {
-                            SetError(OGS_LIT("high surrogate without low surrogate"));
+                            SetError(OGS_CSTR("high surrogate without low surrogate"));
                             return false;
                         }
                         position_ += 2;
                         unsigned second = 0;
                         if (!ParseHex4(second) || second < 0xDC00u || second > 0xDFFFu) {
-                            SetError(OGS_LIT("invalid low surrogate"));
+                            SetError(OGS_CSTR("invalid low surrogate"));
                             return false;
                         }
                         codepoint = 0x10000u + ((first - 0xD800u) << 10u) + (second - 0xDC00u);
                     } else if (first >= 0xDC00u && first <= 0xDFFFu) {
-                        SetError(OGS_LIT("unexpected low surrogate"));
+                        SetError(OGS_CSTR("unexpected low surrogate"));
                         return false;
                     }
                     if (!AppendUtf8(output, codepoint)) {
-                        SetError(OGS_LIT("invalid Unicode codepoint"));
+                        SetError(OGS_CSTR("invalid Unicode codepoint"));
                         return false;
                     }
                     break;
                 }
                 default:
-                    SetError(OGS_LIT("invalid string escape"));
+                    SetError(OGS_CSTR("invalid string escape"));
                     return false;
                 }
             }
             if (output.size() > limits_.maximumStringBytes) {
-                SetError(OGS_LIT("JSON string limit exceeded"));
+                SetError(OGS_CSTR("JSON string limit exceeded"));
                 return false;
             }
         }
-        SetError(OGS_LIT("unterminated string"));
+        SetError(OGS_CSTR("unterminated string"));
         return false;
     }
 

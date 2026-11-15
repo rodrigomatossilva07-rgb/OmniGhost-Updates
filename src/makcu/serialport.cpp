@@ -896,7 +896,7 @@ namespace makcu {
 
 #ifdef _WIN32
         HKEY hKey;
-        if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, OGS_LIT("HARDWARE\\DEVICEMAP\\SERIALCOMM"),
+        if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, OGS_CSTR("HARDWARE\\DEVICEMAP\\SERIALCOMM"),
             0, KEY_READ, &hKey) == ERROR_SUCCESS) {
             char valueName[256];
             char data[256];
@@ -980,7 +980,7 @@ namespace makcu {
                     if (hDeviceKey != INVALID_HANDLE_VALUE) {
                         DWORD portNameSize = sizeof(portName);
 
-                        if (RegQueryValueExA(hDeviceKey, OGS_LIT("PortName"), nullptr, nullptr,
+                        if (RegQueryValueExA(hDeviceKey, OGS_CSTR("PortName"), nullptr, nullptr,
                             reinterpret_cast<BYTE*>(portName),
                             &portNameSize) == ERROR_SUCCESS) {
                             std::string port(portName);

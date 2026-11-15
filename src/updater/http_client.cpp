@@ -284,7 +284,7 @@ bool CreateAndSendRequest(
 
     handles.noProxy = noProxy;
     handles.session.reset(WinHttpOpen(
-        OGS_WIDE("OmniGhost-Updater/1.1"),
+        OGS_WCSTR("OmniGhost-Updater/1.1"),
         accessType,
         WINHTTP_NO_PROXY_NAME,
         WINHTTP_NO_PROXY_BYPASS,
@@ -292,7 +292,7 @@ bool CreateAndSendRequest(
 
     if (!handles.session) {
         const DWORD code = GetLastError();
-        error = BuildWinHttpFailure(OGS_LIT("WinHttpOpen"), code, url, noProxy);
+        error = BuildWinHttpFailure(OGS_CSTR("WinHttpOpen"), code, url, noProxy);
         return false;
     }
 
@@ -307,7 +307,7 @@ bool CreateAndSendRequest(
 
     if (!handles.connection) {
         const DWORD code = GetLastError();
-        error = BuildWinHttpFailure(OGS_LIT("WinHttpConnect"), code, url, noProxy) +
+        error = BuildWinHttpFailure(OGS_CSTR("WinHttpConnect"), code, url, noProxy) +
                 OGS_LIT(" | host=") + OmniGhost::Platform::WideToUtf8(host);
         return false;
     }
@@ -329,7 +329,7 @@ bool CreateAndSendRequest(
 
     if (!handles.request) {
         const DWORD code = GetLastError();
-        error = BuildWinHttpFailure(OGS_LIT("WinHttpOpenRequest"), code, url, noProxy);
+        error = BuildWinHttpFailure(OGS_CSTR("WinHttpOpenRequest"), code, url, noProxy);
         return false;
     }
 
@@ -345,7 +345,7 @@ bool CreateAndSendRequest(
             static_cast<DWORD>(-1),
             WINHTTP_ADDREQ_FLAG_ADD | WINHTTP_ADDREQ_FLAG_REPLACE)) {
         const DWORD code = GetLastError();
-        error = BuildWinHttpFailure(OGS_LIT("WinHttpAddRequestHeaders"), code, url, noProxy);
+        error = BuildWinHttpFailure(OGS_CSTR("WinHttpAddRequestHeaders"), code, url, noProxy);
         return false;
     }
 
@@ -358,13 +358,13 @@ bool CreateAndSendRequest(
             0,
             0)) {
         const DWORD code = GetLastError();
-        error = BuildWinHttpFailure(OGS_LIT("WinHttpSendRequest"), code, url, noProxy);
+        error = BuildWinHttpFailure(OGS_CSTR("WinHttpSendRequest"), code, url, noProxy);
         return false;
     }
 
     if (!WinHttpReceiveResponse(handles.request.get(), nullptr)) {
         const DWORD code = GetLastError();
-        error = BuildWinHttpFailure(OGS_LIT("WinHttpReceiveResponse"), code, url, noProxy);
+        error = BuildWinHttpFailure(OGS_CSTR("WinHttpReceiveResponse"), code, url, noProxy);
         return false;
     }
 
@@ -515,7 +515,7 @@ int RetryAfterSeconds(void* request) {
     if (!WinHttpQueryHeaders(
             request,
             WINHTTP_QUERY_CUSTOM,
-            OGS_WIDE("Retry-After"),
+            OGS_WCSTR("Retry-After"),
             value,
             &size,
             WINHTTP_NO_HEADER_INDEX)) {
@@ -564,7 +564,7 @@ HttpResult GetTextWithWinHttp(
     if (!OpenRequestWithFallback(
             url,
             timeoutMilliseconds,
-            OGS_WIDE("application/json, text/plain;q=0.9, application/octet-stream;q=0.8, */*;q=0.1"),
+            OGS_WCSTR("application/json, text/plain;q=0.9, application/octet-stream;q=0.8, */*;q=0.1"),
             handles,
             result.error)) {
         return result;
@@ -602,7 +602,7 @@ HttpResult GetTextWithWinHttp(
                 &read)) {
             const DWORD code = GetLastError();
             result.error = BuildWinHttpFailure(
-                OGS_LIT("WinHttpReadData"),
+                OGS_CSTR("WinHttpReadData"),
                 code,
                 finalUrl.empty() ? url : finalUrl,
                 handles.noProxy);
@@ -649,7 +649,7 @@ HttpResult DownloadWithWinHttp(
     if (!OpenRequestWithFallback(
             url,
             timeoutMilliseconds,
-            OGS_WIDE("application/octet-stream, application/zip, */*;q=0.1"),
+            OGS_WCSTR("application/octet-stream, application/zip, */*;q=0.1"),
             handles,
             result.error)) {
         return result;
@@ -707,7 +707,7 @@ HttpResult DownloadWithWinHttp(
                 &read)) {
             const DWORD code = GetLastError();
             result.error = BuildWinHttpFailure(
-                OGS_LIT("WinHttpReadData"),
+                OGS_CSTR("WinHttpReadData"),
                 code,
                 finalUrl.empty() ? url : finalUrl,
                 handles.noProxy);

@@ -1,4 +1,4 @@
-#include "update_service.h"
+﻿#include "update_service.h"
 #include "../app_version.h"
 #include "../platform/app_paths.h"
 #include "../platform/scope_exit.h"
@@ -43,7 +43,7 @@ std::string Architecture() {
 #if defined(_M_X64)
     return "x64";
 #elif defined(_M_ARM64)
-    return OGS_LIT("arm64");
+    return OGS_CSTR("arm64");
 #else
     return "x86";
 #endif
@@ -53,7 +53,7 @@ bool RecentCheck(const Configuration& config) {
     if (!fs::exists(marker, ec)) return false;
     return fs::file_time_type::clock::now() - fs::last_write_time(marker, ec) < config.minimumCheckInterval;
 }
-void MarkChecked() { std::ofstream(Paths::Updates() / OGS_WIDE("last-check.txt"), std::ios::trunc) << OGS_LIT("checked\n"); }
+void MarkChecked() { std::ofstream(Paths::Updates() / OGS_WIDE("last-check.txt"), std::ios::trunc) << OGS_CSTR("checked\n"); }
 
 void RecordHealth(const std::string& stage,
                   const std::string& targetVersion = {},
@@ -125,10 +125,10 @@ bool Contains(const std::string& value, const char* token) {
 
 bool ContainsNetworkCode(const std::string& detail, int code) {
     const std::string number = std::to_string(code);
-    return detail.find(OGS_LIT("WinHTTP=") + number) != std::string::npos ||
-           detail.find(OGS_LIT("WinINet=") + number) != std::string::npos ||
-           detail.find(OGS_LIT("código ") + number) != std::string::npos ||
-           detail.find(OGS_LIT("code ") + number) != std::string::npos;
+    return detail.find(OGS_CSTR("WinHTTP=") + number) != std::string::npos ||
+           detail.find(OGS_CSTR("WinINet=") + number) != std::string::npos ||
+           detail.find(OGS_CSTR("cÃ³digo ") + number) != std::string::npos ||
+           detail.find(OGS_CSTR("code ") + number) != std::string::npos;
 }
 
 bool HasInternetConnection() {
@@ -152,107 +152,107 @@ bool IsOfflineNetworkFailure(const std::string& detail) {
 
 
     const bool bothTransportsFailed =
-        Contains(detail, OGS_LIT("Transporte WinHTTP:")) &&
-        Contains(detail, OGS_LIT("Transporte alternativo WinINet:"));
+        Contains(detail, OGS_CSTR("Transporte WinHTTP:")) &&
+        Contains(detail, OGS_CSTR("Transporte alternativo WinINet:"));
 
     return !HasInternetConnection() || bothTransportsFailed;
 }
 
 std::string ExactErrorTitle(const std::string& stage, const std::string& detail) {
     if (IsOfflineNetworkFailure(detail))
-        return OGS_LIT("SEM LIGAÇÃO À INTERNET");
+        return OGS_CSTR("SEM LIGAÃ‡ÃƒO Ã€ INTERNET");
     if (ContainsNetworkCode(detail, 12002))
-        return OGS_LIT("A LIGAÇÃO DEMOROU DEMASIADO");
+        return OGS_CSTR("A LIGAÃ‡ÃƒO DEMOROU DEMASIADO");
     if (ContainsNetworkCode(detail, 12007))
-        return OGS_LIT("SERVIDOR DE ATUALIZAÇÕES NÃO ENCONTRADO");
+        return OGS_CSTR("SERVIDOR DE ATUALIZAÃ‡Ã•ES NÃƒO ENCONTRADO");
     if (ContainsNetworkCode(detail, 12029))
-        return OGS_LIT("NÃO FOI POSSÍVEL LIGAR AO SERVIDOR");
+        return OGS_CSTR("NÃƒO FOI POSSÃVEL LIGAR AO SERVIDOR");
     if (ContainsNetworkCode(detail, 12030))
-        return OGS_LIT("A LIGAÇÃO FOI INTERROMPIDA");
+        return OGS_CSTR("A LIGAÃ‡ÃƒO FOI INTERROMPIDA");
     if (ContainsNetworkCode(detail, 12175))
-        return OGS_LIT("NÃO FOI POSSÍVEL CRIAR UMA LIGAÇÃO SEGURA");
+        return OGS_CSTR("NÃƒO FOI POSSÃVEL CRIAR UMA LIGAÃ‡ÃƒO SEGURA");
     if (ContainsNetworkCode(detail, 12180) || ContainsNetworkCode(detail, 12167))
-        return OGS_LIT("PROBLEMA NA CONFIGURAÇÃO DE REDE");
-    if (Contains(detail, OGS_LIT("HTTP 404")))
-        return OGS_LIT("FICHEIRO DE ATUALIZAÇÃO NÃO ENCONTRADO");
-    if (Contains(detail, OGS_LIT("HTTP 403")))
-        return OGS_LIT("PEDIDO DE ATUALIZAÇÃO RECUSADO");
-    if (Contains(detail, OGS_LIT("HTTP 429")))
-        return OGS_LIT("DEMASIADOS PEDIDOS AO SERVIDOR");
-    if (Contains(detail, OGS_LIT("HTTP 5")))
-        return OGS_LIT("SERVIÇO DE ATUALIZAÇÕES INDISPONÍVEL");
-    if (stage == OGS_LIT("release-resolution"))
-        return OGS_LIT("NÃO FOI POSSÍVEL CONFIRMAR A VERSÃO MAIS RECENTE");
-    if (stage == OGS_LIT("manifest"))
-        return OGS_LIT("MANIFESTO DE ATUALIZAÇÃO INVÁLIDO");
-    if (stage == OGS_LIT("integrity"))
-        return OGS_LIT("A INSTALAÇÃO TEM FICHEIROS ALTERADOS");
-    if (stage == OGS_LIT("repair"))
-        return OGS_LIT("NÃO FOI POSSÍVEL PREPARAR A REPARAÇÃO");
-    if (stage == OGS_LIT("version"))
-        return OGS_LIT("VERSÃO INSTALADA INVÁLIDA");
-    if (stage == OGS_LIT("download"))
-        return OGS_LIT("NÃO FOI POSSÍVEL DESCARREGAR A ATUALIZAÇÃO");
-    if (stage == OGS_LIT("sha256"))
-        return OGS_LIT("A VALIDAÇÃO DA ATUALIZAÇÃO FALHOU");
-    if (stage == OGS_LIT("prepare"))
-        return OGS_LIT("NÃO FOI POSSÍVEL PREPARAR A ATUALIZAÇÃO");
-    if (stage == OGS_LIT("launch-updater"))
-        return OGS_LIT("NÃO FOI POSSÍVEL INICIAR O ATUALIZADOR");
+        return OGS_CSTR("PROBLEMA NA CONFIGURAÃ‡ÃƒO DE REDE");
+    if (Contains(detail, OGS_CSTR("HTTP 404")))
+        return OGS_CSTR("FICHEIRO DE ATUALIZAÃ‡ÃƒO NÃƒO ENCONTRADO");
+    if (Contains(detail, OGS_CSTR("HTTP 403")))
+        return OGS_CSTR("PEDIDO DE ATUALIZAÃ‡ÃƒO RECUSADO");
+    if (Contains(detail, OGS_CSTR("HTTP 429")))
+        return OGS_CSTR("DEMASIADOS PEDIDOS AO SERVIDOR");
+    if (Contains(detail, OGS_CSTR("HTTP 5")))
+        return OGS_CSTR("SERVIÃ‡O DE ATUALIZAÃ‡Ã•ES INDISPONÃVEL");
+    if (stage == OGS_CSTR("release-resolution"))
+        return OGS_CSTR("NÃƒO FOI POSSÃVEL CONFIRMAR A VERSÃƒO MAIS RECENTE");
+    if (stage == OGS_CSTR("manifest"))
+        return OGS_CSTR("MANIFESTO DE ATUALIZAÃ‡ÃƒO INVÃLIDO");
+    if (stage == OGS_CSTR("integrity"))
+        return OGS_CSTR("A INSTALAÃ‡ÃƒO TEM FICHEIROS ALTERADOS");
+    if (stage == OGS_CSTR("repair"))
+        return OGS_CSTR("NÃƒO FOI POSSÃVEL PREPARAR A REPARAÃ‡ÃƒO");
+    if (stage == OGS_CSTR("version"))
+        return OGS_CSTR("VERSÃƒO INSTALADA INVÃLIDA");
+    if (stage == OGS_CSTR("download"))
+        return OGS_CSTR("NÃƒO FOI POSSÃVEL DESCARREGAR A ATUALIZAÃ‡ÃƒO");
+    if (stage == OGS_CSTR("sha256"))
+        return OGS_CSTR("A VALIDAÃ‡ÃƒO DA ATUALIZAÃ‡ÃƒO FALHOU");
+    if (stage == OGS_CSTR("prepare"))
+        return OGS_CSTR("NÃƒO FOI POSSÃVEL PREPARAR A ATUALIZAÃ‡ÃƒO");
+    if (stage == OGS_CSTR("launch-updater"))
+        return OGS_CSTR("NÃƒO FOI POSSÃVEL INICIAR O ATUALIZADOR");
 
-    return OGS_LIT("NÃO FOI POSSÍVEL CONCLUIR A ATUALIZAÇÃO");
+    return OGS_CSTR("NÃƒO FOI POSSÃVEL CONCLUIR A ATUALIZAÃ‡ÃƒO");
 }
 
 std::string ExactUserMessage(const std::string& stage, const std::string& detail) {
     if (IsOfflineNetworkFailure(detail))
-        return OGS_LIT("Sem ligação à Internet. Verifica o Wi-Fi ou o cabo de rede e tenta novamente. A aplicação continuará a funcionar normalmente.");
+        return OGS_CSTR("Sem ligaÃ§Ã£o Ã  Internet. Verifica o Wi-Fi ou o cabo de rede e tenta novamente. A aplicaÃ§Ã£o continuarÃ¡ a funcionar normalmente.");
     if (ContainsNetworkCode(detail, 12002))
-        return OGS_LIT("O servidor demorou demasiado tempo a responder. Verifica a ligação e tenta novamente.");
+        return OGS_CSTR("O servidor demorou demasiado tempo a responder. Verifica a ligaÃ§Ã£o e tenta novamente.");
     if (ContainsNetworkCode(detail, 12007))
-        return OGS_LIT("A ligação está ativa, mas não foi possível localizar o servidor de atualizações. Verifica o DNS, VPN, proxy ou firewall.");
+        return OGS_CSTR("A ligaÃ§Ã£o estÃ¡ ativa, mas nÃ£o foi possÃ­vel localizar o servidor de atualizaÃ§Ãµes. Verifica o DNS, VPN, proxy ou firewall.");
     if (ContainsNetworkCode(detail, 12029))
-        return OGS_LIT("Não foi possível estabelecer ligação ao servidor de atualizações. Verifica a firewall, VPN ou proxy.");
+        return OGS_CSTR("NÃ£o foi possÃ­vel estabelecer ligaÃ§Ã£o ao servidor de atualizaÃ§Ãµes. Verifica a firewall, VPN ou proxy.");
     if (ContainsNetworkCode(detail, 12030))
-        return OGS_LIT("A ligação ao servidor foi interrompida. Tenta novamente dentro de alguns segundos.");
+        return OGS_CSTR("A ligaÃ§Ã£o ao servidor foi interrompida. Tenta novamente dentro de alguns segundos.");
     if (ContainsNetworkCode(detail, 12175))
-        return OGS_LIT("O Windows não conseguiu validar a ligação segura. Confirma a data, a hora e os certificados do sistema.");
+        return OGS_CSTR("O Windows nÃ£o conseguiu validar a ligaÃ§Ã£o segura. Confirma a data, a hora e os certificados do sistema.");
     if (ContainsNetworkCode(detail, 12180) || ContainsNetworkCode(detail, 12167))
-        return OGS_LIT("A configuração automática de rede falhou. Verifica as definições de proxy do Windows.");
-    if (Contains(detail, OGS_LIT("HTTP 404")) ||
-        Contains(detail, OGS_LIT("nenhuma versão estável publicada")) ||
-        Contains(detail, OGS_LIT("não contém um asset update.json")))
-        return OGS_LIT("Ainda não existe update.json público no GitHub (repo OmniGhost-Updates). "
-               "Confirma: (1) gh auth login no PC de build; (2) repositório OmniGhost-Updates público; "
-               "(3) Build Publish|x64 até aparecer 'Versão X publicada com sucesso' e a URL do manifesto. "
-               "Sem esse passo o launcher não consegue procurar atualizações.");
-    if (Contains(detail, OGS_LIT("HTTP 403")))
-        return OGS_LIT("O servidor recusou temporariamente o pedido. Tenta novamente mais tarde.");
-    if (Contains(detail, OGS_LIT("HTTP 429")))
-        return OGS_LIT("O limite temporário de pedidos foi atingido. Aguarda alguns minutos e tenta novamente.");
-    if (Contains(detail, OGS_LIT("HTTP 5")))
-        return OGS_LIT("O serviço de atualizações está temporariamente indisponível. Tenta novamente mais tarde.");
-    if (stage == OGS_LIT("release-resolution"))
-        return OGS_LIT("Não foi possível confirmar a versão pública mais recente. Se o repositório OmniGhost-Updates "
-               "ainda não tem Releases com update.json, faz Publish|x64 no Visual Studio (com gh autenticado). "
-               "Se já publicaste, verifica a ligação e tenta novamente.");
-    if (stage == OGS_LIT("manifest"))
-        return OGS_LIT("A informação da nova versão foi descarregada, mas não passou na validação de segurança.");
-    if (stage == OGS_LIT("integrity"))
-        return OGS_LIT("A verificação encontrou ficheiros em falta ou alterados. Podes preparar uma reparação segura.");
-    if (stage == OGS_LIT("repair"))
-        return OGS_LIT("Não foi possível obter o pacote da versão instalada para reparação.");
-    if (stage == OGS_LIT("version"))
-        return OGS_LIT("A versão instalada não segue o formato esperado.");
-    if (stage == OGS_LIT("download"))
-        return OGS_LIT("O pacote da nova versão não foi descarregado completamente.");
-    if (stage == OGS_LIT("sha256"))
-        return OGS_LIT("O pacote descarregado não corresponde ao ficheiro publicado e foi recusado.");
-    if (stage == OGS_LIT("prepare"))
-        return OGS_LIT("A atualização foi descarregada, mas não foi possível prepará-la para instalação.");
-    if (stage == OGS_LIT("launch-updater"))
-        return OGS_LIT("O Windows não conseguiu iniciar o processo de instalação da atualização.");
+        return OGS_CSTR("A configuraÃ§Ã£o automÃ¡tica de rede falhou. Verifica as definiÃ§Ãµes de proxy do Windows.");
+    if (Contains(detail, OGS_CSTR("HTTP 404")) ||
+        Contains(detail, OGS_CSTR("nenhuma versÃ£o estÃ¡vel publicada")) ||
+        Contains(detail, OGS_CSTR("nÃ£o contÃ©m um asset update.json")))
+        return OGS_CSTR("Ainda nÃ£o existe update.json pÃºblico no GitHub (repo OmniGhost-Updates). "
+               "Confirma: (1) gh auth login no PC de build; (2) repositÃ³rio OmniGhost-Updates pÃºblico; "
+               "(3) Build Publish|x64 atÃ© aparecer 'VersÃ£o X publicada com sucesso' e a URL do manifesto. "
+               "Sem esse passo o launcher nÃ£o consegue procurar atualizaÃ§Ãµes.");
+    if (Contains(detail, OGS_CSTR("HTTP 403")))
+        return OGS_CSTR("O servidor recusou temporariamente o pedido. Tenta novamente mais tarde.");
+    if (Contains(detail, OGS_CSTR("HTTP 429")))
+        return OGS_CSTR("O limite temporÃ¡rio de pedidos foi atingido. Aguarda alguns minutos e tenta novamente.");
+    if (Contains(detail, OGS_CSTR("HTTP 5")))
+        return OGS_CSTR("O serviÃ§o de atualizaÃ§Ãµes estÃ¡ temporariamente indisponÃ­vel. Tenta novamente mais tarde.");
+    if (stage == OGS_CSTR("release-resolution"))
+        return OGS_CSTR("NÃ£o foi possÃ­vel confirmar a versÃ£o pÃºblica mais recente. Se o repositÃ³rio OmniGhost-Updates "
+               "ainda nÃ£o tem Releases com update.json, faz Publish|x64 no Visual Studio (com gh autenticado). "
+               "Se jÃ¡ publicaste, verifica a ligaÃ§Ã£o e tenta novamente.");
+    if (stage == OGS_CSTR("manifest"))
+        return OGS_CSTR("A informaÃ§Ã£o da nova versÃ£o foi descarregada, mas nÃ£o passou na validaÃ§Ã£o de seguranÃ§a.");
+    if (stage == OGS_CSTR("integrity"))
+        return OGS_CSTR("A verificaÃ§Ã£o encontrou ficheiros em falta ou alterados. Podes preparar uma reparaÃ§Ã£o segura.");
+    if (stage == OGS_CSTR("repair"))
+        return OGS_CSTR("NÃ£o foi possÃ­vel obter o pacote da versÃ£o instalada para reparaÃ§Ã£o.");
+    if (stage == OGS_CSTR("version"))
+        return OGS_CSTR("A versÃ£o instalada nÃ£o segue o formato esperado.");
+    if (stage == OGS_CSTR("download"))
+        return OGS_CSTR("O pacote da nova versÃ£o nÃ£o foi descarregado completamente.");
+    if (stage == OGS_CSTR("sha256"))
+        return OGS_CSTR("O pacote descarregado nÃ£o corresponde ao ficheiro publicado e foi recusado.");
+    if (stage == OGS_CSTR("prepare"))
+        return OGS_CSTR("A atualizaÃ§Ã£o foi descarregada, mas nÃ£o foi possÃ­vel preparÃ¡-la para instalaÃ§Ã£o.");
+    if (stage == OGS_CSTR("launch-updater"))
+        return OGS_CSTR("O Windows nÃ£o conseguiu iniciar o processo de instalaÃ§Ã£o da atualizaÃ§Ã£o.");
 
-    return OGS_LIT("Ocorreu um problema durante a atualização. Tenta novamente ou consulta os detalhes técnicos.");
+    return OGS_CSTR("Ocorreu um problema durante a atualizaÃ§Ã£o. Tenta novamente ou consulta os detalhes tÃ©cnicos.");
 }
 
 }
@@ -276,10 +276,10 @@ void UpdateService::Initialize(Configuration configuration, std::unique_ptr<IHtt
         userDirectoriesReady ? LogLevel::Info : LogLevel::Warning,
         OmniGhost::Version,
         {},
-        OGS_LIT("initialize"),
+        OGS_CSTR("initialize"),
         userDirectoriesReady
-            ? OGS_LIT("Serviço de atualização inicializado. Log: ") + LogFile().string()
-            : OGS_LIT("Não foi possível preparar todas as pastas do utilizador. Será usado o fallback de log quando necessário."));
+            ? OGS_CSTR("ServiÃ§o de atualizaÃ§Ã£o inicializado. Log: ") + LogFile().string()
+            : OGS_CSTR("NÃ£o foi possÃ­vel preparar todas as pastas do utilizador. SerÃ¡ usado o fallback de log quando necessÃ¡rio."));
 
 
 
@@ -291,9 +291,9 @@ void UpdateService::Initialize(Configuration configuration, std::unique_ptr<IHtt
             LogLevel::Warning,
             OmniGhost::Version,
             {},
-            OGS_LIT("tls-pinning"),
-            OGS_LIT("Pin TLS do GitHub INATIVO (githubTlsCertificateThumbprints vazio): a cadeia de "
-            "atualização depende apenas da validação CA do Windows. Consulta o comentário em "
+            OGS_CSTR("tls-pinning"),
+            OGS_CSTR("Pin TLS do GitHub INATIVO (githubTlsCertificateThumbprints vazio): a cadeia de "
+            "atualizaÃ§Ã£o depende apenas da validaÃ§Ã£o CA do Windows. Consulta o comentÃ¡rio em "
             "update_types.h para ativar com pins SPKI SHA-256 reais."));
     }
     std::error_code cleanupError;
@@ -336,7 +336,7 @@ void UpdateService::Initialize(Configuration configuration, std::unique_ptr<IHtt
             value.rollbackRestored = true;
             value.availableVersion = g_startupNotice.failedVersion;
             value.errorStage = g_startupNotice.rollbackStage;
-            value.userMessage = OGS_LIT("A versão anterior foi restaurada com sucesso.");
+            value.userMessage = OGS_CSTR("A versÃ£o anterior foi restaurada com sucesso.");
         } else if (g_startupNotice.updated) {
             value.status = Status::Completed;
             value.recentlyUpdated = true;
@@ -344,9 +344,9 @@ void UpdateService::Initialize(Configuration configuration, std::unique_ptr<IHtt
             value.availableVersion = g_startupNotice.toVersion;
             value.releaseNotesForCompletedUpdate = g_startupNotice.releaseNotesUrl;
             value.releaseNotesUrl = g_startupNotice.releaseNotesUrl;
-            value.userMessage = OGS_LIT("Atualização concluída com sucesso.");
+            value.userMessage = OGS_CSTR("AtualizaÃ§Ã£o concluÃ­da com sucesso.");
         } else {
-            value.userMessage = OGS_LIT("A verificar atualizações em segundo plano…");
+            value.userMessage = OGS_CSTR("A verificar atualizaÃ§Ãµes em segundo planoâ€¦");
         }
     });
 }
@@ -373,7 +373,7 @@ bool UpdateService::ApplyUserPreferences(Channel channel, bool automaticDownload
         snapshot_.mandatory = false;
         snapshot_.mandatoryReason.clear();
         snapshot_.installOnExit = false;
-        snapshot_.userMessage = OGS_LIT("Canal alterado. Faz uma nova verificação de atualizações.");
+        snapshot_.userMessage = OGS_CSTR("Canal alterado. Faz uma nova verificaÃ§Ã£o de atualizaÃ§Ãµes.");
     }
     return true;
 }
@@ -384,8 +384,8 @@ Snapshot UpdateService::GetSnapshot() const { std::lock_guard lock(mutex_); retu
 void UpdateService::CheckAsync(bool force) {
     if (!initialized_) Initialize();
     if (busy_.exchange(true)) {
-        WriteLog(LogFile(), LogLevel::Warning, OmniGhost::Version, {}, OGS_LIT("check"),
-            OGS_LIT("Pedido de verificação ignorado porque já existe uma operação do atualizador em curso."));
+        WriteLog(LogFile(), LogLevel::Warning, OmniGhost::Version, {}, OGS_CSTR("check"),
+            OGS_CSTR("Pedido de verificaÃ§Ã£o ignorado porque jÃ¡ existe uma operaÃ§Ã£o do atualizador em curso."));
         return;
     }
 
@@ -403,10 +403,10 @@ void UpdateService::CheckAsync(bool force) {
             try {
                 RunCheck(force);
             } catch (const std::exception& exception) {
-                SetError(OGS_LIT("A verificação terminou de forma inesperada."), exception.what(), OGS_LIT("worker"));
+                SetError(OGS_CSTR("A verificaÃ§Ã£o terminou de forma inesperada."), exception.what(), OGS_CSTR("worker"));
             } catch (...) {
-                SetError(OGS_LIT("A verificação terminou de forma inesperada."),
-                    OGS_LIT("Exceção não identificada na thread de verificação."), OGS_LIT("worker"));
+                SetError(OGS_CSTR("A verificaÃ§Ã£o terminou de forma inesperada."),
+                    OGS_CSTR("ExceÃ§Ã£o nÃ£o identificada na thread de verificaÃ§Ã£o."), OGS_CSTR("worker"));
             }
         });
     }
@@ -416,14 +416,14 @@ void UpdateService::RunCheck(bool force) {
     if (!force && RecentCheck(config_)) {
         SetSnapshot([](Snapshot& s) {
             s.status = Status::Idle;
-            s.userMessage = OGS_LIT("Verificação recente guardada localmente.");
+            s.userMessage = OGS_CSTR("VerificaÃ§Ã£o recente guardada localmente.");
         });
         return;
     }
 
     SetSnapshot([](Snapshot& s) {
         s.status = Status::Checking;
-        s.userMessage = OGS_LIT("A verificar atualizações…");
+        s.userMessage = OGS_CSTR("A verificar atualizaÃ§Ãµesâ€¦");
         s.availableVersion.clear();
         s.releaseNotesUrl.clear();
         s.errorTitle.clear();
@@ -433,7 +433,7 @@ void UpdateService::RunCheck(bool force) {
 
     const auto installed = SemVersion::Parse(OmniGhost::Version);
     if (!installed) {
-        SetError({}, OGS_LIT("OMNIGHOST_VERSION não segue SemVer."), OGS_LIT("version"));
+        SetError({}, OGS_CSTR("OMNIGHOST_VERSION nÃ£o segue SemVer."), OGS_CSTR("version"));
         return;
     }
 
@@ -450,8 +450,8 @@ void UpdateService::RunCheck(bool force) {
             LogLevel::Info,
             OmniGhost::Version,
             {},
-            OGS_LIT("release-resolution"),
-            OGS_LIT("A consultar a lista pública de versões para encontrar a versão estável mais recente."));
+            OGS_CSTR("release-resolution"),
+            OGS_CSTR("A consultar a lista pÃºblica de versÃµes para encontrar a versÃ£o estÃ¡vel mais recente."));
 
         HttpResult releasesResponse = http_->GetText(
             config_.releasesApiUrl,
@@ -459,7 +459,7 @@ void UpdateService::RunCheck(bool force) {
             cancelled_);
 
         if (cancelled_.load()) {
-            SetError(OGS_LIT("Verificação cancelada."), OGS_LIT("O utilizador cancelou a verificação."), OGS_LIT("release-resolution"));
+            SetError(OGS_CSTR("VerificaÃ§Ã£o cancelada."), OGS_CSTR("O utilizador cancelou a verificaÃ§Ã£o."), OGS_CSTR("release-resolution"));
             return;
         }
 
@@ -475,8 +475,8 @@ void UpdateService::RunCheck(bool force) {
                     LogLevel::Info,
                     OmniGhost::Version,
                     resolvedRelease->version.original,
-                    OGS_LIT("release-resolution"),
-                    OGS_LIT("Versão estável mais recente encontrada: ") +
+                    OGS_CSTR("release-resolution"),
+                    OGS_CSTR("VersÃ£o estÃ¡vel mais recente encontrada: ") +
                         resolvedRelease->tag + ".");
 
                 if (resolvedRelease->version.Compare(*installed) <= 0) {
@@ -485,7 +485,7 @@ void UpdateService::RunCheck(bool force) {
                         s.status = Status::UpToDate;
                         s.availableVersion = resolvedRelease->version.original;
                         s.releaseNotesUrl = resolvedRelease->releaseUrl;
-                        s.userMessage = OGS_LIT("O OmniGhost está atualizado.");
+                        s.userMessage = OGS_CSTR("O OmniGhost estÃ¡ atualizado.");
                         s.errorTitle.clear();
                         s.errorStage.clear();
                         s.technicalDetail.clear();
@@ -495,10 +495,10 @@ void UpdateService::RunCheck(bool force) {
                         LogLevel::Info,
                         OmniGhost::Version,
                         resolvedRelease->version.original,
-                        OGS_LIT("compare"),
-                        OGS_LIT("A versão estável mais recente não é superior à versão instalada."));
-                    RecordHealth(OGS_LIT("up-to-date"), resolvedRelease->version.original, {}, {}, {},
-                        OGS_LIT("highest stable release is not newer than installed version"));
+                        OGS_CSTR("compare"),
+                        OGS_CSTR("A versÃ£o estÃ¡vel mais recente nÃ£o Ã© superior Ã  versÃ£o instalada."));
+                    RecordHealth(OGS_CSTR("up-to-date"), resolvedRelease->version.original, {}, {}, {},
+                        OGS_CSTR("highest stable release is not newer than installed version"));
                     return;
                 }
             } else {
@@ -508,8 +508,8 @@ void UpdateService::RunCheck(bool force) {
                     LogLevel::Warning,
                     OmniGhost::Version,
                     {},
-                    OGS_LIT("release-resolution"),
-                    releaseResolutionWarning + OGS_LIT(" Será usado o endereço de compatibilidade da versão mais recente."));
+                    OGS_CSTR("release-resolution"),
+                    releaseResolutionWarning + OGS_CSTR(" SerÃ¡ usado o endereÃ§o de compatibilidade da versÃ£o mais recente."));
             }
         } else {
             releaseResolutionWarning = releasesResponse.error;
@@ -518,8 +518,8 @@ void UpdateService::RunCheck(bool force) {
                 LogLevel::Warning,
                 OmniGhost::Version,
                 {},
-                OGS_LIT("release-resolution"),
-                releaseResolutionWarning + OGS_LIT(" Será usado o endereço de compatibilidade da versão mais recente."));
+                OGS_CSTR("release-resolution"),
+                releaseResolutionWarning + OGS_CSTR(" SerÃ¡ usado o endereÃ§o de compatibilidade da versÃ£o mais recente."));
         }
     }
 
@@ -532,8 +532,8 @@ void UpdateService::RunCheck(bool force) {
         LogLevel::Info,
         OmniGhost::Version,
         resolvedRelease ? resolvedRelease->version.original : std::string{},
-        OGS_LIT("check"),
-        OGS_LIT("A consultar o manifesto: ") + manifestUrl);
+        OGS_CSTR("check"),
+        OGS_CSTR("A consultar o manifesto: ") + manifestUrl);
 
     HttpResult response = http_->GetText(
         manifestUrl,
@@ -543,17 +543,17 @@ void UpdateService::RunCheck(bool force) {
     if (!response.error.empty()) {
         std::string detail = response.error;
         if (!releaseResolutionWarning.empty()) {
-            detail = OGS_LIT("Resolução da versão: ") + releaseResolutionWarning +
-                     OGS_LIT(" | Manifesto: ") + detail;
+            detail = OGS_CSTR("ResoluÃ§Ã£o da versÃ£o: ") + releaseResolutionWarning +
+                     OGS_CSTR(" | Manifesto: ") + detail;
         }
-        SetError({}, detail, OGS_LIT("check"));
+        SetError({}, detail, OGS_CSTR("check"));
         return;
     }
 
     ManifestResult parsed =
         ParseAndValidateManifest(response.body, config_, Architecture());
     if (!parsed.manifest) {
-        SetError({}, parsed.error, OGS_LIT("manifest"));
+        SetError({}, parsed.error, OGS_CSTR("manifest"));
         return;
     }
 
@@ -563,10 +563,10 @@ void UpdateService::RunCheck(bool force) {
         manifest.version.Compare(resolvedRelease->version) != 0) {
         SetError(
             {},
-            OGS_LIT("A versão do update.json ('") + manifest.version.original +
-                OGS_LIT("') não corresponde à versão selecionada ('") +
+            OGS_CSTR("A versÃ£o do update.json ('") + manifest.version.original +
+                OGS_CSTR("') nÃ£o corresponde Ã  versÃ£o selecionada ('") +
                 resolvedRelease->version.original + "').",
-            OGS_LIT("manifest"));
+            OGS_CSTR("manifest"));
         return;
     }
 
@@ -577,12 +577,12 @@ void UpdateService::RunCheck(bool force) {
             !releaseResolutionWarning.empty()) {
             SetError(
                 {},
-                OGS_LIT("A API de versões respondeu, mas não foi possível selecionar "
-                "com segurança a maior versão estável: ") +
+                OGS_CSTR("A API de versÃµes respondeu, mas nÃ£o foi possÃ­vel selecionar "
+                "com seguranÃ§a a maior versÃ£o estÃ¡vel: ") +
                 releaseResolutionWarning +
-                OGS_LIT(" O marcador da versão mais recente devolveu ") +
+                OGS_CSTR(" O marcador da versÃ£o mais recente devolveu ") +
                 manifest.version.original + ".",
-                OGS_LIT("release-resolution"));
+                OGS_CSTR("release-resolution"));
             return;
         }
 
@@ -590,11 +590,11 @@ void UpdateService::RunCheck(bool force) {
             manifest.version.Compare(*installed) < 0) {
             SetError(
                 {},
-                OGS_LIT("A lista de versões não pôde ser consultada e o marcador da versão mais recente "
-                "devolveu a versão ") + manifest.version.original +
-                OGS_LIT(", que é anterior à versão instalada ") +
+                OGS_CSTR("A lista de versÃµes nÃ£o pÃ´de ser consultada e o marcador da versÃ£o mais recente "
+                "devolveu a versÃ£o ") + manifest.version.original +
+                OGS_CSTR(", que Ã© anterior Ã  versÃ£o instalada ") +
                 installed->original + ".",
-                OGS_LIT("release-resolution"));
+                OGS_CSTR("release-resolution"));
             return;
         }
 
@@ -603,7 +603,7 @@ void UpdateService::RunCheck(bool force) {
             s.status = Status::UpToDate;
             s.availableVersion = manifest.version.original;
             s.releaseNotesUrl = manifest.releaseNotesUrl;
-            s.userMessage = OGS_LIT("O OmniGhost está atualizado.");
+            s.userMessage = OGS_CSTR("O OmniGhost estÃ¡ atualizado.");
             s.errorTitle.clear();
             s.errorStage.clear();
             s.technicalDetail.clear();
@@ -613,16 +613,16 @@ void UpdateService::RunCheck(bool force) {
             LogLevel::Info,
             OmniGhost::Version,
             manifest.version.original,
-            OGS_LIT("compare"),
-            OGS_LIT("A versão publicada não é superior à versão instalada."));
-        RecordHealth(OGS_LIT("up-to-date"), manifest.version.original, {}, {}, {},
-            OGS_LIT("published version is not newer than installed version"));
+            OGS_CSTR("compare"),
+            OGS_CSTR("A versÃ£o publicada nÃ£o Ã© superior Ã  versÃ£o instalada."));
+        RecordHealth(OGS_CSTR("up-to-date"), manifest.version.original, {}, {}, {},
+            OGS_CSTR("published version is not newer than installed version"));
         return;
     }
 
     const Package* selected = SelectPackage(manifest, Architecture());
     if (!selected) {
-        SetError({}, OGS_LIT("Não existe pacote compatível com esta arquitetura."), OGS_LIT("manifest"));
+        SetError({}, OGS_CSTR("NÃ£o existe pacote compatÃ­vel com esta arquitetura."), OGS_CSTR("manifest"));
         return;
     }
 
@@ -640,11 +640,11 @@ void UpdateService::RunCheck(bool force) {
         if (!manifest.mandatoryReason.empty()) {
             mandatoryReason = manifest.mandatoryReason;
         } else if (belowMinimumSupported) {
-            mandatoryReason = OGS_LIT("A versão instalada ") + installed->original +
-                OGS_LIT(" está abaixo da versão mínima suportada ") +
+            mandatoryReason = OGS_CSTR("A versÃ£o instalada ") + installed->original +
+                OGS_CSTR(" estÃ¡ abaixo da versÃ£o mÃ­nima suportada ") +
                 manifest.minimumSupportedVersion.original + ".";
         } else {
-            mandatoryReason = OGS_LIT("É necessário instalar a versão mais recente para continuar.");
+            mandatoryReason = OGS_CSTR("Ã‰ necessÃ¡rio instalar a versÃ£o mais recente para continuar.");
         }
     }
 
@@ -659,8 +659,8 @@ void UpdateService::RunCheck(bool force) {
         snapshot_.mandatoryReason = mandatoryReason;
         snapshot_.bytesTotal = selected->size;
         snapshot_.userMessage = mandatory
-            ? OGS_LIT("É necessário atualizar antes de continuar. ") + mandatoryReason
-            : OGS_LIT("Está disponível uma nova versão.");
+            ? OGS_CSTR("Ã‰ necessÃ¡rio atualizar antes de continuar. ") + mandatoryReason
+            : OGS_CSTR("EstÃ¡ disponÃ­vel uma nova versÃ£o.");
         snapshot_.errorTitle.clear();
         snapshot_.errorStage.clear();
         snapshot_.technicalDetail.clear();
@@ -671,10 +671,10 @@ void UpdateService::RunCheck(bool force) {
         LogLevel::Info,
         OmniGhost::Version,
         manifest.version.original,
-        OGS_LIT("available"),
-        mandatory ? OGS_LIT("Atualização obrigatória.") : OGS_LIT("Atualização opcional."));
-    RecordHealth(OGS_LIT("available"), manifest.version.original, selected->sha256, {}, {},
-        mandatory ? OGS_LIT("mandatory") : OGS_LIT("optional"));
+        OGS_CSTR("available"),
+        mandatory ? OGS_CSTR("AtualizaÃ§Ã£o obrigatÃ³ria.") : OGS_CSTR("AtualizaÃ§Ã£o opcional."));
+    RecordHealth(OGS_CSTR("available"), manifest.version.original, selected->sha256, {}, {},
+        mandatory ? OGS_CSTR("mandatory") : OGS_CSTR("optional"));
 
     if (config_.automaticDownload) {
         if (!mandatory && config_.automaticInstallOnExit) {
@@ -689,8 +689,8 @@ void UpdateService::DownloadAndScheduleInstallOnExitAsync() {
     const Snapshot current = GetSnapshot();
     if (current.status != Status::Available || current.mandatory) return;
     if (busy_.exchange(true)) {
-        WriteLog(LogFile(), LogLevel::Warning, OmniGhost::Version, {}, OGS_LIT("download"),
-            OGS_LIT("Pedido de transferência ignorado porque já existe uma operação do atualizador em curso."));
+        WriteLog(LogFile(), LogLevel::Warning, OmniGhost::Version, {}, OGS_CSTR("download"),
+            OGS_CSTR("Pedido de transferÃªncia ignorado porque jÃ¡ existe uma operaÃ§Ã£o do atualizador em curso."));
         return;
     }
     installOnExit_.store(true, std::memory_order_release);
@@ -703,8 +703,8 @@ void UpdateService::DownloadAsync() {
 
 
     if (busy_.exchange(true)) {
-        WriteLog(LogFile(), LogLevel::Warning, OmniGhost::Version, {}, OGS_LIT("download"),
-            OGS_LIT("Another update operation is already in progress."));
+        WriteLog(LogFile(), LogLevel::Warning, OmniGhost::Version, {}, OGS_CSTR("download"),
+            OGS_CSTR("Another update operation is already in progress."));
         return;
     }
     bool automaticInstallOnExit = false;
@@ -737,10 +737,10 @@ void UpdateService::StartDownloadWorker() {
             try {
                 RunDownload();
             } catch (const std::exception& exception) {
-                SetError(OGS_LIT("A transferência terminou de forma inesperada."), exception.what(), OGS_LIT("worker"));
+                SetError(OGS_CSTR("A transferÃªncia terminou de forma inesperada."), exception.what(), OGS_CSTR("worker"));
             } catch (...) {
-                SetError(OGS_LIT("A transferência terminou de forma inesperada."),
-                    OGS_LIT("Exceção não identificada na tarefa de transferência."), OGS_LIT("worker"));
+                SetError(OGS_CSTR("A transferÃªncia terminou de forma inesperada."),
+                    OGS_CSTR("ExceÃ§Ã£o nÃ£o identificada na tarefa de transferÃªncia."), OGS_CSTR("worker"));
             }
         });
     }
@@ -759,33 +759,33 @@ void UpdateService::RunDownload() {
         }
     }
     if (missingDownloadMetadata) {
-        SetError(OGS_LIT("A atualização ainda não está preparada para download."),
-            OGS_LIT("Manifesto ou pacote ausente ao iniciar a transferência."), OGS_LIT("download"));
+        SetError(OGS_CSTR("A atualizaÃ§Ã£o ainda nÃ£o estÃ¡ preparada para download."),
+            OGS_CSTR("Manifesto ou pacote ausente ao iniciar a transferÃªncia."), OGS_CSTR("download"));
         return;
     }
     SetSnapshot([](Snapshot& s) {
         s.status = Status::Downloading;
-        s.userMessage = OGS_LIT("A descarregar e validar a atualização…");
+        s.userMessage = OGS_CSTR("A descarregar e validar a atualizaÃ§Ã£oâ€¦");
         s.errorTitle.clear();
         s.errorStage.clear();
         s.technicalDetail.clear();
     });
-    const fs::path partial = Paths::Updates() / fs::path(package.fileName + OGS_LIT(".partial")); const fs::path final = Paths::Updates() / fs::path(package.fileName);
+    const fs::path partial = Paths::Updates() / fs::path(package.fileName + OGS_CSTR(".partial")); const fs::path final = Paths::Updates() / fs::path(package.fileName);
     std::error_code ec; fs::remove(partial, ec);
-    WriteLog(LogFile(), LogLevel::Info, OmniGhost::Version, version, OGS_LIT("download"),
-        OGS_LIT("Transferência iniciada; tamanho esperado=") + std::to_string(package.size) + OGS_LIT(" bytes."));
-    RecordHealth(OGS_LIT("download-started"), version, package.sha256, {}, {},
-        OGS_LIT("download worker started"));
+    WriteLog(LogFile(), LogLevel::Info, OmniGhost::Version, version, OGS_CSTR("download"),
+        OGS_CSTR("TransferÃªncia iniciada; tamanho esperado=") + std::to_string(package.size) + OGS_CSTR(" bytes."));
+    RecordHealth(OGS_CSTR("download-started"), version, package.sha256, {}, {},
+        OGS_CSTR("download worker started"));
     HttpResult result = http_->Download(package.url, partial, package.size, config_.maximumPackageBytes,
         static_cast<int>(config_.networkTimeout.count() * 1000), cancelled_, [this](auto received, auto total, auto speed) {
             SetSnapshot([&](Snapshot& s) { s.bytesReceived = received; s.bytesTotal = total; s.bytesPerSecond = speed; });
         });
-    if (!result.error.empty()) { SetError({}, result.error, OGS_LIT("download")); return; }
+    if (!result.error.empty()) { SetError({}, result.error, OGS_CSTR("download")); return; }
     std::string digest, error;
     if (!Sha256File(partial, digest, error) || !ConstantTimeEquals(digest, package.sha256)) {
-        fs::remove(partial, ec); SetError({}, error.empty() ? OGS_LIT("SHA-256 diferente do manifesto.") : error, OGS_LIT("sha256")); return;
+        fs::remove(partial, ec); SetError({}, error.empty() ? OGS_CSTR("SHA-256 diferente do manifesto.") : error, OGS_CSTR("sha256")); return;
     }
-    fs::remove(final, ec); fs::rename(partial, final, ec); if (ec) { SetError({}, ec.message(), OGS_LIT("prepare")); return; }
+    fs::remove(final, ec); fs::rename(partial, final, ec); if (ec) { SetError({}, ec.message(), OGS_CSTR("prepare")); return; }
     {
 
         std::lock_guard lock(mutex_);
@@ -795,14 +795,14 @@ void UpdateService::RunDownload() {
         s.status = Status::Ready;
         s.installOnExit = installOnExit_.load(std::memory_order_acquire);
         s.userMessage = s.installOnExit
-            ? OGS_LIT("Atualização validada. Será instalada automaticamente ao sair.")
-            : OGS_LIT("Atualização validada e pronta para instalar.");
+            ? OGS_CSTR("AtualizaÃ§Ã£o validada. SerÃ¡ instalada automaticamente ao sair.")
+            : OGS_CSTR("AtualizaÃ§Ã£o validada e pronta para instalar.");
         s.errorTitle.clear();
         s.errorStage.clear();
         s.technicalDetail.clear();
     });
-    WriteLog(LogFile(), LogLevel::Info, OmniGhost::Version, version, OGS_LIT("ready"), OGS_LIT("Tamanho e SHA-256 validados."));
-    RecordHealth(OGS_LIT("ready"), version, package.sha256, {}, {}, OGS_LIT("package validated"));
+    WriteLog(LogFile(), LogLevel::Info, OmniGhost::Version, version, OGS_CSTR("ready"), OGS_CSTR("Tamanho e SHA-256 validados."));
+    RecordHealth(OGS_CSTR("ready"), version, package.sha256, {}, {}, OGS_CSTR("package validated"));
 
 
 
@@ -811,7 +811,7 @@ void UpdateService::RunDownload() {
         SetSnapshot([](Snapshot& s) {
             s.status = Status::Installing;
             s.installOnExit = false;
-            s.userMessage = OGS_LIT("A concluir a instalação e a reiniciar o OmniGhost…");
+            s.userMessage = OGS_CSTR("A concluir a instalaÃ§Ã£o e a reiniciar o OmniGhostâ€¦");
         });
         (void)InstallPreparedUpdate();
     }
@@ -827,7 +827,7 @@ void UpdateService::VerifyInstallationAsync() {
         if (worker_.joinable()) worker_.join();
         SetSnapshot([](Snapshot& s) {
             s.integrityStatus = IntegrityStatus::Checking;
-            s.integrityMessage = OGS_LIT("A verificar ficheiros instalados…");
+            s.integrityMessage = OGS_CSTR("A verificar ficheiros instaladosâ€¦");
             s.integrityCheckedFiles = 0;
             s.integrityFailedFiles = 0;
         });
@@ -846,9 +846,9 @@ void UpdateService::VerifyInstallationAsync() {
             std::string detail = report.message;
             for (const auto& issue : report.issues)
                 detail += " | " + issue.relativePath + ":" + issue.reason;
-            WriteLog(LogFile(), LogLevel::Warning, OmniGhost::Version, {}, OGS_LIT("integrity"), detail);
+            WriteLog(LogFile(), LogLevel::Warning, OmniGhost::Version, {}, OGS_CSTR("integrity"), detail);
         } else {
-            WriteLog(LogFile(), LogLevel::Info, OmniGhost::Version, {}, OGS_LIT("integrity"), report.message);
+            WriteLog(LogFile(), LogLevel::Info, OmniGhost::Version, {}, OGS_CSTR("integrity"), report.message);
         }
         });
     }
@@ -867,33 +867,33 @@ void UpdateService::PrepareRepairAsync() {
         std::stop_callback cancelOnStop(stopToken, [this] { cancelled_.store(true, std::memory_order_release); });
         auto busyReset = Platform::MakeScopeExit([this] { busy_ = false; });
         try { RunPrepareRepair(); }
-        catch (const std::exception& exception) { SetError({}, exception.what(), OGS_LIT("repair")); }
-        catch (...) { SetError({}, OGS_LIT("Exceção não identificada ao preparar reparação."), OGS_LIT("repair")); }
+        catch (const std::exception& exception) { SetError({}, exception.what(), OGS_CSTR("repair")); }
+        catch (...) { SetError({}, OGS_CSTR("ExceÃ§Ã£o nÃ£o identificada ao preparar reparaÃ§Ã£o."), OGS_CSTR("repair")); }
     });
     }
 }
 
 void UpdateService::RunPrepareRepair() {
     const std::string installed = OmniGhost::Version;
-    const std::string manifestUrl = config_.allowedPackageUrlPrefix + "v" + installed + OGS_LIT("/update.json");
+    const std::string manifestUrl = config_.allowedPackageUrlPrefix + "v" + installed + OGS_CSTR("/update.json");
     SetSnapshot([](Snapshot& s) {
         s.status = Status::Checking;
         s.repairMode = true;
-        s.userMessage = OGS_LIT("A localizar o pacote da versão instalada para reparação…");
+        s.userMessage = OGS_CSTR("A localizar o pacote da versÃ£o instalada para reparaÃ§Ã£oâ€¦");
         s.errorTitle.clear(); s.errorStage.clear(); s.technicalDetail.clear();
     });
     const int timeoutMilliseconds = static_cast<int>(config_.networkTimeout.count() * 1000);
     HttpResult response = http_->GetText(manifestUrl, timeoutMilliseconds, cancelled_);
-    if (!response.error.empty()) { SetError({}, response.error, OGS_LIT("repair")); return; }
+    if (!response.error.empty()) { SetError({}, response.error, OGS_CSTR("repair")); return; }
     ManifestResult parsed = ParseAndValidateManifest(response.body, config_, Architecture());
-    if (!parsed.manifest) { SetError({}, parsed.error, OGS_LIT("manifest")); return; }
+    if (!parsed.manifest) { SetError({}, parsed.error, OGS_CSTR("manifest")); return; }
     Manifest manifest = std::move(*parsed.manifest);
     if (manifest.version.original != installed) {
-        SetError({}, OGS_LIT("O manifesto de reparação não corresponde à versão instalada."), OGS_LIT("repair"));
+        SetError({}, OGS_CSTR("O manifesto de reparaÃ§Ã£o nÃ£o corresponde Ã  versÃ£o instalada."), OGS_CSTR("repair"));
         return;
     }
     const Package* selected = SelectPackage(manifest, Architecture());
-    if (!selected) { SetError({}, OGS_LIT("Não existe pacote x64 para reparar esta versão."), OGS_LIT("repair")); return; }
+    if (!selected) { SetError({}, OGS_CSTR("NÃ£o existe pacote x64 para reparar esta versÃ£o."), OGS_CSTR("repair")); return; }
     {
         std::lock_guard lock(mutex_);
         manifest_ = manifest;
@@ -906,7 +906,7 @@ void UpdateService::RunPrepareRepair() {
     }
     RunDownload();
     SetSnapshot([](Snapshot& s) {
-        if (s.status == Status::Ready) s.userMessage = OGS_LIT("Pacote de reparação validado e pronto para reiniciar.");
+        if (s.status == Status::Ready) s.userMessage = OGS_CSTR("Pacote de reparaÃ§Ã£o validado e pronto para reiniciar.");
     });
 }
 
@@ -916,7 +916,7 @@ bool UpdateService::ScheduleInstallOnExit() {
     installOnExit_.store(true, std::memory_order_release);
     SetSnapshot([](Snapshot& s) {
         s.installOnExit = true;
-        s.userMessage = s.repairMode ? OGS_LIT("A reparação será instalada ao sair.") : OGS_LIT("A atualização será instalada ao sair.");
+        s.userMessage = s.repairMode ? OGS_CSTR("A reparaÃ§Ã£o serÃ¡ instalada ao sair.") : OGS_CSTR("A atualizaÃ§Ã£o serÃ¡ instalada ao sair.");
     });
     return true;
 }
@@ -924,15 +924,15 @@ bool UpdateService::ScheduleInstallOnExit() {
 void UpdateService::RetryLastFailure() {
     const Snapshot current = GetSnapshot();
     const std::string stage = current.errorStage;
-    if (current.repairMode && (stage == OGS_LIT("repair") || stage == OGS_LIT("manifest") || stage == OGS_LIT("check"))) {
+    if (current.repairMode && (stage == OGS_CSTR("repair") || stage == OGS_CSTR("manifest") || stage == OGS_CSTR("check"))) {
         PrepareRepairAsync();
         return;
     }
-    if (stage == OGS_LIT("download") || stage == OGS_LIT("sha256") || stage == OGS_LIT("prepare")) {
+    if (stage == OGS_CSTR("download") || stage == OGS_CSTR("sha256") || stage == OGS_CSTR("prepare")) {
         DownloadAsync();
         return;
     }
-    if (stage == OGS_LIT("launch-updater")) {
+    if (stage == OGS_CSTR("launch-updater")) {
         if (fs::exists(downloadedPackage_)) {
             SetSnapshot([](Snapshot& s) { s.status = Status::Ready; });
             if (InstallPreparedUpdate()) return;
@@ -940,8 +940,8 @@ void UpdateService::RetryLastFailure() {
         if (current.repairMode) PrepareRepairAsync(); else CheckAsync(true);
         return;
     }
-    if (stage == OGS_LIT("integrity")) { VerifyInstallationAsync(); return; }
-    if (stage == OGS_LIT("repair")) { PrepareRepairAsync(); return; }
+    if (stage == OGS_CSTR("integrity")) { VerifyInstallationAsync(); return; }
+    if (stage == OGS_CSTR("repair")) { PrepareRepairAsync(); return; }
     CheckAsync(true);
 }
 
@@ -969,11 +969,11 @@ bool UpdateService::InstallPreparedUpdate() {
           ? Paths::Updates() / fs::path(package_->fileName)
           : downloadedPackage_; }
     const fs::path installedExecutable = Paths::Executable();
-    if (!fs::exists(installedExecutable)) { SetError({}, OGS_LIT("Executável instalado em falta."), OGS_LIT("launch-updater")); return false; }
+    if (!fs::exists(installedExecutable)) { SetError({}, OGS_CSTR("ExecutÃ¡vel instalado em falta."), OGS_CSTR("launch-updater")); return false; }
     std::wstring runnerToken;
     std::string randomError;
     if (!RandomTokenHex(16, runnerToken, randomError)) {
-        SetError({}, randomError, OGS_LIT("launch-updater"));
+        SetError({}, randomError, OGS_CSTR("launch-updater"));
         return false;
     }
     const fs::path runnerDirectory = Paths::Updates() / (OGS_WIDE("runner-") + runnerToken);
@@ -988,8 +988,8 @@ bool UpdateService::InstallPreparedUpdate() {
     if (!Sha256File(installedExecutable, sourceRunnerHash, runnerHashError) ||
         !Sha256File(runner, copiedRunnerHash, runnerHashError) ||
         !ConstantTimeEquals(sourceRunnerHash, copiedRunnerHash)) {
-        SetError({}, runnerHashError.empty() ? OGS_LIT("A cópia temporária do atualizador não corresponde ao executável instalado.") : runnerHashError,
-            OGS_LIT("launch-updater"));
+        SetError({}, runnerHashError.empty() ? OGS_CSTR("A cÃ³pia temporÃ¡ria do atualizador nÃ£o corresponde ao executÃ¡vel instalado.") : runnerHashError,
+            OGS_CSTR("launch-updater"));
         return false;
     }
 
@@ -1023,10 +1023,10 @@ bool UpdateService::InstallPreparedUpdate() {
     if (!ShellExecuteExW(&launch) || !launch.hProcess) {
         const DWORD code = GetLastError();
         if (needElevation && code == ERROR_CANCELLED) {
-            SetError(OGS_LIT("A atualização requer privilégios de administrador."),
-                OGS_LIT("O controlo de conta de utilizador (UAC) foi negado ou cancelado. Execute o OmniGhost como administrador para instalar a atualização."), OGS_LIT("launch-updater"));
+            SetError(OGS_CSTR("A atualizaÃ§Ã£o requer privilÃ©gios de administrador."),
+                OGS_CSTR("O controlo de conta de utilizador (UAC) foi negado ou cancelado. Execute o OmniGhost como administrador para instalar a atualizaÃ§Ã£o."), OGS_CSTR("launch-updater"));
         } else {
-            SetError({}, WindowsError(GetLastError()), OGS_LIT("launch-updater"));
+            SetError({}, WindowsError(GetLastError()), OGS_CSTR("launch-updater"));
         }
         return false;
     }
@@ -1039,27 +1039,27 @@ bool UpdateService::InstallPreparedUpdate() {
     if (earlyExit == WAIT_OBJECT_0) {
         DWORD exitCode = 0;
         GetExitCodeProcess(updaterProcess.get(), &exitCode);
-        const std::string detail = OGS_LIT("O processo temporário do atualizador terminou imediatamente (código ") +
+        const std::string detail = OGS_CSTR("O processo temporÃ¡rio do atualizador terminou imediatamente (cÃ³digo ") +
             std::to_string(exitCode) + ").";
-        SetError(OGS_LIT("Não foi possível iniciar a instalação da atualização."), detail, OGS_LIT("launch-updater"));
+        SetError(OGS_CSTR("NÃ£o foi possÃ­vel iniciar a instalaÃ§Ã£o da atualizaÃ§Ã£o."), detail, OGS_CSTR("launch-updater"));
         return false;
     }
     if (earlyExit == WAIT_FAILED) {
-        SetError(OGS_LIT("Não foi possível acompanhar o processo de atualização."),
-            WindowsError(GetLastError()), OGS_LIT("launch-updater"));
+        SetError(OGS_CSTR("NÃ£o foi possÃ­vel acompanhar o processo de atualizaÃ§Ã£o."),
+            WindowsError(GetLastError()), OGS_CSTR("launch-updater"));
         return false;
     }
-    WriteLog(LogFile(), LogLevel::Info, OmniGhost::Version, version, OGS_LIT("launch-updater"),
-        OGS_LIT("Atualizador temporário iniciado e a aguardar o encerramento do launcher."));
+    WriteLog(LogFile(), LogLevel::Info, OmniGhost::Version, version, OGS_CSTR("launch-updater"),
+        OGS_CSTR("Atualizador temporÃ¡rio iniciado e a aguardar o encerramento do launcher."));
     SetSnapshot([](Snapshot& s) {
         s.status = Status::Installing;
         s.installOnExit = false;
-        s.userMessage = s.repairMode ? OGS_LIT("A reiniciar para concluir a reparação…") : OGS_LIT("A reiniciar para concluir a atualização…");
+        s.userMessage = s.repairMode ? OGS_CSTR("A reiniciar para concluir a reparaÃ§Ã£oâ€¦") : OGS_CSTR("A reiniciar para concluir a atualizaÃ§Ã£oâ€¦");
         s.errorTitle.clear();
         s.errorStage.clear();
         s.technicalDetail.clear();
     });
-    RecordHealth(OGS_LIT("install-launched"), version, expectedHash, OGS_LIT("verification-delegated-to-independent-updater"));
+    RecordHealth(OGS_CSTR("install-launched"), version, expectedHash, OGS_CSTR("verification-delegated-to-independent-updater"));
 
 
     OmniGhost::RemoteUsage::SuppressFinalFlush();
@@ -1076,8 +1076,8 @@ void UpdateService::InstallUpdateAsync() {
         s.status = current.status == Status::Available ? Status::Downloading : Status::Installing;
         s.installOnExit = false;
         s.userMessage = current.status == Status::Available
-            ? OGS_LIT("A descarregar e validar a atualização…")
-            : OGS_LIT("A concluir a instalação e a reiniciar o OmniGhost…");
+            ? OGS_CSTR("A descarregar e validar a atualizaÃ§Ã£oâ€¦")
+            : OGS_CSTR("A concluir a instalaÃ§Ã£o e a reiniciar o OmniGhostâ€¦");
         s.errorTitle.clear(); s.errorStage.clear(); s.technicalDetail.clear();
     });
     {
@@ -1094,11 +1094,11 @@ void UpdateService::InstallUpdateAsync() {
             }
             catch (const std::exception& exception) {
                 installImmediately_.store(false, std::memory_order_release);
-                SetError(OGS_LIT("Não foi possível iniciar o atualizador independente."), exception.what(), OGS_LIT("launch-updater"));
+                SetError(OGS_CSTR("NÃ£o foi possÃ­vel iniciar o atualizador independente."), exception.what(), OGS_CSTR("launch-updater"));
             } catch (...) {
                 installImmediately_.store(false, std::memory_order_release);
-                SetError(OGS_LIT("Não foi possível iniciar o atualizador independente."),
-                         OGS_LIT("Falha inesperada ao preparar o processo."), OGS_LIT("launch-updater"));
+                SetError(OGS_CSTR("NÃ£o foi possÃ­vel iniciar o atualizador independente."),
+                         OGS_CSTR("Falha inesperada ao preparar o processo."), OGS_CSTR("launch-updater"));
             }
         });
     }
@@ -1113,8 +1113,8 @@ void UpdateService::InstallPreparedUpdateAsync() {
         s.status = Status::Installing;
         s.installOnExit = false;
         s.userMessage = s.repairMode
-            ? OGS_LIT("A preparar a reparação…")
-            : OGS_LIT("A preparar a atualização…");
+            ? OGS_CSTR("A preparar a reparaÃ§Ã£oâ€¦")
+            : OGS_CSTR("A preparar a atualizaÃ§Ã£oâ€¦");
         s.errorTitle.clear();
         s.errorStage.clear();
         s.technicalDetail.clear();
@@ -1132,11 +1132,11 @@ void UpdateService::InstallPreparedUpdateAsync() {
             try {
                 (void)InstallPreparedUpdate();
             } catch (const std::exception& exception) {
-                SetError(OGS_LIT("Não foi possível preparar a instalação da atualização."),
-                    exception.what(), OGS_LIT("launch-updater"));
+                SetError(OGS_CSTR("NÃ£o foi possÃ­vel preparar a instalaÃ§Ã£o da atualizaÃ§Ã£o."),
+                    exception.what(), OGS_CSTR("launch-updater"));
             } catch (...) {
-                SetError(OGS_LIT("Não foi possível preparar a instalação da atualização."),
-                    OGS_LIT("Falha inesperada no arranque do atualizador."), OGS_LIT("launch-updater"));
+                SetError(OGS_CSTR("NÃ£o foi possÃ­vel preparar a instalaÃ§Ã£o da atualizaÃ§Ã£o."),
+                    OGS_CSTR("Falha inesperada no arranque do atualizador."), OGS_CSTR("launch-updater"));
             }
         });
     }
@@ -1147,7 +1147,7 @@ void UpdateService::DeferForSession() {
     std::lock_guard lock(mutex_);
     snapshot_.installOnExit = false;
     snapshot_.status = Status::Deferred;
-    snapshot_.userMessage = OGS_LIT("Atualização adiada nesta sessão.");
+    snapshot_.userMessage = OGS_CSTR("AtualizaÃ§Ã£o adiada nesta sessÃ£o.");
 }
 void UpdateService::Cancel() {
     cancelled_ = true;
@@ -1182,11 +1182,11 @@ void UpdateService::SetError(const std::string& userMessage, const std::string& 
         s.errorTitle = title;
         s.errorStage = stage;
         s.technicalDetail = detail.empty()
-            ? OGS_LIT("Nenhum detalhe técnico foi devolvido pela operação.")
+            ? OGS_CSTR("Nenhum detalhe tÃ©cnico foi devolvido pela operaÃ§Ã£o.")
             : detail;
     });
     WriteLog(LogFile(), LogLevel::Error, OmniGhost::Version, GetSnapshot().availableVersion, stage, detail);
-    RecordHealth(OGS_LIT("error"), GetSnapshot().availableVersion, {}, {}, {}, stage + ": " + detail);
+    RecordHealth(OGS_CSTR("error"), GetSnapshot().availableVersion, {}, {}, {}, stage + ": " + detail);
 }
 void UpdateService::Shutdown() {
     cancelled_ = true;

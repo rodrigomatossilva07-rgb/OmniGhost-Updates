@@ -1,4 +1,4 @@
-#include "../../widgets.h"
+﻿#include "../../widgets.h"
 #include "../../theme.h"
 #include "config/cs2_config.h"
 #include "cs2_game.h"
@@ -85,7 +85,7 @@ void DrawCs2PublicLinkQr(const std::string& url) {
         dl->AddRectFilled(a, ImVec2(a.x + moduleSize, a.y + moduleSize), IM_COL32_BLACK);
     }
     ImGui::Dummy(ImVec2(side, side));
-    CyberWidgets::TextLine("Lê o QR Code para abrir o radar público.", CyberWidgets::TextTone::Secondary);
+    CyberWidgets::TextLine("LÃª o QR Code para abrir o radar pÃºblico.", CyberWidgets::TextTone::Secondary);
 }
 }
 
@@ -103,7 +103,7 @@ void DrawCs2Radar() {
         CS2::SubmitAcquisitionConfig(CS2::config);
     if (CS2::config.radar_2d) {
         CyberWidgets::SliderFloat("Tamanho do Radar 2D", &CS2::config.radar_2d_size, 110.f, 360.f, "%.0f px");
-        CyberWidgets::TextLine("Com o menu aberto, arrasta o radar para qualquer posição.", CyberWidgets::TextTone::Secondary);
+        CyberWidgets::TextLine("Com o menu aberto, arrasta o radar para qualquer posiÃ§Ã£o.", CyberWidgets::TextTone::Secondary);
     } else {
         CyberWidgets::TextLine("Radar 2D desativado.", CyberWidgets::TextTone::Secondary);
     }
@@ -139,24 +139,24 @@ void DrawCs2Radar() {
     }
     if (webEnabled) {
         if (!CS2::WebRadar::IsRunning()) CS2::WebRadar::Start(CS2::config.web_radar_port);
-        CyberWidgets::TextLine("Máximo de jogadores", CyberWidgets::TextTone::Secondary);
+        CyberWidgets::TextLine("MÃ¡ximo de jogadores", CyberWidgets::TextTone::Secondary);
         const float maxPlayersWidth = (std::min)(260.f, ImGui::GetContentRegionAvail().x * 0.42f);
         ImGui::SetNextItemWidth(maxPlayersWidth);
         ImGui::SliderInt("##web_radar_max_players", &CS2::config.web_radar_max_players, 8, 64, "%d jogadores");
-        CyberWidgets::SliderFloat("Atualização", &CS2::config.web_radar_update_hz, 2.f, 30.f, "%.0f Hz");
+        CyberWidgets::SliderFloat("AtualizaÃ§Ã£o", &CS2::config.web_radar_update_hz, 2.f, 30.f, "%.0f Hz");
         CS2::WebRadar::Configure({static_cast<std::uint32_t>(CS2::config.web_radar_max_players),
                                   CS2::config.web_radar_update_hz});
         bool cloud = CS2::config.web_radar_cloudflare;
         if (cloud && !CS2::WebRadar::CloudflareRunning() && CS2::WebRadar::PublicUrl().empty())
             CS2::WebRadar::StartCloudflare();
-        if (CyberWidgets::ToggleSwitch("Link público Cloudflare", &cloud)) {
+        if (CyberWidgets::ToggleSwitch("Link pÃºblico Cloudflare", &cloud)) {
             CS2::config.web_radar_cloudflare = cloud;
             if (cloud) CS2::WebRadar::StartCloudflare(); else CS2::WebRadar::StopCloudflare();
         }
         const auto diagnostics = CS2::WebRadar::GetDiagnostics();
         CyberWidgets::KeyValueRow("Fonte de dados", diagnostics.sourceFresh ? "Em direto" : "A aguardar partida");
         CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-            "%u jogadores | %u ligações | %.1f / %.0f Hz | amostra %llu ms",
+            "%u jogadores | %u ligaÃ§Ãµes | %.1f / %.0f Hz | amostra %llu ms",
             diagnostics.players, diagnostics.clients, diagnostics.updateHz, diagnostics.configuredHz,
             static_cast<unsigned long long>(diagnostics.lastSampleAgeMs));
         if (CyberWidgets::GoldButton("Abrir radar local", ImVec2(180.f, 34.f))) {
@@ -167,16 +167,16 @@ void DrawCs2Radar() {
             const auto publicUrl = CS2::WebRadar::PublicUrl();
             if (!publicUrl.empty()) {
                 ImGui::SameLine();
-                if (CyberWidgets::CyberButton("Abrir link público", ImVec2(180.f, 34.f)))
+                if (CyberWidgets::CyberButton("Abrir link pÃºblico", ImVec2(180.f, 34.f)))
                     ShellExecuteA(nullptr, "open", publicUrl.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-                if (CyberWidgets::CyberButton("Copiar link público", ImVec2(180.f, 34.f)))
+                if (CyberWidgets::CyberButton("Copiar link pÃºblico", ImVec2(180.f, 34.f)))
                     ImGui::SetClipboardText(publicUrl.c_str());
                 DrawCs2PublicLinkQr(publicUrl);
             }
             const auto status = CS2::WebRadar::CloudflareStatus();
             if (!status.empty()) CyberWidgets::TextLine(status.c_str(), CyberWidgets::TextTone::Secondary);
         }
-        CyberWidgets::TextLine("O token privado permanece no fragmento do endereço e nunca é enviado como parte do mapa.",
+        CyberWidgets::TextLine("O token privado permanece no fragmento do endereÃ§o e nunca Ã© enviado como parte do mapa.",
                                CyberWidgets::TextTone::Secondary);
     }
     CyberWidgets::EndCard();
@@ -258,25 +258,25 @@ void DrawCs2Status() {
     BeginCardRow();
     const float half = CardRowHalfWidth();
     BeginCard("SISTEMA CS2", half);
-    HealthRow("Aquisição", worker ? "Ativa" : "Parada",
+    HealthRow("AquisiÃ§Ã£o", worker ? "Ativa" : "Parada",
         worker ? HealthStatus::Ok : HealthStatus::Warning);
     const char* readState = attached ? "Dados recentes" :
-        (dma.processInitialized ? "Aquisição sem resposta" : "Processo não associado");
+        (dma.processInitialized ? "AquisiÃ§Ã£o sem resposta" : "Processo nÃ£o associado");
     HealthRow("Leitura do jogo", readState,
         attached ? HealthStatus::Ok : HealthStatus::Warning);
     HealthRow("Offsets", offsetsOk ? "Validados no jogo" :
         compatibility.state == OmniGhost::OffsetAuto::CompatibilityState::Outdated ?
-        "Incompatíveis" : "Por validar",
+        "IncompatÃ­veis" : "Por validar",
         offsetsOk ? HealthStatus::Ok :
         compatibility.state == OmniGhost::OffsetAuto::CompatibilityState::Outdated ?
         HealthStatus::Error : HealthStatus::Warning);
-    const char* matrixState = cameraFresh ? "Câmara rápida atual" :
-        snapshotMatrixValid ? "Fallback do snapshot ativo" : "Indisponível ou antiga";
+    const char* matrixState = cameraFresh ? "CÃ¢mara rÃ¡pida atual" :
+        snapshotMatrixValid ? "Fallback do snapshot ativo" : "IndisponÃ­vel ou antiga";
     HealthRow("ViewMatrix", matrixState, renderMatrix ? HealthStatus::Ok : HealthStatus::Warning);
     HealthRow("EntityList", worldFresh && world->entity_list_addr ? "Resolvida" : "A aguardar",
         attached && world->entity_list_addr ? HealthStatus::Ok : HealthStatus::Warning);
     HealthRow("Jogador local", attached && world->local_pawn && world->local_controller ?
-        "Pawn e controller válidos" : "Pawn/controller em falta",
+        "Pawn e controller vÃ¡lidos" : "Pawn/controller em falta",
         attached && world->local_pawn && world->local_controller ? HealthStatus::Ok : HealthStatus::Warning);
     EndCard();
 
@@ -287,7 +287,7 @@ void DrawCs2Status() {
     char value[96]{};
     std::snprintf(value, sizeof(value), "%d", attached ? world->player_count : 0);
     KeyValueRow("Jogadores remotos", value);
-    std::snprintf(value, sizeof(value), "%d vivos · %d com posição válida", aliveRemote, positionValid);
+    std::snprintf(value, sizeof(value), "%d vivos Â· %d com posiÃ§Ã£o vÃ¡lida", aliveRemote, positionValid);
     KeyValueRow("Entidades ESP", value);
     KeyValueRow("Mapa", attached && world->map_name[0] ? world->map_name : "-");
     EndCard();
@@ -295,7 +295,7 @@ void DrawCs2Status() {
 
     BeginCardRow();
     BeginCard("CADEIA DO ESP", half);
-    HealthRow("ESP", CS2::config.esp_enabled ? "Ativado" : "Desativado nas opções",
+    HealthRow("ESP", CS2::config.esp_enabled ? "Ativado" : "Desativado nas opÃ§Ãµes",
         CS2::config.esp_enabled ? HealthStatus::Ok : HealthStatus::Warning);
     char age[64]{};
     FormatAge(age, sizeof(age), now, world ?
@@ -303,16 +303,16 @@ void DrawCs2Status() {
     HealthRow("Snapshot do mundo", worldFresh ? age : "Ausente ou desatualizado",
         worldFresh ? HealthStatus::Ok : HealthStatus::Warning);
     FormatAge(age, sizeof(age), now, renderMatrixSample);
-    HealthRow("Amostra da câmara", renderMatrix ? age : "Sem matriz utilizável",
+    HealthRow("Amostra da cÃ¢mara", renderMatrix ? age : "Sem matriz utilizÃ¡vel",
         renderMatrix ? HealthStatus::Ok : HealthStatus::Warning);
 
     char projection[96]{};
     if (!renderMatrix)
         std::snprintf(projection, sizeof(projection), "Bloqueado pela ViewMatrix");
     else if (positionValid == 0)
-        std::snprintf(projection, sizeof(projection), "A aguardar posição válida");
+        std::snprintf(projection, sizeof(projection), "A aguardar posiÃ§Ã£o vÃ¡lida");
     else
-        std::snprintf(projection, sizeof(projection), "%d/%d projetáveis · %d no ecrã",
+        std::snprintf(projection, sizeof(projection), "%d/%d projetÃ¡veis Â· %d no ecrÃ£",
             projected, positionValid, onScreen);
     const bool projectionOk = renderMatrix && (positionValid == 0 || projected > 0);
     HealthRow("World-to-Screen", projection,
@@ -324,18 +324,18 @@ void DrawCs2Status() {
 
     NextCardColumn();
     BeginCard("FILTROS E RESULTADO", half);
-    std::snprintf(value, sizeof(value), "%d de %d elegíveis", filterCandidates, aliveRemote);
-    HealthRow("Após filtros", value,
+    std::snprintf(value, sizeof(value), "%d de %d elegÃ­veis", filterCandidates, aliveRemote);
+    HealthRow("ApÃ³s filtros", value,
         aliveRemote == 0 || filterCandidates > 0 ? HealthStatus::Ok : HealthStatus::Warning);
-    std::snprintf(value, sizeof(value), "equipa %d · bots %d · visib. %d · distância %d",
+    std::snprintf(value, sizeof(value), "equipa %d Â· bots %d Â· visib. %d Â· distÃ¢ncia %d",
         rejectedTeam, rejectedBots, rejectedVisibility, rejectedDistance);
-    KeyValueRow("Excluídos", value);
+    KeyValueRow("ExcluÃ­dos", value);
     KeyValueRow("Equipa", CS2::config.team_check ? "Ocultar aliados" : "Mostrar todos");
     KeyValueRow("Bots", CS2::config.show_bots ? "Mostrar" : "Ocultar");
     std::snprintf(value, sizeof(value), "%.0f m", CS2::config.max_distance);
-    KeyValueRow("Distância máxima", value);
+    KeyValueRow("DistÃ¢ncia mÃ¡xima", value);
     const char* visibilityMode = CS2::config.visible_check ?
-        (CS2::config.visibility_colors ? "Cores visível/oculto" : "Apenas visíveis") :
+        (CS2::config.visibility_colors ? "Cores visÃ­vel/oculto" : "Apenas visÃ­veis") :
         (CS2::config.visibility_colors ? "Cores sem filtragem" : "Desativada");
     KeyValueRow("Visibilidade", visibilityMode);
     std::snprintf(value, sizeof(value), "%d/%d conhecidos", visibilityKnown, positionValid);

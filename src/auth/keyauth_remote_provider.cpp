@@ -351,9 +351,9 @@ void KeyAuthRemoteLicenseProvider::Logout() noexcept {
         try {
             impl_->api.logout();
         } catch (const std::exception& exception) {
-            ReportCleanupFailure(OGS_LIT("logout"), exception.what());
+            ReportCleanupFailure(OGS_CSTR("logout"), exception.what());
         } catch (...) {
-            ReportCleanupFailure(OGS_LIT("logout"));
+            ReportCleanupFailure(OGS_CSTR("logout"));
         }
     }
 #endif
@@ -361,9 +361,9 @@ void KeyAuthRemoteLicenseProvider::Logout() noexcept {
     try {
         UpdateStateMirror();
     } catch (const std::exception& exception) {
-        ReportCleanupFailure(OGS_LIT("state mirror reset"), exception.what());
+        ReportCleanupFailure(OGS_CSTR("state mirror reset"), exception.what());
     } catch (...) {
-        ReportCleanupFailure(OGS_LIT("state mirror reset"));
+        ReportCleanupFailure(OGS_CSTR("state mirror reset"));
     }
 }
 
