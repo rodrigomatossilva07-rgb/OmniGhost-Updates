@@ -46,7 +46,7 @@ void DrawFriends()
     ImGui::BeginGroup();
     CyberWidgets::BeginCard(Loc::Tr("fr.list"), leftW);
     CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-        Loc::Tr("fr.nearby"), (int)playersSnapshot.size());
+        std::string{Loc::Tr("fr.nearby")}, (int)playersSnapshot.size());
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("REGRAS");
     CyberWidgets::ToggleSwitch(Loc::Tr("fr.ignore_aim"), &friends::config.ignore_aim);
@@ -75,7 +75,7 @@ void DrawFriends()
     }
     CyberWidgets::Separator();
     CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-        Loc::Tr("fr.count"), (int)friendsSnapshot.size());
+        std::string{Loc::Tr("fr.count")}, (int)friendsSnapshot.size());
     CyberWidgets::BeginSurfaceList("##friend_list", 140.0f);
     uint32_t to_remove = 0;
     {

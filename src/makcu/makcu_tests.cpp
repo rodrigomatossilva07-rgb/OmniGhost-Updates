@@ -207,19 +207,19 @@ void TestLegacyTextCapabilities() {
 
     const auto caps = makcu::MakcuCapabilityRegistry::Resolve(descriptor);
     Check(caps.Get(makcu::Capability::RelativeMove) == makcu::CapabilityState::Supported,
-          OGS_LIT("LegacyText: RelativeMove supported"));
+          OGS_CSTR("LegacyText: RelativeMove supported"));
     Check(caps.Get(makcu::Capability::SmoothMove) == makcu::CapabilityState::Supported,
-          OGS_LIT("LegacyText: SmoothMove supported"));
+          OGS_CSTR("LegacyText: SmoothMove supported"));
     Check(caps.Get(makcu::Capability::BezierMove) == makcu::CapabilityState::Supported,
-          OGS_LIT("LegacyText: BezierMove supported"));
+          OGS_CSTR("LegacyText: BezierMove supported"));
     Check(caps.Get(makcu::Capability::ButtonMonitoring) == makcu::CapabilityState::Supported,
-          OGS_LIT("LegacyText: ButtonMonitoring supported"));
+          OGS_CSTR("LegacyText: ButtonMonitoring supported"));
     Check(caps.Get(makcu::Capability::MouseLocks) == makcu::CapabilityState::Supported,
-          OGS_LIT("LegacyText: MouseLocks supported"));
+          OGS_CSTR("LegacyText: MouseLocks supported"));
     Check(caps.Get(makcu::Capability::MouseSerial) == makcu::CapabilityState::Supported,
-          OGS_LIT("LegacyText: MouseSerial supported"));
+          OGS_CSTR("LegacyText: MouseSerial supported"));
     Check(caps.Get(makcu::Capability::DeviceKinds) == makcu::CapabilityState::Unsupported,
-          OGS_LIT("LegacyText: DeviceKinds unsupported"));
+          OGS_CSTR("LegacyText: DeviceKinds unsupported"));
 }
 
 void TestV4Capabilities() {
@@ -229,17 +229,17 @@ void TestV4Capabilities() {
 
     const auto caps = makcu::MakcuCapabilityRegistry::Resolve(descriptor);
     Check(caps.Get(makcu::Capability::RelativeMove) == makcu::CapabilityState::Supported,
-          OGS_LIT("V4: RelativeMove supported"));
+          OGS_CSTR("V4: RelativeMove supported"));
     Check(caps.Get(makcu::Capability::SmoothMove) == makcu::CapabilityState::Unsupported,
-          OGS_LIT("V4: SmoothMove unsupported (binary protocol)"));
+          OGS_CSTR("V4: SmoothMove unsupported (binary protocol)"));
     Check(caps.Get(makcu::Capability::BezierMove) == makcu::CapabilityState::Unsupported,
-          OGS_LIT("V4: BezierMove unsupported"));
+          OGS_CSTR("V4: BezierMove unsupported"));
     Check(caps.Get(makcu::Capability::ButtonMonitoring) == makcu::CapabilityState::Supported,
-          OGS_LIT("V4: ButtonMonitoring supported"));
+          OGS_CSTR("V4: ButtonMonitoring supported"));
     Check(caps.Get(makcu::Capability::DeviceKinds) == makcu::CapabilityState::Supported,
-          OGS_LIT("V4: DeviceKinds supported"));
+          OGS_CSTR("V4: DeviceKinds supported"));
     Check(caps.Get(makcu::Capability::BaudQuery) == makcu::CapabilityState::Unsupported,
-          OGS_LIT("V4 (no version): BaudQuery unsupported"));
+          OGS_CSTR("V4 (no version): BaudQuery unsupported"));
 }
 
 void TestV4CapabilitiesWithVersion() {
@@ -251,7 +251,7 @@ void TestV4CapabilitiesWithVersion() {
 
     const auto caps = makcu::MakcuCapabilityRegistry::Resolve(descriptor);
     Check(caps.Get(makcu::Capability::BaudQuery) == makcu::CapabilityState::Supported,
-          OGS_LIT("V4 >= 4073: BaudQuery supported"));
+          OGS_CSTR("V4 >= 4073: BaudQuery supported"));
 }
 
 void TestV2BinaryCapabilities() {
@@ -261,15 +261,15 @@ void TestV2BinaryCapabilities() {
 
     const auto caps = makcu::MakcuCapabilityRegistry::Resolve(descriptor);
     Check(caps.Get(makcu::Capability::RelativeMove) == makcu::CapabilityState::Supported,
-          OGS_LIT("V2: RelativeMove supported"));
+          OGS_CSTR("V2: RelativeMove supported"));
     Check(caps.Get(makcu::Capability::SmoothMove) == makcu::CapabilityState::Supported,
-          OGS_LIT("V2: SmoothMove supported"));
+          OGS_CSTR("V2: SmoothMove supported"));
     Check(caps.Get(makcu::Capability::BezierMove) == makcu::CapabilityState::Supported,
-          OGS_LIT("V2: BezierMove supported"));
+          OGS_CSTR("V2: BezierMove supported"));
     Check(caps.Get(makcu::Capability::ButtonMonitoring) == makcu::CapabilityState::Supported,
-          OGS_LIT("V2: ButtonMonitoring supported (documented 0x02 button stream)"));
+          OGS_CSTR("V2: ButtonMonitoring supported (documented 0x02 button stream)"));
     Check(caps.Get(makcu::Capability::MouseLocks) == makcu::CapabilityState::Unknown,
-          OGS_LIT("V2: MouseLocks unknown"));
+          OGS_CSTR("V2: MouseLocks unknown"));
 }
 
 void TestUnknownCapabilities() {
@@ -279,7 +279,7 @@ void TestUnknownCapabilities() {
     const auto caps = makcu::MakcuCapabilityRegistry::Resolve(descriptor);
     for (int i = 0; i < static_cast<int>(makcu::Capability::Count); ++i) {
         Check(caps.Get(static_cast<makcu::Capability>(i)) == makcu::CapabilityState::Unknown,
-              OGS_LIT("Unknown firmware: all capabilities Unknown"));
+              OGS_CSTR("Unknown firmware: all capabilities Unknown"));
     }
 }
 
@@ -382,7 +382,7 @@ void TestV2BinaryButtonMonitoring() {
             Check(enable->bytes[0] == 0x50, OGS_CSTR("V2 ButtonMonitoring starts with 0x50"));
             Check(enable->bytes[1] == 0x02, OGS_CSTR("V2 ButtonMonitoring command == 0x02"));
             Check(enable->bytes[2] == 0x01 && enable->bytes[3] == 0x00,
-                  OGS_LIT("V2 ButtonMonitoring payload length == 1"));
+                  OGS_CSTR("V2 ButtonMonitoring payload length == 1"));
             Check(enable->bytes[4] == 0x01, OGS_CSTR("V2 ButtonMonitoring enable mode == 1"));
         }
     }

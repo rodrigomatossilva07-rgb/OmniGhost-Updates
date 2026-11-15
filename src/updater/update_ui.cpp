@@ -87,12 +87,12 @@ void DrawVersionLine(const Update::Snapshot& state) {
     const std::string installed = UiFormat::Version(OmniGhost::Version);
     if (state.availableVersion.empty()) {
         CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-            OGS_CSTR("VersÃ£o instalada: %s"), installed.c_str());
+            OGS_LIT("VersÃ£o instalada: %s"), installed);
         return;
     }
     const std::string available = UiFormat::Version(state.availableVersion);
     CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-        "%s  â†’  %s", installed.c_str(), available.c_str());
+        OGS_LIT("%s  â†’  %s"), installed, available);
 }
 
 }
@@ -169,7 +169,7 @@ void Draw() {
 
         if (state.status == Status::Error && technicalDetailsExpanded) {
             CyberWidgets::TextLineF(CyberWidgets::TextTone::Accent,
-                OGS_CSTR("Etapa: %s"), StageLabel(state.errorStage).c_str());
+                OGS_LIT("Etapa: %s"), StageLabel(state.errorStage).c_str());
             ImGui::BeginChild(OGS_CSTR("##omnighost_update_error_detail"),
                 ImVec2(-1.0f, CyberTheme::Px(104.0f)), true,
                 ImGuiWindowFlags_AlwaysVerticalScrollbar);
@@ -199,7 +199,7 @@ void Draw() {
             service.Cancel();
     } else if (state.status == Status::Available) {
         if (state.bytesTotal > 0)
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, OGS_CSTR("Pacote: %.1f MB"),
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, OGS_LIT("Pacote: %.1f MB"),
                 static_cast<double>(state.bytesTotal) / 1048576.0);
         if (CyberWidgets::Button(state.mandatory ? OGS_CSTR("Instalar atualizaÃ§Ã£o") : OGS_CSTR("Instalar agora"),
                 CyberWidgets::ButtonStyle::Primary, ImVec2(CyberTheme::Px(180.0f), CyberTheme::Px(34.0f))))
@@ -221,7 +221,7 @@ void Draw() {
         }
     } else if (state.status == Status::Ready) {
         if (state.bytesTotal > 0)
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Success, OGS_CSTR("Pacote validado: %.1f MB"),
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Success, OGS_LIT("Pacote validado: %.1f MB"),
                 static_cast<double>(state.bytesTotal) / 1048576.0);
         if (CyberWidgets::Button(state.repairMode ? OGS_CSTR("Reparar e reiniciar") : OGS_CSTR("Instalar agora"),
                 CyberWidgets::ButtonStyle::Primary, ImVec2(CyberTheme::Px(170.0f), CyberTheme::Px(34.0f))))
@@ -248,7 +248,7 @@ void Draw() {
         if (!state.updateFromVersion.empty()) {
             const std::string from = UiFormat::Version(state.updateFromVersion);
             const std::string to = UiFormat::Version(OmniGhost::Version);
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Success, "%s â†’ %s", from.c_str(), to.c_str());
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Success, OGS_LIT("%s â†’ %s"), from.c_str(), to.c_str());
         }
         if (!state.releaseNotesForCompletedUpdate.empty()) {
             if (CyberWidgets::Button(OGS_CSTR("O que hÃ¡ de novo"), CyberWidgets::ButtonStyle::Secondary,
@@ -262,10 +262,10 @@ void Draw() {
     } else if (state.status == Status::RolledBack) {
         if (!state.availableVersion.empty()) {
             const std::string failed = UiFormat::Version(state.availableVersion);
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Warning, OGS_CSTR("Falhou: %s"), failed.c_str());
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Warning, OGS_LIT("Falhou: %s"), failed.c_str());
         }
         if (!state.errorStage.empty())
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, OGS_CSTR("Etapa: %s"), StageLabel(state.errorStage));
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, OGS_LIT("Etapa: %s"), StageLabel(state.errorStage));
         if (CyberWidgets::Button(OGS_CSTR("Tentar novamente"), CyberWidgets::ButtonStyle::Primary,
                 ImVec2(CyberTheme::Px(150.0f), CyberTheme::Px(34.0f)))) {
             service.DismissStartupNotice();

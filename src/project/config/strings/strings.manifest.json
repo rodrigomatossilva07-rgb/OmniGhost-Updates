@@ -2,9 +2,9 @@
     "schemaVersion":  1,
     "tool":  "Protect-Strings.ps1",
     "appVersion":  "1.3.4",
-    "gitCommit":  "17b6c91caacc063d350d61102ab046e984dcbe00",
+    "gitCommit":  "4f61a239f8b42a4eec90fec87b832245a1260520",
     "gitBranch":  "main",
-    "updatedUtc":  "2026-11-15T18:53:22.6785222Z",
+    "updatedUtc":  "2026-11-15T19:22:18.4710634Z",
     "entryCount":  11571,
     "entries":  [
                     {
@@ -35975,7 +35975,7 @@
                         "file":  "src/launcher/game_select_pages.inl",
                         "line":  109,
                         "length":  27,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "73e452e7a435457b",
@@ -36045,7 +36045,7 @@
                         "file":  "src/launcher/game_select_pages.inl",
                         "line":  112,
                         "length":  31,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "b2b89467374f6aae",
@@ -36905,7 +36905,7 @@
                         "file":  "src/launcher/game_select_pages.inl",
                         "line":  279,
                         "length":  32,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "d781f1f04736cedf",
@@ -36925,7 +36925,7 @@
                         "file":  "src/launcher/game_select_pages.inl",
                         "line":  281,
                         "length":  38,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "3484acf65760fde8",
@@ -37715,7 +37715,7 @@
                         "file":  "src/launcher/game_select_pages.inl",
                         "line":  70,
                         "length":  24,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "d944d16373b6fa45",
@@ -37755,7 +37755,7 @@
                         "file":  "src/launcher/game_select_pages.inl",
                         "line":  71,
                         "length":  24,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "56d3a195ff68f20f",
@@ -37895,7 +37895,7 @@
                         "file":  "src/launcher/game_select_pages.inl",
                         "line":  79,
                         "length":  22,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "7304620adfd6fecb",
@@ -44655,7 +44655,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  210,
                         "length":  34,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "dd5b6ff39a5b8e39",
@@ -44665,7 +44665,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  212,
                         "length":  32,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "51ead3a124e05477",
@@ -44675,7 +44675,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  214,
                         "length":  32,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "36f7c1407d476626",
@@ -44685,7 +44685,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  216,
                         "length":  38,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "e31388c028789d6d",
@@ -44695,7 +44695,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  218,
                         "length":  32,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "1a3dbdc8ea1d0b77",
@@ -44705,7 +44705,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  220,
                         "length":  33,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "6b0ce7d1f53ec5d7",
@@ -44715,7 +44715,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  222,
                         "length":  35,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "65d706eefbea5d3f",
@@ -44725,7 +44725,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  232,
                         "length":  26,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "a26fa6e47aa14bc6",
@@ -44735,7 +44735,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  234,
                         "length":  44,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "c116e6c9ca8c17ab",
@@ -44745,7 +44745,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  236,
                         "length":  26,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "4445736b042bd3db",
@@ -44755,7 +44755,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  238,
                         "length":  30,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "6083ff177414782c",
@@ -44765,7 +44765,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  240,
                         "length":  25,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "41b1b5ce7266d209",
@@ -44775,7 +44775,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  242,
                         "length":  38,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "b9db8580a69b2234",
@@ -44785,7 +44785,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  254,
                         "length":  31,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "3b2b6dbbe4c9c8c4",
@@ -44795,7 +44795,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  264,
                         "length":  26,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "9bc18459571d701f",
@@ -44805,7 +44805,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  266,
                         "length":  24,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "966da2dcf73f7efa",
@@ -44815,7 +44815,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  268,
                         "length":  24,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "60c6935d20782001",
@@ -44825,7 +44825,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  270,
                         "length":  62,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "442c95c3b00e0aee",
@@ -44835,7 +44835,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  272,
                         "length":  22,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "bf49bfd176e44963",
@@ -44845,7 +44845,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  282,
                         "length":  42,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "7fa38806acb6b74c",
@@ -45125,7 +45125,7 @@
                         "file":  "src/makcu/makcu_tests.cpp",
                         "line":  385,
                         "length":  39,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "6cc40d5965684f74",
@@ -59485,7 +59485,7 @@
                         "file":  "src/updater/update_ui.cpp",
                         "line":  172,
                         "length":  9,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "81a3ff612fc2a4ae",
@@ -59525,7 +59525,7 @@
                         "file":  "src/updater/update_ui.cpp",
                         "line":  202,
                         "length":  15,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "a908d369742c3367",
@@ -59595,7 +59595,7 @@
                         "file":  "src/updater/update_ui.cpp",
                         "line":  224,
                         "length":  24,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "a908d369742c3367",
@@ -59755,7 +59755,7 @@
                         "file":  "src/updater/update_ui.cpp",
                         "line":  265,
                         "length":  10,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "b1b9ef0ec30eff5b",
@@ -59765,7 +59765,7 @@
                         "file":  "src/updater/update_ui.cpp",
                         "line":  268,
                         "length":  9,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "44e7080ce917fdb4",
@@ -60295,7 +60295,7 @@
                         "file":  "src/updater/update_ui.cpp",
                         "line":  90,
                         "length":  21,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "12c599cb2982f6a9",
@@ -104988,962 +104988,12 @@
                         "status":  "unprotected"
                     },
                     {
-                        "id":  "c687b07b46c457f9",
-                        "fp":  "40a3878f39f342d4",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  100,
-                        "length":  17,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "1ef35e7770db2b1e",
-                        "fp":  "9e507764567735c7",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  100,
-                        "length":  18,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "07cdf8ccd8728fe8",
-                        "fp":  "8d66c24cd351a3f5",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  102,
-                        "length":  15,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "8c625e4ac5d239fb",
-                        "fp":  "c84654b353cc88c3",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  102,
-                        "length":  17,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "19aa140bf6c83c0f",
-                        "fp":  "5435dae0c41e6515",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  108,
-                        "length":  9,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "19aa140bf6c83c0f",
-                        "fp":  "5435dae0c41e6515",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  108,
-                        "length":  9,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "ecb27bd66c13e1ca",
-                        "fp":  "6920fbb9a6798693",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  110,
-                        "length":  16,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "46588d32e8af71db",
-                        "fp":  "9ed3d8fe36f5ec4c",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  110,
-                        "length":  16,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "194874b9e3750946",
-                        "fp":  "01e0d982813cd8c5",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  118,
-                        "length":  11,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "7f8008a8305a46b4",
-                        "fp":  "edb45c2df332253a",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  118,
-                        "length":  11,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "0f8e6af5880b7f35",
-                        "fp":  "5386ea5db81c8579",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  120,
-                        "length":  8,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "8b40b959c41717a6",
-                        "fp":  "9123685a0d2a98ba",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  120,
-                        "length":  11,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "7a3506b246f29008",
-                        "fp":  "523487a5de21adb5",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  121,
-                        "length":  8,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "55d095dcbe8d678e",
-                        "fp":  "93d536a329af3da7",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  121,
-                        "length":  9,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "919b4e217bea976d",
-                        "fp":  "442aded87a55aa8c",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  122,
-                        "length":  11,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "297acede4cfc9db4",
-                        "fp":  "ce274629c3f2e125",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  122,
-                        "length":  10,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "c7860d6fa85c3f46",
-                        "fp":  "00d551e63dd540fc",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  124,
-                        "length":  6,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "5485abb662b66eca",
-                        "fp":  "d696a35bdd1883da",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  124,
-                        "length":  7,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "d174733c8d1fcf1c",
-                        "fp":  "e1fecc830f60baa4",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  140,
-                        "length":  19,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "40482af621b5f534",
-                        "fp":  "e375003fec92ec6d",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  140,
-                        "length":  14,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "4e8eddc971a0d897",
-                        "fp":  "af2a027e73c61ed2",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  143,
-                        "length":  20,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "640f60471012fa2b",
-                        "fp":  "e1f268f4f1756968",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  143,
-                        "length":  15,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "a16187a643b836fe",
-                        "fp":  "223d69af7804720d",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  146,
-                        "length":  29,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "677c4bf949e4d971",
-                        "fp":  "9449cfc4e5a83eff",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  147,
-                        "length":  12,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "e063e2fdbe3c6433",
-                        "fp":  "6ce9cc556d8df9ff",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  148,
-                        "length":  20,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "578e6dc556495777",
-                        "fp":  "ac89499ea56904c7",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  148,
-                        "length":  16,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "e780366c99d96a63",
-                        "fp":  "35be6f19e0f6b848",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  151,
-                        "length":  30,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "ecc302ae23d6f76a",
-                        "fp":  "c51905504e4df1cf",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  152,
-                        "length":  12,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "a628d20b1d17ec8e",
-                        "fp":  "3853a9f61c3ef39c",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  153,
-                        "length":  13,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "53a6deb954076f42",
-                        "fp":  "3cf2bbb08ebed4bc",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  153,
-                        "length":  11,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "f60ddc16ed295391",
-                        "fp":  "0bd5e2a46521d07a",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  163,
-                        "length":  84,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "8b4b3cdfbc35663c",
-                        "fp":  "547c068e66391cb2",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  164,
-                        "length":  63,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "23ed0573a8d92de1",
-                        "fp":  "43646a856e92d268",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  169,
-                        "length":  22,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "60115a46866d31a0",
-                        "fp":  "4c0b882cde244f39",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  169,
-                        "length":  24,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "4199341ff4b04c8c",
-                        "fp":  "1aa7a178137f0854",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  174,
-                        "length":  14,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "4e09a4d41ff1ce53",
-                        "fp":  "548c5b4d99727c76",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  174,
-                        "length":  11,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "7edea5dd0caa5a64",
-                        "fp":  "41a772e632d2f40d",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  175,
-                        "length":  10,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "b42c1a072450102d",
-                        "fp":  "6e293a8c009e0011",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  175,
-                        "length":  7,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "dcfb385dd605cd76",
-                        "fp":  "b2b4d926afd6b77e",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  175,
-                        "length":  9,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "86c06e3a30c100a1",
-                        "fp":  "b64ac05f17e64d03",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  175,
-                        "length":  4,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "3b93bbdf5842ac73",
-                        "fp":  "f1fcc4c0ae722973",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  176,
-                        "length":  43,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "32484c270e76afc4",
-                        "fp":  "f6c668cf7f85e8fb",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  179,
-                        "length":  41,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "a935411bf41c9192",
-                        "fp":  "041d50a8101bdc7b",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  182,
-                        "length":  16,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "80a770f21fb0eee3",
-                        "fp":  "92c08d4abe0aba82",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  182,
-                        "length":  17,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "e441c03cfcc22298",
-                        "fp":  "2348f99874421257",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  184,
-                        "length":  4,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "d967e3b00ee2cbea",
-                        "fp":  "7a58b4c8ae7da5d7",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  189,
-                        "length":  19,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "73ae4d89a2323a78",
-                        "fp":  "d9f56c8a48823ed8",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  189,
-                        "length":  16,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "e441c03cfcc22298",
-                        "fp":  "2348f99874421257",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  190,
-                        "length":  4,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "374c70f7c4d073ea",
-                        "fp":  "c19488a055649c41",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  192,
-                        "length":  11,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "32466c02ff990d54",
-                        "fp":  "dbf362d4f210c780",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  192,
-                        "length":  9,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "38b962aa6f01b780",
-                        "fp":  "a4e4d75c1d607f3c",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  199,
-                        "length":  81,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "0b8037b75dbfa19c",
-                        "fp":  "fc2b72d106200478",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  200,
-                        "length":  80,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "169cd584ff2dc545",
-                        "fp":  "d6763dd3dd335ed8",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  61,
-                        "length":  41,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "6ce427028237347b",
-                        "fp":  "c8eeaabba4f9aa95",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  62,
-                        "length":  41,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "a6b2f4232859a134",
-                        "fp":  "ddadd1fb4789a921",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  74,
-                        "length":  5,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "4204d22895ec2eeb",
-                        "fp":  "293fe45b388eb899",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  75,
-                        "length":  12,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "cc981282e26d1e36",
-                        "fp":  "bb9187fcfdbac578",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  75,
-                        "length":  12,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "48ca26b0cc830cc6",
-                        "fp":  "0f801479e3354469",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  78,
-                        "length":  12,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "4cf722236bd3c1b8",
-                        "fp":  "83ef3fae6147297f",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  78,
-                        "length":  14,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "6ad385f36dc1193d",
-                        "fp":  "6c6a606dff87c22a",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  79,
-                        "length":  19,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "691213127ecd8db0",
-                        "fp":  "bd2e4c734ce0ccd5",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  79,
-                        "length":  18,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "89de6493dea50d4d",
-                        "fp":  "08ea3c93375b9f88",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  80,
-                        "length":  17,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "4cd77d586538be3c",
-                        "fp":  "a031f70c3fd492e2",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  80,
-                        "length":  12,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "543d94db6503e84c",
-                        "fp":  "50befc8f6809dd05",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  81,
-                        "length":  13,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "b8050532071dd483",
-                        "fp":  "9b1d15a34f263313",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  81,
-                        "length":  17,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "20c798f610328782",
-                        "fp":  "4fd7978c045f0c40",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  82,
-                        "length":  5,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "2ced3dfef03a5fc6",
-                        "fp":  "c3b29e6eef2cc49b",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  82,
-                        "length":  5,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "a1bb25a7c16f2af8",
-                        "fp":  "654e85ee2698ee81",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  83,
-                        "length":  9,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "bf87c6eaa23d7e4c",
-                        "fp":  "9d274dd254541a03",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  83,
-                        "length":  11,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "eff957b59688ebe4",
-                        "fp":  "0608622530017885",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  84,
-                        "length":  20,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "41eaf8b72f0a76eb",
-                        "fp":  "58b5a876b46d7001",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  84,
-                        "length":  17,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "5e79d4e606b8198c",
-                        "fp":  "60048eb8638090ca",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  85,
-                        "length":  14,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "3fb80b6258d10fa1",
-                        "fp":  "7448cfbc7bf660dd",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  85,
-                        "length":  23,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "302ce3b3799676b3",
-                        "fp":  "11af554c7675294d",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  86,
-                        "length":  28,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "93c55275c62a2796",
-                        "fp":  "482477b13e45e499",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  86,
-                        "length":  20,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "b9fb1e175af6b479",
-                        "fp":  "246f4f340ffa215c",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  87,
-                        "length":  12,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "6e2557eaf9e3bf7b",
-                        "fp":  "edcfbf2e5bf4c763",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  87,
-                        "length":  14,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "0a878b08dcfa3ef1",
-                        "fp":  "a192eb9e9c8a0236",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  88,
-                        "length":  13,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "102b20305b286ab0",
-                        "fp":  "e82b2a16228150ae",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  88,
-                        "length":  12,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "9e719616151b9850",
-                        "fp":  "656db00822737e45",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  89,
-                        "length":  19,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "5979d4f11a75f65c",
-                        "fp":  "8061ee9a8006ffac",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  89,
-                        "length":  24,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "a814658eddb73275",
-                        "fp":  "33149b3a76ea2182",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  90,
-                        "length":  18,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "fecdc595ee422351",
-                        "fp":  "c0af802496b36206",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  90,
-                        "length":  11,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "afcae1a73b52a92f",
-                        "fp":  "2175c195b3e3b5b0",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  91,
-                        "length":  26,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "5f7ce075c539160b",
-                        "fp":  "6959fa9bf4881625",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  91,
-                        "length":  16,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "a44955dd46abe89d",
-                        "fp":  "477f2a69f25fbe3c",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  92,
-                        "length":  7,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "7fbbecbfd87d6b64",
-                        "fp":  "5de74a81b192304c",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  92,
-                        "length":  5,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "8a837ab2afab582e",
-                        "fp":  "1af851907331c0ed",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  93,
-                        "length":  4,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "cab949f195f9331d",
-                        "fp":  "21bed0eaf1e59c19",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  93,
-                        "length":  7,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "c6c30a97de049e6f",
-                        "fp":  "992314b091093d73",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  94,
-                        "length":  22,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "3c767998245a3345",
-                        "fp":  "e4a3642a8f6afc20",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  94,
-                        "length":  11,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "ac2792c170443f3b",
-                        "fp":  "cfb7cb15833f87ad",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  95,
-                        "length":  12,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "8e7325ddd66f0101",
-                        "fp":  "fcae13f0e231ac7c",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  95,
-                        "length":  9,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "34516e143bba2777",
-                        "fp":  "672d92f46c4b9697",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  96,
-                        "length":  56,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "a349689662806084",
-                        "fp":  "743e882f0b5c1a80",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  97,
-                        "length":  54,
-                        "status":  "unprotected"
-                    },
-                    {
                         "id":  "94ffc9464ec0481e",
                         "fp":  "0735d7110f134810",
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  99,
+                        "line":  100,
                         "length":  20,
                         "status":  "unprotected"
                     },
@@ -105953,8 +105003,958 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/RadarPage.cpp",
-                        "line":  99,
+                        "line":  100,
                         "length":  19,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "c687b07b46c457f9",
+                        "fp":  "40a3878f39f342d4",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  101,
+                        "length":  17,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "1ef35e7770db2b1e",
+                        "fp":  "9e507764567735c7",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  101,
+                        "length":  18,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "07cdf8ccd8728fe8",
+                        "fp":  "8d66c24cd351a3f5",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  103,
+                        "length":  15,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "8c625e4ac5d239fb",
+                        "fp":  "c84654b353cc88c3",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  103,
+                        "length":  17,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "19aa140bf6c83c0f",
+                        "fp":  "5435dae0c41e6515",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  109,
+                        "length":  9,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "19aa140bf6c83c0f",
+                        "fp":  "5435dae0c41e6515",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  109,
+                        "length":  9,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "ecb27bd66c13e1ca",
+                        "fp":  "6920fbb9a6798693",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  111,
+                        "length":  16,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "46588d32e8af71db",
+                        "fp":  "9ed3d8fe36f5ec4c",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  111,
+                        "length":  16,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "194874b9e3750946",
+                        "fp":  "01e0d982813cd8c5",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  119,
+                        "length":  11,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "7f8008a8305a46b4",
+                        "fp":  "edb45c2df332253a",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  119,
+                        "length":  11,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "0f8e6af5880b7f35",
+                        "fp":  "5386ea5db81c8579",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  121,
+                        "length":  8,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "8b40b959c41717a6",
+                        "fp":  "9123685a0d2a98ba",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  121,
+                        "length":  11,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "7a3506b246f29008",
+                        "fp":  "523487a5de21adb5",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  122,
+                        "length":  8,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "55d095dcbe8d678e",
+                        "fp":  "93d536a329af3da7",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  122,
+                        "length":  9,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "919b4e217bea976d",
+                        "fp":  "442aded87a55aa8c",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  123,
+                        "length":  11,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "297acede4cfc9db4",
+                        "fp":  "ce274629c3f2e125",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  123,
+                        "length":  10,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "c7860d6fa85c3f46",
+                        "fp":  "00d551e63dd540fc",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  125,
+                        "length":  6,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "5485abb662b66eca",
+                        "fp":  "d696a35bdd1883da",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  125,
+                        "length":  7,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "d174733c8d1fcf1c",
+                        "fp":  "e1fecc830f60baa4",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  141,
+                        "length":  19,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "40482af621b5f534",
+                        "fp":  "e375003fec92ec6d",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  141,
+                        "length":  14,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "4e8eddc971a0d897",
+                        "fp":  "af2a027e73c61ed2",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  144,
+                        "length":  20,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "640f60471012fa2b",
+                        "fp":  "e1f268f4f1756968",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  144,
+                        "length":  15,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "a16187a643b836fe",
+                        "fp":  "223d69af7804720d",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  147,
+                        "length":  29,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "677c4bf949e4d971",
+                        "fp":  "9449cfc4e5a83eff",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  148,
+                        "length":  12,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "e063e2fdbe3c6433",
+                        "fp":  "6ce9cc556d8df9ff",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  149,
+                        "length":  20,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "578e6dc556495777",
+                        "fp":  "ac89499ea56904c7",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  149,
+                        "length":  16,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "e780366c99d96a63",
+                        "fp":  "35be6f19e0f6b848",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  152,
+                        "length":  30,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "ecc302ae23d6f76a",
+                        "fp":  "c51905504e4df1cf",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  153,
+                        "length":  12,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "a628d20b1d17ec8e",
+                        "fp":  "3853a9f61c3ef39c",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  154,
+                        "length":  13,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "53a6deb954076f42",
+                        "fp":  "3cf2bbb08ebed4bc",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  154,
+                        "length":  11,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "f60ddc16ed295391",
+                        "fp":  "0bd5e2a46521d07a",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  164,
+                        "length":  84,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "8b4b3cdfbc35663c",
+                        "fp":  "547c068e66391cb2",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  165,
+                        "length":  63,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "23ed0573a8d92de1",
+                        "fp":  "43646a856e92d268",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  170,
+                        "length":  22,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "60115a46866d31a0",
+                        "fp":  "4c0b882cde244f39",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  170,
+                        "length":  24,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "4199341ff4b04c8c",
+                        "fp":  "1aa7a178137f0854",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  175,
+                        "length":  14,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "4e09a4d41ff1ce53",
+                        "fp":  "548c5b4d99727c76",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  175,
+                        "length":  11,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "7edea5dd0caa5a64",
+                        "fp":  "41a772e632d2f40d",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  176,
+                        "length":  10,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "b42c1a072450102d",
+                        "fp":  "6e293a8c009e0011",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  176,
+                        "length":  7,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "dcfb385dd605cd76",
+                        "fp":  "b2b4d926afd6b77e",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  176,
+                        "length":  9,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "86c06e3a30c100a1",
+                        "fp":  "b64ac05f17e64d03",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  176,
+                        "length":  4,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "3b93bbdf5842ac73",
+                        "fp":  "f1fcc4c0ae722973",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  177,
+                        "length":  43,
+                        "status":  "protected"
+                    },
+                    {
+                        "id":  "32484c270e76afc4",
+                        "fp":  "f6c668cf7f85e8fb",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  180,
+                        "length":  41,
+                        "status":  "protected"
+                    },
+                    {
+                        "id":  "a935411bf41c9192",
+                        "fp":  "041d50a8101bdc7b",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  183,
+                        "length":  16,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "80a770f21fb0eee3",
+                        "fp":  "92c08d4abe0aba82",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  183,
+                        "length":  17,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "e441c03cfcc22298",
+                        "fp":  "2348f99874421257",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  185,
+                        "length":  4,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "d967e3b00ee2cbea",
+                        "fp":  "7a58b4c8ae7da5d7",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  190,
+                        "length":  19,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "73ae4d89a2323a78",
+                        "fp":  "d9f56c8a48823ed8",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  190,
+                        "length":  16,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "e441c03cfcc22298",
+                        "fp":  "2348f99874421257",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  191,
+                        "length":  4,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "374c70f7c4d073ea",
+                        "fp":  "c19488a055649c41",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  193,
+                        "length":  11,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "32466c02ff990d54",
+                        "fp":  "dbf362d4f210c780",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  193,
+                        "length":  9,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "38b962aa6f01b780",
+                        "fp":  "a4e4d75c1d607f3c",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  200,
+                        "length":  81,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "0b8037b75dbfa19c",
+                        "fp":  "fc2b72d106200478",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  201,
+                        "length":  80,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "169cd584ff2dc545",
+                        "fp":  "d6763dd3dd335ed8",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  62,
+                        "length":  41,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "6ce427028237347b",
+                        "fp":  "c8eeaabba4f9aa95",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  63,
+                        "length":  41,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "a6b2f4232859a134",
+                        "fp":  "ddadd1fb4789a921",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  75,
+                        "length":  5,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "4204d22895ec2eeb",
+                        "fp":  "293fe45b388eb899",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  76,
+                        "length":  12,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "cc981282e26d1e36",
+                        "fp":  "bb9187fcfdbac578",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  76,
+                        "length":  12,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "48ca26b0cc830cc6",
+                        "fp":  "0f801479e3354469",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  79,
+                        "length":  12,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "4cf722236bd3c1b8",
+                        "fp":  "83ef3fae6147297f",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  79,
+                        "length":  14,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "6ad385f36dc1193d",
+                        "fp":  "6c6a606dff87c22a",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  80,
+                        "length":  19,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "691213127ecd8db0",
+                        "fp":  "bd2e4c734ce0ccd5",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  80,
+                        "length":  18,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "89de6493dea50d4d",
+                        "fp":  "08ea3c93375b9f88",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  81,
+                        "length":  17,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "4cd77d586538be3c",
+                        "fp":  "a031f70c3fd492e2",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  81,
+                        "length":  12,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "543d94db6503e84c",
+                        "fp":  "50befc8f6809dd05",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  82,
+                        "length":  13,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "b8050532071dd483",
+                        "fp":  "9b1d15a34f263313",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  82,
+                        "length":  17,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "20c798f610328782",
+                        "fp":  "4fd7978c045f0c40",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  83,
+                        "length":  5,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "2ced3dfef03a5fc6",
+                        "fp":  "c3b29e6eef2cc49b",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  83,
+                        "length":  5,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "a1bb25a7c16f2af8",
+                        "fp":  "654e85ee2698ee81",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  84,
+                        "length":  9,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "bf87c6eaa23d7e4c",
+                        "fp":  "9d274dd254541a03",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  84,
+                        "length":  11,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "eff957b59688ebe4",
+                        "fp":  "0608622530017885",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  85,
+                        "length":  20,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "41eaf8b72f0a76eb",
+                        "fp":  "58b5a876b46d7001",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  85,
+                        "length":  17,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "5e79d4e606b8198c",
+                        "fp":  "60048eb8638090ca",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  86,
+                        "length":  14,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "3fb80b6258d10fa1",
+                        "fp":  "7448cfbc7bf660dd",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  86,
+                        "length":  23,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "302ce3b3799676b3",
+                        "fp":  "11af554c7675294d",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  87,
+                        "length":  28,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "93c55275c62a2796",
+                        "fp":  "482477b13e45e499",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  87,
+                        "length":  20,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "b9fb1e175af6b479",
+                        "fp":  "246f4f340ffa215c",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  88,
+                        "length":  12,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "6e2557eaf9e3bf7b",
+                        "fp":  "edcfbf2e5bf4c763",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  88,
+                        "length":  14,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "0a878b08dcfa3ef1",
+                        "fp":  "a192eb9e9c8a0236",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  89,
+                        "length":  13,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "102b20305b286ab0",
+                        "fp":  "e82b2a16228150ae",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  89,
+                        "length":  12,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "9e719616151b9850",
+                        "fp":  "656db00822737e45",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  90,
+                        "length":  19,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "5979d4f11a75f65c",
+                        "fp":  "8061ee9a8006ffac",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  90,
+                        "length":  24,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "a814658eddb73275",
+                        "fp":  "33149b3a76ea2182",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  91,
+                        "length":  18,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "fecdc595ee422351",
+                        "fp":  "c0af802496b36206",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  91,
+                        "length":  11,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "afcae1a73b52a92f",
+                        "fp":  "2175c195b3e3b5b0",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  92,
+                        "length":  26,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "5f7ce075c539160b",
+                        "fp":  "6959fa9bf4881625",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  92,
+                        "length":  16,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "a44955dd46abe89d",
+                        "fp":  "477f2a69f25fbe3c",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  93,
+                        "length":  7,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "7fbbecbfd87d6b64",
+                        "fp":  "5de74a81b192304c",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  93,
+                        "length":  5,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "8a837ab2afab582e",
+                        "fp":  "1af851907331c0ed",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  94,
+                        "length":  4,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "cab949f195f9331d",
+                        "fp":  "21bed0eaf1e59c19",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  94,
+                        "length":  7,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "c6c30a97de049e6f",
+                        "fp":  "992314b091093d73",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  95,
+                        "length":  22,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "3c767998245a3345",
+                        "fp":  "e4a3642a8f6afc20",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  95,
+                        "length":  11,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "ac2792c170443f3b",
+                        "fp":  "cfb7cb15833f87ad",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  96,
+                        "length":  12,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "8e7325ddd66f0101",
+                        "fp":  "fcae13f0e231ac7c",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  96,
+                        "length":  9,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "34516e143bba2777",
+                        "fp":  "672d92f46c4b9697",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  97,
+                        "length":  56,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "a349689662806084",
+                        "fp":  "743e882f0b5c1a80",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/RadarPage.cpp",
+                        "line":  98,
+                        "length":  54,
                         "status":  "unprotected"
                     },
                     {
@@ -105963,7 +105963,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  123,
+                        "line":  124,
                         "length":  19,
                         "status":  "unprotected"
                     },
@@ -105973,7 +105973,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  148,
+                        "line":  149,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -105983,7 +105983,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  160,
+                        "line":  161,
                         "length":  24,
                         "status":  "unprotected"
                     },
@@ -105993,7 +105993,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  179,
+                        "line":  180,
                         "length":  15,
                         "status":  "unprotected"
                     },
@@ -106003,7 +106003,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  193,
+                        "line":  194,
                         "length":  12,
                         "status":  "unprotected"
                     },
@@ -106013,7 +106013,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  211,
+                        "line":  212,
                         "length":  8,
                         "status":  "unprotected"
                     },
@@ -106023,18 +106023,8 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  215,
+                        "line":  216,
                         "length":  15,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "09ce3c333ce1839a",
-                        "fp":  "4723c3518f50f231",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  22,
-                        "length":  16,
                         "status":  "unprotected"
                     },
                     {
@@ -106043,7 +106033,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  222,
+                        "line":  223,
                         "length":  14,
                         "status":  "unprotected"
                     },
@@ -106053,18 +106043,18 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  228,
+                        "line":  229,
                         "length":  13,
                         "status":  "unprotected"
                     },
                     {
-                        "id":  "48956df11c4ef0c9",
-                        "fp":  "c7be2faec0b56ce4",
+                        "id":  "09ce3c333ce1839a",
+                        "fp":  "4723c3518f50f231",
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
                         "line":  23,
-                        "length":  7,
+                        "length":  16,
                         "status":  "unprotected"
                     },
                     {
@@ -106073,18 +106063,18 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  233,
+                        "line":  234,
                         "length":  21,
                         "status":  "unprotected"
                     },
                     {
-                        "id":  "689fce4182edb97b",
-                        "fp":  "9c737ccf96e9a894",
+                        "id":  "48956df11c4ef0c9",
+                        "fp":  "c7be2faec0b56ce4",
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
                         "line":  24,
-                        "length":  8,
+                        "length":  7,
                         "status":  "unprotected"
                     },
                     {
@@ -106093,18 +106083,18 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  247,
+                        "line":  248,
                         "length":  36,
                         "status":  "unprotected"
                     },
                     {
-                        "id":  "ef5fbfdd28b0ba39",
-                        "fp":  "bdf03daabe9cb8cf",
+                        "id":  "689fce4182edb97b",
+                        "fp":  "9c737ccf96e9a894",
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
                         "line":  25,
-                        "length":  4,
+                        "length":  8,
                         "status":  "unprotected"
                     },
                     {
@@ -106113,7 +106103,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  251,
+                        "line":  252,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -106123,7 +106113,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  251,
+                        "line":  252,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -106133,7 +106123,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  251,
+                        "line":  252,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -106143,7 +106133,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  253,
+                        "line":  254,
                         "length":  23,
                         "status":  "unprotected"
                     },
@@ -106153,7 +106143,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  253,
+                        "line":  254,
                         "length":  24,
                         "status":  "unprotected"
                     },
@@ -106163,7 +106153,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  255,
+                        "line":  256,
                         "length":  91,
                         "status":  "unprotected"
                     },
@@ -106173,7 +106163,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  256,
+                        "line":  257,
                         "length":  92,
                         "status":  "unprotected"
                     },
@@ -106183,7 +106173,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  258,
+                        "line":  259,
                         "length":  9,
                         "status":  "unprotected"
                     },
@@ -106193,7 +106183,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  258,
+                        "line":  259,
                         "length":  10,
                         "status":  "unprotected"
                     },
@@ -106203,7 +106193,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  258,
+                        "line":  259,
                         "length":  9,
                         "status":  "unprotected"
                     },
@@ -106213,7 +106203,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  258,
+                        "line":  259,
                         "length":  11,
                         "status":  "unprotected"
                     },
@@ -106223,8 +106213,18 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  258,
+                        "line":  259,
                         "length":  10,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "ef5fbfdd28b0ba39",
+                        "fp":  "bdf03daabe9cb8cf",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/SaveConfigsPage.cpp",
+                        "line":  26,
+                        "length":  4,
                         "status":  "unprotected"
                     },
                     {
@@ -106233,7 +106233,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  259,
+                        "line":  260,
                         "length":  9,
                         "status":  "unprotected"
                     },
@@ -106243,7 +106243,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  259,
+                        "line":  260,
                         "length":  16,
                         "status":  "unprotected"
                     },
@@ -106253,18 +106253,8 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  259,
+                        "line":  260,
                         "length":  8,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "633ca3c00df83a17",
-                        "fp":  "62154b4ffae5adf7",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  26,
-                        "length":  5,
                         "status":  "unprotected"
                     },
                     {
@@ -106273,7 +106263,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  260,
+                        "line":  261,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -106283,7 +106273,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  262,
+                        "line":  263,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -106293,7 +106283,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  263,
+                        "line":  264,
                         "length":  44,
                         "status":  "unprotected"
                     },
@@ -106303,7 +106293,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  263,
+                        "line":  264,
                         "length":  18,
                         "status":  "unprotected"
                     },
@@ -106313,7 +106303,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  264,
+                        "line":  265,
                         "length":  23,
                         "status":  "unprotected"
                     },
@@ -106323,7 +106313,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  264,
+                        "line":  265,
                         "length":  17,
                         "status":  "unprotected"
                     },
@@ -106333,7 +106323,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  265,
+                        "line":  266,
                         "length":  36,
                         "status":  "unprotected"
                     },
@@ -106343,7 +106333,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  266,
+                        "line":  267,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -106353,8 +106343,18 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  266,
+                        "line":  267,
                         "length":  9,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "633ca3c00df83a17",
+                        "fp":  "62154b4ffae5adf7",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/window/pages/common/SaveConfigsPage.cpp",
+                        "line":  27,
+                        "length":  5,
                         "status":  "unprotected"
                     },
                     {
@@ -106363,7 +106363,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  271,
+                        "line":  272,
                         "length":  28,
                         "status":  "unprotected"
                     },
@@ -106373,7 +106373,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  271,
+                        "line":  272,
                         "length":  17,
                         "status":  "unprotected"
                     },
@@ -106383,7 +106383,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  278,
+                        "line":  279,
                         "length":  23,
                         "status":  "unprotected"
                     },
@@ -106393,7 +106393,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  287,
+                        "line":  288,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -106403,7 +106403,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  288,
+                        "line":  289,
                         "length":  10,
                         "status":  "unprotected"
                     },
@@ -106413,9 +106413,9 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  290,
+                        "line":  291,
                         "length":  35,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "feb3b120ea1e37fc",
@@ -106423,9 +106423,9 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  293,
+                        "line":  294,
                         "length":  38,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "d81bc2a54ad79ea0",
@@ -106433,7 +106433,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  294,
+                        "line":  295,
                         "length":  11,
                         "status":  "unprotected"
                     },
@@ -106443,7 +106443,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  294,
+                        "line":  295,
                         "length":  28,
                         "status":  "unprotected"
                     },
@@ -106453,7 +106453,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  301,
+                        "line":  302,
                         "length":  15,
                         "status":  "unprotected"
                     },
@@ -106463,7 +106463,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  306,
+                        "line":  307,
                         "length":  12,
                         "status":  "unprotected"
                     },
@@ -106473,7 +106473,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  311,
+                        "line":  312,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -106483,7 +106483,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  316,
+                        "line":  317,
                         "length":  8,
                         "status":  "unprotected"
                     },
@@ -106493,7 +106493,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  316,
+                        "line":  317,
                         "length":  16,
                         "status":  "unprotected"
                     },
@@ -106503,7 +106503,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  324,
+                        "line":  325,
                         "length":  9,
                         "status":  "unprotected"
                     },
@@ -106513,7 +106513,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  324,
+                        "line":  325,
                         "length":  9,
                         "status":  "unprotected"
                     },
@@ -106523,7 +106523,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  331,
+                        "line":  332,
                         "length":  21,
                         "status":  "unprotected"
                     },
@@ -106533,7 +106533,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  338,
+                        "line":  339,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -106543,7 +106543,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  338,
+                        "line":  339,
                         "length":  8,
                         "status":  "unprotected"
                     },
@@ -106553,7 +106553,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  342,
+                        "line":  343,
                         "length":  14,
                         "status":  "unprotected"
                     },
@@ -106563,7 +106563,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  343,
+                        "line":  344,
                         "length":  28,
                         "status":  "unprotected"
                     },
@@ -106573,7 +106573,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  344,
+                        "line":  345,
                         "length":  20,
                         "status":  "unprotected"
                     },
@@ -106583,7 +106583,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  350,
+                        "line":  351,
                         "length":  19,
                         "status":  "unprotected"
                     },
@@ -106593,7 +106593,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  350,
+                        "line":  351,
                         "length":  15,
                         "status":  "unprotected"
                     },
@@ -106603,7 +106603,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  351,
+                        "line":  352,
                         "length":  9,
                         "status":  "unprotected"
                     },
@@ -106613,7 +106613,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  359,
+                        "line":  360,
                         "length":  19,
                         "status":  "unprotected"
                     },
@@ -106623,7 +106623,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  359,
+                        "line":  360,
                         "length":  66,
                         "status":  "unprotected"
                     },
@@ -106633,7 +106633,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  364,
+                        "line":  365,
                         "length":  14,
                         "status":  "unprotected"
                     },
@@ -106643,7 +106643,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  364,
+                        "line":  365,
                         "length":  23,
                         "status":  "unprotected"
                     },
@@ -106653,7 +106653,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  365,
+                        "line":  366,
                         "length":  70,
                         "status":  "unprotected"
                     },
@@ -106663,7 +106663,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  366,
+                        "line":  367,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -106673,7 +106673,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  366,
+                        "line":  367,
                         "length":  17,
                         "status":  "unprotected"
                     },
@@ -106683,7 +106683,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  367,
+                        "line":  368,
                         "length":  23,
                         "status":  "unprotected"
                     },
@@ -106693,7 +106693,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  368,
+                        "line":  369,
                         "length":  28,
                         "status":  "unprotected"
                     },
@@ -106703,7 +106703,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  368,
+                        "line":  369,
                         "length":  16,
                         "status":  "unprotected"
                     },
@@ -106713,7 +106713,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  369,
+                        "line":  370,
                         "length":  26,
                         "status":  "unprotected"
                     },
@@ -106723,7 +106723,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  369,
+                        "line":  370,
                         "length":  21,
                         "status":  "unprotected"
                     },
@@ -106733,7 +106733,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  370,
+                        "line":  371,
                         "length":  12,
                         "status":  "unprotected"
                     },
@@ -106743,7 +106743,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  370,
+                        "line":  371,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -106753,7 +106753,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  370,
+                        "line":  371,
                         "length":  8,
                         "status":  "unprotected"
                     },
@@ -106763,7 +106763,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  371,
+                        "line":  372,
                         "length":  12,
                         "status":  "unprotected"
                     },
@@ -106773,7 +106773,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  373,
+                        "line":  374,
                         "length":  21,
                         "status":  "unprotected"
                     },
@@ -106783,7 +106783,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  375,
+                        "line":  376,
                         "length":  17,
                         "status":  "unprotected"
                     },
@@ -106793,7 +106793,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  377,
+                        "line":  378,
                         "length":  17,
                         "status":  "unprotected"
                     },
@@ -106803,7 +106803,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  377,
+                        "line":  378,
                         "length":  21,
                         "status":  "unprotected"
                     },
@@ -106813,7 +106813,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  378,
+                        "line":  379,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -106823,7 +106823,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  378,
+                        "line":  379,
                         "length":  8,
                         "status":  "unprotected"
                     },
@@ -106833,7 +106833,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  378,
+                        "line":  379,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -106843,7 +106843,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  381,
+                        "line":  382,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -106853,7 +106853,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  397,
+                        "line":  398,
                         "length":  15,
                         "status":  "unprotected"
                     },
@@ -106863,7 +106863,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  397,
+                        "line":  398,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -106873,9 +106873,9 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  398,
+                        "line":  399,
                         "length":  22,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "cd3c0d90877a4349",
@@ -106883,9 +106883,9 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  398,
+                        "line":  399,
                         "length":  25,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "80ae69e3504451f4",
@@ -106893,7 +106893,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  400,
+                        "line":  401,
                         "length":  89,
                         "status":  "unprotected"
                     },
@@ -106903,7 +106903,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  401,
+                        "line":  402,
                         "length":  74,
                         "status":  "unprotected"
                     },
@@ -106913,7 +106913,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  406,
+                        "line":  407,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -106923,7 +106923,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  406,
+                        "line":  407,
                         "length":  11,
                         "status":  "unprotected"
                     },
@@ -106933,7 +106933,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  408,
+                        "line":  409,
                         "length":  27,
                         "status":  "unprotected"
                     },
@@ -106943,7 +106943,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  411,
+                        "line":  412,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -106953,7 +106953,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  411,
+                        "line":  412,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -106963,7 +106963,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  413,
+                        "line":  414,
                         "length":  23,
                         "status":  "unprotected"
                     },
@@ -106973,7 +106973,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  416,
+                        "line":  417,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -106983,7 +106983,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  418,
+                        "line":  419,
                         "length":  22,
                         "status":  "unprotected"
                     },
@@ -106993,7 +106993,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  421,
+                        "line":  422,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -107003,7 +107003,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  421,
+                        "line":  422,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -107013,7 +107013,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  423,
+                        "line":  424,
                         "length":  30,
                         "status":  "unprotected"
                     },
@@ -107023,7 +107023,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  426,
+                        "line":  427,
                         "length":  21,
                         "status":  "unprotected"
                     },
@@ -107033,7 +107033,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  426,
+                        "line":  427,
                         "length":  11,
                         "status":  "unprotected"
                     },
@@ -107043,7 +107043,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  428,
+                        "line":  429,
                         "length":  39,
                         "status":  "unprotected"
                     },
@@ -107053,7 +107053,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  428,
+                        "line":  429,
                         "length":  31,
                         "status":  "unprotected"
                     },
@@ -107063,9 +107063,9 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  434,
+                        "line":  435,
                         "length":  16,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "d6290bc63aa1e58f",
@@ -107073,9 +107073,9 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  434,
+                        "line":  435,
                         "length":  17,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "926b8e4a0eab532b",
@@ -107083,7 +107083,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  436,
+                        "line":  437,
                         "length":  23,
                         "status":  "unprotected"
                     },
@@ -107093,7 +107093,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  436,
+                        "line":  437,
                         "length":  20,
                         "status":  "unprotected"
                     },
@@ -107103,7 +107103,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  437,
+                        "line":  438,
                         "length":  15,
                         "status":  "unprotected"
                     },
@@ -107113,7 +107113,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  438,
+                        "line":  439,
                         "length":  19,
                         "status":  "unprotected"
                     },
@@ -107123,7 +107123,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  444,
+                        "line":  445,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -107133,7 +107133,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  457,
+                        "line":  458,
                         "length":  14,
                         "status":  "unprotected"
                     },
@@ -107143,7 +107143,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  457,
+                        "line":  458,
                         "length":  16,
                         "status":  "unprotected"
                     },
@@ -107153,7 +107153,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  464,
+                        "line":  465,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -107163,7 +107163,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  464,
+                        "line":  465,
                         "length":  14,
                         "status":  "unprotected"
                     },
@@ -107173,7 +107173,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  483,
+                        "line":  484,
                         "length":  4,
                         "status":  "unprotected"
                     },
@@ -107183,7 +107183,7 @@
                         "category":  "path",
                         "sensitivity":  "medium",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  485,
+                        "line":  486,
                         "length":  97,
                         "status":  "unprotected"
                     },
@@ -107193,7 +107193,7 @@
                         "category":  "path",
                         "sensitivity":  "medium",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  486,
+                        "line":  487,
                         "length":  95,
                         "status":  "unprotected"
                     },
@@ -107203,7 +107203,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  489,
+                        "line":  490,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -107213,7 +107213,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  489,
+                        "line":  490,
                         "length":  11,
                         "status":  "unprotected"
                     },
@@ -107223,7 +107223,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  495,
+                        "line":  496,
                         "length":  11,
                         "status":  "unprotected"
                     },
@@ -107233,7 +107233,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  495,
+                        "line":  496,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -107243,7 +107243,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  501,
+                        "line":  502,
                         "length":  10,
                         "status":  "unprotected"
                     },
@@ -107253,7 +107253,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  501,
+                        "line":  502,
                         "length":  10,
                         "status":  "unprotected"
                     },
@@ -107263,7 +107263,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  503,
+                        "line":  504,
                         "length":  30,
                         "status":  "unprotected"
                     },
@@ -107273,7 +107273,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  506,
+                        "line":  507,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -107283,7 +107283,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  508,
+                        "line":  509,
                         "length":  71,
                         "status":  "unprotected"
                     },
@@ -107293,7 +107293,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  509,
+                        "line":  510,
                         "length":  76,
                         "status":  "unprotected"
                     },
@@ -107303,7 +107303,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  512,
+                        "line":  513,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -107313,7 +107313,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  512,
+                        "line":  513,
                         "length":  16,
                         "status":  "unprotected"
                     },
@@ -107323,7 +107323,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  518,
+                        "line":  519,
                         "length":  15,
                         "status":  "unprotected"
                     },
@@ -107333,7 +107333,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  518,
+                        "line":  519,
                         "length":  17,
                         "status":  "unprotected"
                     },
@@ -107343,7 +107343,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  524,
+                        "line":  525,
                         "length":  15,
                         "status":  "unprotected"
                     },
@@ -107353,7 +107353,7 @@
                         "category":  "protocol",
                         "sensitivity":  "high",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  524,
+                        "line":  525,
                         "length":  17,
                         "status":  "unprotected"
                     },
@@ -107363,7 +107363,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  534,
+                        "line":  535,
                         "length":  66,
                         "status":  "unprotected"
                     },
@@ -107373,7 +107373,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  535,
+                        "line":  536,
                         "length":  64,
                         "status":  "unprotected"
                     },
@@ -107383,7 +107383,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  537,
+                        "line":  538,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -107393,7 +107393,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  547,
+                        "line":  548,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -107403,7 +107403,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  555,
+                        "line":  556,
                         "length":  9,
                         "status":  "unprotected"
                     },
@@ -107413,7 +107413,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  560,
+                        "line":  561,
                         "length":  9,
                         "status":  "unprotected"
                     },
@@ -107423,7 +107423,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  608,
+                        "line":  609,
                         "length":  24,
                         "status":  "unprotected"
                     },
@@ -107433,7 +107433,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  608,
+                        "line":  609,
                         "length":  24,
                         "status":  "unprotected"
                     },
@@ -107443,7 +107443,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  609,
+                        "line":  610,
                         "length":  16,
                         "status":  "unprotected"
                     },
@@ -107453,7 +107453,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
-                        "line":  609,
+                        "line":  610,
                         "length":  17,
                         "status":  "unprotected"
                     },
@@ -107463,9 +107463,9 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  102,
+                        "line":  103,
                         "length":  68,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "f7d9d03e572c7633",
@@ -107473,9 +107473,9 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  107,
+                        "line":  108,
                         "length":  10,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "8979da06796d6362",
@@ -107483,7 +107483,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  111,
+                        "line":  112,
                         "length":  9,
                         "status":  "unprotected"
                     },
@@ -107493,7 +107493,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  112,
+                        "line":  113,
                         "length":  9,
                         "status":  "unprotected"
                     },
@@ -107503,7 +107503,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  112,
+                        "line":  113,
                         "length":  14,
                         "status":  "unprotected"
                     },
@@ -107513,7 +107513,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  112,
+                        "line":  113,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -107523,7 +107523,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  114,
+                        "line":  115,
                         "length":  5,
                         "status":  "unprotected"
                     },
@@ -107533,7 +107533,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  114,
+                        "line":  115,
                         "length":  19,
                         "status":  "unprotected"
                     },
@@ -107543,7 +107543,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  114,
+                        "line":  115,
                         "length":  9,
                         "status":  "unprotected"
                     },
@@ -107553,7 +107553,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  116,
+                        "line":  117,
                         "length":  9,
                         "status":  "unprotected"
                     },
@@ -107563,7 +107563,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  116,
+                        "line":  117,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -107573,7 +107573,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  116,
+                        "line":  117,
                         "length":  10,
                         "status":  "unprotected"
                     },
@@ -107583,9 +107583,9 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  118,
+                        "line":  119,
                         "length":  41,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "4473afbea827b073",
@@ -107593,9 +107593,9 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  120,
+                        "line":  121,
                         "length":  37,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "67d72aee424e549a",
@@ -107603,7 +107603,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  124,
+                        "line":  125,
                         "length":  55,
                         "status":  "unprotected"
                     },
@@ -107613,7 +107613,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  126,
+                        "line":  127,
                         "length":  46,
                         "status":  "unprotected"
                     },
@@ -107623,7 +107623,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  128,
+                        "line":  129,
                         "length":  46,
                         "status":  "unprotected"
                     },
@@ -107633,7 +107633,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  130,
+                        "line":  131,
                         "length":  55,
                         "status":  "unprotected"
                     },
@@ -107643,7 +107643,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  134,
+                        "line":  135,
                         "length":  19,
                         "status":  "unprotected"
                     },
@@ -107653,7 +107653,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  135,
+                        "line":  136,
                         "length":  57,
                         "status":  "unprotected"
                     },
@@ -107663,7 +107663,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  33,
+                        "line":  34,
                         "length":  12,
                         "status":  "unprotected"
                     },
@@ -107673,7 +107673,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  57,
+                        "line":  58,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -107683,7 +107683,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  58,
+                        "line":  59,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -107693,7 +107693,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  58,
+                        "line":  59,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -107703,7 +107703,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  60,
+                        "line":  61,
                         "length":  5,
                         "status":  "unprotected"
                     },
@@ -107713,7 +107713,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  60,
+                        "line":  61,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -107723,7 +107723,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  60,
+                        "line":  61,
                         "length":  8,
                         "status":  "unprotected"
                     },
@@ -107733,7 +107733,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  62,
+                        "line":  63,
                         "length":  10,
                         "status":  "unprotected"
                     },
@@ -107743,7 +107743,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  62,
+                        "line":  63,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -107753,7 +107753,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  62,
+                        "line":  63,
                         "length":  8,
                         "status":  "unprotected"
                     },
@@ -107763,7 +107763,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  64,
+                        "line":  65,
                         "length":  11,
                         "status":  "unprotected"
                     },
@@ -107773,7 +107773,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  64,
+                        "line":  65,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -107783,7 +107783,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  64,
+                        "line":  65,
                         "length":  11,
                         "status":  "unprotected"
                     },
@@ -107793,7 +107793,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  67,
+                        "line":  68,
                         "length":  12,
                         "status":  "unprotected"
                     },
@@ -107803,7 +107803,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  68,
+                        "line":  69,
                         "length":  10,
                         "status":  "unprotected"
                     },
@@ -107813,7 +107813,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  73,
+                        "line":  74,
                         "length":  12,
                         "status":  "unprotected"
                     },
@@ -107823,7 +107823,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  74,
+                        "line":  75,
                         "length":  5,
                         "status":  "unprotected"
                     },
@@ -107833,7 +107833,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  74,
+                        "line":  75,
                         "length":  9,
                         "status":  "unprotected"
                     },
@@ -107843,7 +107843,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  74,
+                        "line":  75,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -107853,7 +107853,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  76,
+                        "line":  77,
                         "length":  9,
                         "status":  "unprotected"
                     },
@@ -107863,7 +107863,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  76,
+                        "line":  77,
                         "length":  5,
                         "status":  "unprotected"
                     },
@@ -107873,7 +107873,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  76,
+                        "line":  77,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -107883,7 +107883,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  78,
+                        "line":  79,
                         "length":  9,
                         "status":  "unprotected"
                     },
@@ -107893,7 +107893,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  78,
+                        "line":  79,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -107903,7 +107903,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  78,
+                        "line":  79,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -107913,7 +107913,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  85,
+                        "line":  86,
                         "length":  10,
                         "status":  "unprotected"
                     },
@@ -107923,7 +107923,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  86,
+                        "line":  87,
                         "length":  11,
                         "status":  "unprotected"
                     },
@@ -107933,7 +107933,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  86,
+                        "line":  87,
                         "length":  19,
                         "status":  "unprotected"
                     },
@@ -107943,7 +107943,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  86,
+                        "line":  87,
                         "length":  20,
                         "status":  "unprotected"
                     },
@@ -107953,7 +107953,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  86,
+                        "line":  87,
                         "length":  14,
                         "status":  "unprotected"
                     },
@@ -107963,9 +107963,9 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  88,
+                        "line":  89,
                         "length":  43,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "c7594ebadf270be6",
@@ -107973,9 +107973,9 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  90,
+                        "line":  91,
                         "length":  22,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "07a1125635466487",
@@ -107983,9 +107983,9 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  91,
+                        "line":  92,
                         "length":  33,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "74850dc557824fea",
@@ -107993,9 +107993,9 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  93,
+                        "line":  94,
                         "length":  31,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "92b72e9996e46473",
@@ -108003,7 +108003,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  95,
+                        "line":  96,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -108013,7 +108013,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  95,
+                        "line":  96,
                         "length":  15,
                         "status":  "unprotected"
                     },
@@ -108023,7 +108023,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  95,
+                        "line":  96,
                         "length":  11,
                         "status":  "unprotected"
                     },
@@ -108033,9 +108033,9 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/StatusPage.cpp",
-                        "line":  97,
+                        "line":  98,
                         "length":  59,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "9025a0d6b67c0bb0",
@@ -109145,7 +109145,7 @@
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
                         "line":  59,
                         "length":  19,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "fa1bddcba35b8a16",
@@ -109165,7 +109165,7 @@
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
                         "line":  61,
                         "length":  68,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "891ed81f75529be1",
@@ -109415,7 +109415,7 @@
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
                         "line":  159,
                         "length":  63,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "9ae5874e5e12092c",
@@ -112365,7 +112365,7 @@
                         "file":  "src/window/pages/fortnite/FortniteStatusPage.cpp",
                         "line":  18,
                         "length":  12,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "744eb764701151f8",
@@ -112415,7 +112415,7 @@
                         "file":  "src/window/pages/fortnite/FortniteStatusPage.cpp",
                         "line":  27,
                         "length":  48,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "d68562344acf4274",
@@ -112425,7 +112425,7 @@
                         "file":  "src/window/pages/fortnite/FortniteStatusPage.cpp",
                         "line":  32,
                         "length":  39,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "0db78b10c4033e47",
@@ -112435,7 +112435,7 @@
                         "file":  "src/window/pages/fortnite/FortniteStatusPage.cpp",
                         "line":  37,
                         "length":  50,
-                        "status":  "unprotected"
+                        "status":  "protected"
                     },
                     {
                         "id":  "db051fa2fffef2cf",

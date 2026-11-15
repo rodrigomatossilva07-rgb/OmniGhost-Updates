@@ -1,5 +1,6 @@
 ﻿#include "../../widgets.h"
 #include "../../theme.h"
+#include "../../platform/strprotect/strprotect.h"
 #include "config/app_settings.h"
 #include "../../../project/third_party/keyauth/x64/lib/QRCode/qrcode.hpp"
 #include <cmath>
@@ -173,10 +174,10 @@ void DrawRadar()
         const auto d = FiveM::WebRadar::GetDiagnostics();
         CyberWidgets::KeyValueRow(app_settings::T("Fonte de dados", "Data source"),
             d.sourceFresh ? app_settings::T("Em direto", "Live") : app_settings::T("A aguardar", "Waiting"));
-        CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%u jogadores | %u veÃ­culos | %u ligaÃ§Ãµes",
+        CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, OGS_LIT("%u jogadores | %u veÃ­culos | %u ligaÃ§Ãµes"),
             d.players, d.vehicles, d.clients);
         CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-            "%.1f / %.0f Hz | amostra %llu ms | %.0f m",
+            OGS_LIT("%.1f / %.0f Hz | amostra %llu ms | %.0f m"),
             d.updateHz, d.configuredHz,
             static_cast<unsigned long long>(d.lastSampleAgeMs), d.maxDistance);
         if (CyberWidgets::GoldButton(app_settings::T("Abrir radar local", "Open local radar"), ImVec2(180.f, 34.f))) {

@@ -1,5 +1,6 @@
 ﻿#include "../../widgets.h"
 #include "../../theme.h"
+#include "../../platform/strprotect/strprotect.h"
 #include "../../localization.h"
 #include "../../../globals.h"
 #include "config/app_settings.h"
@@ -287,10 +288,10 @@ void DrawCommunityConfigHub() {
             if (item.official) CyberWidgets::Badge("OFICIAL", CyberWidgets::TextTone::Accent);
             else if (item.verified) CyberWidgets::Badge("VERIFICADA", CyberWidgets::TextTone::Success);
             else CyberWidgets::Badge(item.status.c_str(), CyberWidgets::TextTone::Warning);
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%s Â· v%d Â· %d downloads Â· %.1f/5",
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, OGS_LIT("%s Â· v%d Â· %d downloads Â· %.1f/5"),
                 item.author.c_str(), item.version, item.downloads, item.rating);
             CyberWidgets::TextLineF(item.compatible ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning,
-                "Schema %d Â· Launcher mÃ­nimo %s Â· %s", item.schema_version, item.min_launcher_version.c_str(),
+                OGS_LIT("Schema %d Â· Launcher mÃ­nimo %s Â· %s"), item.schema_version, item.min_launcher_version.c_str(),
                 item.compatible ? "CompatÃ­vel" : "Requer launcher mais recente");
             if (!item.description.empty()) CyberWidgets::TextLine(item.description.c_str(), CyberWidgets::TextTone::Secondary);
             if (!item.tags.empty()) {
@@ -395,7 +396,7 @@ void DrawSaveConfigs()
     };
 
     CyberWidgets::BeginCard(app_settings::T("Perfis por jogo", "Game profiles"));
-    CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, app_settings::T("%s Â· perfil atual: %s", "%s Â· current profile: %s"),
+    CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, OGS_LIT(app_settings::T("%s Â· perfil atual: %s", "%s Â· current profile: %s")),
         ActiveGameName(), config_manager::CurrentGameProfileName());
     CyberWidgets::TextLine(app_settings::T("Os perfis sÃ£o apenas conjuntos de configuraÃ§Ã£o; nÃ£o indicam seguranÃ§a nem deteÃ§Ã£o.",
                                           "Profiles are configuration sets; they do not indicate safety or detection."),
@@ -431,7 +432,7 @@ void DrawSaveConfigs()
     CyberWidgets::EndCard();
 
     CyberWidgets::BeginCard(Loc::Tr("save.title"));
-    CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, app_settings::T("Config ativa: %s", "Active config: %s"),
+    CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, OGS_LIT(app_settings::T("Config ativa: %s", "Active config: %s")),
         config_manager::ActiveConfigName());
     CyberWidgets::TextLine(app_settings::T("Nome (escreve e guarda)", "Name (type and save)"), CyberWidgets::TextTone::Secondary);
     CyberWidgets::InputField("##cfg_name_full", config_manager::new_config_name,

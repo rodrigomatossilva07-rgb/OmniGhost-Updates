@@ -78,9 +78,9 @@ namespace CyberWidgets {
     void BeginSurfaceList(const char* id, float height);
     void EndSurfaceList();
 
-    void BeginCard(const char* title, float width = 0.f);
-    inline void BeginCard(const std::string& title, float width = 0.f) {
-        BeginCard(title.c_str(), width);
+    void BeginCard(const char* title, float cardWidth = 0.f);
+    inline void BeginCard(const std::string& title, float cardWidth = 0.f) {
+        BeginCard(title.c_str(), cardWidth);
     }
     void EndCard();
     void CardGap(float y = 10.f);

@@ -52,7 +52,7 @@ void DrawLauncherModals(ImDrawList* draw, ImVec2 display) {
                 const std::string when = FormatLastUsed(session.endedUnix);
                 const std::string duration = FormatActiveDuration(session.activeSeconds);
                 CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-                    "%s Â· %s Â· %s", when.c_str(), duration.c_str(),
+                    OGS_LIT("%s Â· %s Â· %s"), when.c_str(), duration.c_str(),
                     SessionResultDisplay(session.result));
             }
         }

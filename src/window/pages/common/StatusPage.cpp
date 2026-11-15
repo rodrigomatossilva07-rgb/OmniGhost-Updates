@@ -1,5 +1,6 @@
 ﻿#include "../../widgets.h"
 #include "../../menu_tab.h"
+#include "../../platform/strprotect/strprotect.h"
 #include "../../../globals.h"
 #include "config/app_settings.h"
 #include "game/offsets.h"
@@ -85,26 +86,26 @@ void DrawFiveMStatus()
     BeginCard("CORE WORLD", half);
     HealthRow("AquisiÃ§Ã£o", coreWorldOk ? "Dados recentes" : (worldOk ? "A aguardar entidades" : "World indisponÃ­vel"),
               coreWorldOk ? HealthStatus::Ok : HealthStatus::Warning);
-    TextLineF(TextTone::Secondary, "Pool: %d lidos | %d vÃ¡lidos | %d filtrados",
+    TextLineF(TextTone::Secondary, OGS_LIT("Pool: %d lidos | %d vÃ¡lidos | %d filtrados"),
               rawPedCount, pedCount, filteredPedCount);
-    TextLineF(TextTone::Secondary, "VeÃ­culos vÃ¡lidos: %d", cachedVehicleCount);
-    TextLineF(TextTone::Secondary, "Snapshot: %.1f Hz | idade %.1f ms", snapshotHz, worldAge);
+    TextLineF(TextTone::Secondary, OGS_LIT("VeÃ­culos vÃ¡lidos: %d"), cachedVehicleCount);
+    TextLineF(TextTone::Secondary, OGS_LIT("Snapshot: %.1f Hz | idade %.1f ms"), snapshotHz, worldAge);
     TextLineF(pressure > 1 ? TextTone::Warning : TextTone::Secondary,
-              "PressÃ£o DMA: %d | falhas: %llu", pressure,
+              OGS_LIT("PressÃ£o DMA: %d | falhas: %llu"), pressure,
               static_cast<unsigned long long>(readFails));
     HealthRow("Raycast do mapa", collision.initialized ? "DisponÃ­vel" : "IndisponÃ­vel",
               collision.initialized ? HealthStatus::Ok : HealthStatus::Warning);
-    TextLineF(TextTone::Secondary, "ColisÃ£o: %u regiÃµes em RAM | %u em fila | %.1f / %.0f MiB",
+    TextLineF(TextTone::Secondary, OGS_LIT("ColisÃ£o: %u regiÃµes em RAM | %u em fila | %.1f / %.0f MiB"),
               collision.cachedRegions, collision.pendingRegions,
               static_cast<double>(collision.cacheBytes) / (1024.0 * 1024.0),
               static_cast<double>(collision.cacheLimitBytes) / (1024.0 * 1024.0));
     TextLineF(collision.failedLoads ? TextTone::Warning : TextTone::Secondary,
-              "RegiÃµes: %llu carregadas | %llu falharam | %llu consultas pendentes",
+              OGS_LIT("RegiÃµes: %llu carregadas | %llu falharam | %llu consultas pendentes"),
               static_cast<unsigned long long>(collision.successfulLoads),
               static_cast<unsigned long long>(collision.failedLoads),
               static_cast<unsigned long long>(collision.missingQueries));
     if (!collision.initialized || collision.failedLoads)
-        TextLineF(TextTone::Warning, "Motivo: %s", collision.status.c_str());
+        TextLineF(TextTone::Warning, OGS_LIT("Motivo: %s"), collision.status.c_str());
     EndCard();
 
     NextCardColumn();
@@ -115,9 +116,9 @@ void DrawFiveMStatus()
               radar.sourceFresh ? HealthStatus::Ok : HealthStatus::Warning);
     HealthRow("Cloudflare", FiveM::WebRadar::CloudflareRunning() ? "Ligado" : "Desligado",
               FiveM::WebRadar::CloudflareRunning() ? HealthStatus::Ok : HealthStatus::Warning);
-    TextLineF(TextTone::Secondary, "%u jogadores | %u veÃ­culos | %u clientes",
+    TextLineF(TextTone::Secondary, OGS_LIT("%u jogadores | %u veÃ­culos | %u clientes"),
               radar.players, radar.vehicles, radar.clients);
-    TextLineF(TextTone::Secondary, "Envio: %.1f / %.0f Hz | idade %llu ms",
+    TextLineF(TextTone::Secondary, OGS_LIT("Envio: %.1f / %.0f Hz | idade %llu ms"),
               radar.updateHz, radar.configuredHz,
               static_cast<unsigned long long>(radar.lastSampleAgeMs));
     if (!radar.running)
