@@ -278,19 +278,19 @@ private:
             ++position_;
         }
         if (position_ >= text_.size()) {
-            SetError(OGS_LIT("invalid number"));
+            SetError(OGS_CSTR("invalid number"));
             return false;
         }
 
         if (text_[position_] == '0') {
             ++position_;
             if (position_ < text_.size() && text_[position_] >= '0' && text_[position_] <= '9') {
-                SetError(OGS_LIT("leading zero in number"));
+                SetError(OGS_CSTR("leading zero in number"));
                 return false;
             }
         } else {
             if (text_[position_] < '1' || text_[position_] > '9') {
-                SetError(OGS_LIT("invalid number"));
+                SetError(OGS_CSTR("invalid number"));
                 return false;
             }
             while (position_ < text_.size() && text_[position_] >= '0' && text_[position_] <= '9') ++position_;
@@ -303,7 +303,7 @@ private:
             const std::size_t fractionStart = position_;
             while (position_ < text_.size() && text_[position_] >= '0' && text_[position_] <= '9') ++position_;
             if (position_ == fractionStart) {
-                SetError(OGS_LIT("fraction requires digits"));
+                SetError(OGS_CSTR("fraction requires digits"));
                 return false;
             }
         }
@@ -314,7 +314,7 @@ private:
             const std::size_t exponentStart = position_;
             while (position_ < text_.size() && text_[position_] >= '0' && text_[position_] <= '9') ++position_;
             if (position_ == exponentStart) {
-                SetError(OGS_LIT("exponent requires digits"));
+                SetError(OGS_CSTR("exponent requires digits"));
                 return false;
             }
         }
@@ -325,7 +325,7 @@ private:
                 std::int64_t signedValue{};
                 const auto result = std::from_chars(token.data(), token.data() + token.size(), signedValue, 10);
                 if (result.ec != std::errc{} || result.ptr != token.data() + token.size()) {
-                    SetError(OGS_LIT("signed integer out of range"));
+                    SetError(OGS_CSTR("signed integer out of range"));
                     return false;
                 }
                 output.value = signedValue;
@@ -334,7 +334,7 @@ private:
             std::uint64_t unsignedValue{};
             const auto result = std::from_chars(token.data(), token.data() + token.size(), unsignedValue, 10);
             if (result.ec != std::errc{} || result.ptr != token.data() + token.size()) {
-                SetError(OGS_LIT("unsigned integer out of range"));
+                SetError(OGS_CSTR("unsigned integer out of range"));
                 return false;
             }
             output.value = unsignedValue;
@@ -346,7 +346,7 @@ private:
         errno = 0;
         const double value = std::strtod(owned.c_str(), &end);
         if (errno == ERANGE || end != owned.c_str() + owned.size() || !std::isfinite(value)) {
-            SetError(OGS_LIT("floating-point number out of range"));
+            SetError(OGS_CSTR("floating-point number out of range"));
             return false;
         }
         output.value = value;

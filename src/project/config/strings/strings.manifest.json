@@ -2,9 +2,9 @@
     "schemaVersion":  1,
     "tool":  "Protect-Strings.ps1",
     "appVersion":  "1.3.4",
-    "gitCommit":  "4f61a239f8b42a4eec90fec87b832245a1260520",
+    "gitCommit":  "f80662047dff6296be30d1690c09bdd88f0c1f30",
     "gitBranch":  "main",
-    "updatedUtc":  "2026-11-15T19:22:18.4710634Z",
+    "updatedUtc":  "2026-11-15T19:42:21.6101597Z",
     "entryCount":  11571,
     "entries":  [
                     {
@@ -35975,7 +35975,7 @@
                         "file":  "src/launcher/game_select_pages.inl",
                         "line":  109,
                         "length":  27,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "73e452e7a435457b",
@@ -36045,7 +36045,7 @@
                         "file":  "src/launcher/game_select_pages.inl",
                         "line":  112,
                         "length":  31,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "b2b89467374f6aae",
@@ -36905,7 +36905,7 @@
                         "file":  "src/launcher/game_select_pages.inl",
                         "line":  279,
                         "length":  32,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "d781f1f04736cedf",
@@ -36925,7 +36925,7 @@
                         "file":  "src/launcher/game_select_pages.inl",
                         "line":  281,
                         "length":  38,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "3484acf65760fde8",
@@ -37715,7 +37715,7 @@
                         "file":  "src/launcher/game_select_pages.inl",
                         "line":  70,
                         "length":  24,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "d944d16373b6fa45",
@@ -37755,7 +37755,7 @@
                         "file":  "src/launcher/game_select_pages.inl",
                         "line":  71,
                         "length":  24,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "56d3a195ff68f20f",
@@ -37895,7 +37895,7 @@
                         "file":  "src/launcher/game_select_pages.inl",
                         "line":  79,
                         "length":  22,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "7304620adfd6fecb",
@@ -55805,7 +55805,7 @@
                         "file":  "src/updater/json.cpp",
                         "line":  281,
                         "length":  14,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "b61a5df9d424c0fa",
@@ -55815,7 +55815,7 @@
                         "file":  "src/updater/json.cpp",
                         "line":  288,
                         "length":  22,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "2b07939466d321c1",
@@ -55825,7 +55825,7 @@
                         "file":  "src/updater/json.cpp",
                         "line":  293,
                         "length":  14,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "53d5b8cd15a135a3",
@@ -55835,7 +55835,7 @@
                         "file":  "src/updater/json.cpp",
                         "line":  306,
                         "length":  24,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "e99db5fe17db1318",
@@ -55845,7 +55845,7 @@
                         "file":  "src/updater/json.cpp",
                         "line":  317,
                         "length":  24,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "81faab501efd6b41",
@@ -55855,7 +55855,7 @@
                         "file":  "src/updater/json.cpp",
                         "line":  328,
                         "length":  27,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "a4e38026adc17f42",
@@ -55875,7 +55875,7 @@
                         "file":  "src/updater/json.cpp",
                         "line":  337,
                         "length":  29,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "a25198ba75262130",
@@ -55885,7 +55885,7 @@
                         "file":  "src/updater/json.cpp",
                         "line":  349,
                         "length":  34,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "a4e38026adc17f42",
@@ -59485,7 +59485,7 @@
                         "file":  "src/updater/update_ui.cpp",
                         "line":  172,
                         "length":  9,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "81a3ff612fc2a4ae",
@@ -59525,7 +59525,7 @@
                         "file":  "src/updater/update_ui.cpp",
                         "line":  202,
                         "length":  15,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "a908d369742c3367",
@@ -59595,7 +59595,7 @@
                         "file":  "src/updater/update_ui.cpp",
                         "line":  224,
                         "length":  24,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "a908d369742c3367",
@@ -59755,7 +59755,7 @@
                         "file":  "src/updater/update_ui.cpp",
                         "line":  265,
                         "length":  10,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "b1b9ef0ec30eff5b",
@@ -59765,7 +59765,7 @@
                         "file":  "src/updater/update_ui.cpp",
                         "line":  268,
                         "length":  9,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "44e7080ce917fdb4",
@@ -60295,7 +60295,7 @@
                         "file":  "src/updater/update_ui.cpp",
                         "line":  90,
                         "length":  21,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "12c599cb2982f6a9",
@@ -104893,7 +104893,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/FriendsPage.cpp",
-                        "line":  109,
+                        "line":  111,
                         "length":  9,
                         "status":  "unprotected"
                     },
@@ -104903,7 +104903,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/FriendsPage.cpp",
-                        "line":  160,
+                        "line":  162,
                         "length":  16,
                         "status":  "unprotected"
                     },
@@ -104913,7 +104913,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/FriendsPage.cpp",
-                        "line":  201,
+                        "line":  203,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -104923,7 +104923,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/FriendsPage.cpp",
-                        "line":  51,
+                        "line":  52,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -104933,7 +104933,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/FriendsPage.cpp",
-                        "line":  57,
+                        "line":  58,
                         "length":  11,
                         "status":  "unprotected"
                     },
@@ -104943,7 +104943,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/FriendsPage.cpp",
-                        "line":  63,
+                        "line":  64,
                         "length":  20,
                         "status":  "unprotected"
                     },
@@ -104953,7 +104953,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/FriendsPage.cpp",
-                        "line":  64,
+                        "line":  65,
                         "length":  21,
                         "status":  "unprotected"
                     },
@@ -104963,7 +104963,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/FriendsPage.cpp",
-                        "line":  66,
+                        "line":  67,
                         "length":  8,
                         "status":  "unprotected"
                     },
@@ -104973,7 +104973,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/FriendsPage.cpp",
-                        "line":  71,
+                        "line":  72,
                         "length":  8,
                         "status":  "unprotected"
                     },
@@ -104983,7 +104983,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/common/FriendsPage.cpp",
-                        "line":  79,
+                        "line":  81,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -105415,7 +105415,7 @@
                         "file":  "src/window/pages/common/RadarPage.cpp",
                         "line":  177,
                         "length":  43,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "32484c270e76afc4",
@@ -105425,7 +105425,7 @@
                         "file":  "src/window/pages/common/RadarPage.cpp",
                         "line":  180,
                         "length":  41,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "a935411bf41c9192",
@@ -106415,7 +106415,7 @@
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
                         "line":  291,
                         "length":  35,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "feb3b120ea1e37fc",
@@ -106425,7 +106425,7 @@
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
                         "line":  294,
                         "length":  38,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "d81bc2a54ad79ea0",
@@ -106875,7 +106875,7 @@
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
                         "line":  399,
                         "length":  22,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "cd3c0d90877a4349",
@@ -106885,7 +106885,7 @@
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
                         "line":  399,
                         "length":  25,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "80ae69e3504451f4",
@@ -107065,7 +107065,7 @@
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
                         "line":  435,
                         "length":  16,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "d6290bc63aa1e58f",
@@ -107075,7 +107075,7 @@
                         "file":  "src/window/pages/common/SaveConfigsPage.cpp",
                         "line":  435,
                         "length":  17,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "926b8e4a0eab532b",
@@ -107465,7 +107465,7 @@
                         "file":  "src/window/pages/common/StatusPage.cpp",
                         "line":  103,
                         "length":  68,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "f7d9d03e572c7633",
@@ -107475,7 +107475,7 @@
                         "file":  "src/window/pages/common/StatusPage.cpp",
                         "line":  108,
                         "length":  10,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "8979da06796d6362",
@@ -107585,7 +107585,7 @@
                         "file":  "src/window/pages/common/StatusPage.cpp",
                         "line":  119,
                         "length":  41,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "4473afbea827b073",
@@ -107595,7 +107595,7 @@
                         "file":  "src/window/pages/common/StatusPage.cpp",
                         "line":  121,
                         "length":  37,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "67d72aee424e549a",
@@ -107965,7 +107965,7 @@
                         "file":  "src/window/pages/common/StatusPage.cpp",
                         "line":  89,
                         "length":  43,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "c7594ebadf270be6",
@@ -107975,7 +107975,7 @@
                         "file":  "src/window/pages/common/StatusPage.cpp",
                         "line":  91,
                         "length":  22,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "07a1125635466487",
@@ -107985,7 +107985,7 @@
                         "file":  "src/window/pages/common/StatusPage.cpp",
                         "line":  92,
                         "length":  33,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "74850dc557824fea",
@@ -107995,7 +107995,7 @@
                         "file":  "src/window/pages/common/StatusPage.cpp",
                         "line":  94,
                         "length":  31,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "92b72e9996e46473",
@@ -108035,7 +108035,7 @@
                         "file":  "src/window/pages/common/StatusPage.cpp",
                         "line":  98,
                         "length":  59,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "9025a0d6b67c0bb0",
@@ -109003,7 +109003,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
-                        "line":  14,
+                        "line":  15,
                         "length":  8,
                         "status":  "unprotected"
                     },
@@ -109013,7 +109013,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
-                        "line":  15,
+                        "line":  16,
                         "length":  8,
                         "status":  "unprotected"
                     },
@@ -109023,7 +109023,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
-                        "line":  16,
+                        "line":  17,
                         "length":  44,
                         "status":  "unprotected"
                     },
@@ -109033,7 +109033,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
-                        "line":  21,
+                        "line":  22,
                         "length":  85,
                         "status":  "unprotected"
                     },
@@ -109043,7 +109043,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
-                        "line":  25,
+                        "line":  26,
                         "length":  10,
                         "status":  "unprotected"
                     },
@@ -109053,7 +109053,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
-                        "line":  27,
+                        "line":  28,
                         "length":  183,
                         "status":  "unprotected"
                     },
@@ -109063,7 +109063,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
-                        "line":  31,
+                        "line":  32,
                         "length":  10,
                         "status":  "unprotected"
                     },
@@ -109073,7 +109073,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
-                        "line":  39,
+                        "line":  40,
                         "length":  91,
                         "status":  "unprotected"
                     },
@@ -109083,7 +109083,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
-                        "line":  52,
+                        "line":  53,
                         "length":  57,
                         "status":  "unprotected"
                     },
@@ -109093,7 +109093,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
-                        "line":  55,
+                        "line":  56,
                         "length":  68,
                         "status":  "unprotected"
                     },
@@ -109103,7 +109103,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
-                        "line":  57,
+                        "line":  58,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -109113,7 +109113,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
-                        "line":  57,
+                        "line":  58,
                         "length":  19,
                         "status":  "unprotected"
                     },
@@ -109123,7 +109123,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
-                        "line":  58,
+                        "line":  59,
                         "length":  11,
                         "status":  "unprotected"
                     },
@@ -109133,7 +109133,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
-                        "line":  58,
+                        "line":  59,
                         "length":  18,
                         "status":  "unprotected"
                     },
@@ -109143,9 +109143,9 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
-                        "line":  59,
+                        "line":  60,
                         "length":  19,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "fa1bddcba35b8a16",
@@ -109153,7 +109153,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
-                        "line":  60,
+                        "line":  61,
                         "length":  24,
                         "status":  "unprotected"
                     },
@@ -109163,9 +109163,9 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
-                        "line":  61,
+                        "line":  62,
                         "length":  68,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "891ed81f75529be1",
@@ -109173,7 +109173,7 @@
                         "category":  "path",
                         "sensitivity":  "medium",
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
-                        "line":  63,
+                        "line":  64,
                         "length":  50,
                         "status":  "unprotected"
                     },
@@ -109183,7 +109183,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2MiscPage.cpp",
-                        "line":  65,
+                        "line":  66,
                         "length":  18,
                         "status":  "unprotected"
                     },
@@ -109193,7 +109193,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  101,
+                        "line":  102,
                         "length":  8,
                         "status":  "unprotected"
                     },
@@ -109203,7 +109203,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  102,
+                        "line":  103,
                         "length":  15,
                         "status":  "unprotected"
                     },
@@ -109213,7 +109213,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  105,
+                        "line":  106,
                         "length":  19,
                         "status":  "unprotected"
                     },
@@ -109223,7 +109223,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  106,
+                        "line":  107,
                         "length":  59,
                         "status":  "unprotected"
                     },
@@ -109233,7 +109233,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  108,
+                        "line":  109,
                         "length":  20,
                         "status":  "unprotected"
                     },
@@ -109243,7 +109243,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  115,
+                        "line":  116,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -109253,7 +109253,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  118,
+                        "line":  119,
                         "length":  25,
                         "status":  "unprotected"
                     },
@@ -109263,7 +109263,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  120,
+                        "line":  121,
                         "length":  5,
                         "status":  "unprotected"
                     },
@@ -109273,7 +109273,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  123,
+                        "line":  124,
                         "length":  4,
                         "status":  "unprotected"
                     },
@@ -109283,7 +109283,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  124,
+                        "line":  125,
                         "length":  5,
                         "status":  "unprotected"
                     },
@@ -109293,7 +109293,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  124,
+                        "line":  125,
                         "length":  10,
                         "status":  "unprotected"
                     },
@@ -109303,7 +109303,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  124,
+                        "line":  125,
                         "length":  8,
                         "status":  "unprotected"
                     },
@@ -109313,7 +109313,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  129,
+                        "line":  130,
                         "length":  9,
                         "status":  "unprotected"
                     },
@@ -109323,7 +109323,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  131,
+                        "line":  132,
                         "length":  16,
                         "status":  "unprotected"
                     },
@@ -109333,7 +109333,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  142,
+                        "line":  143,
                         "length":  20,
                         "status":  "unprotected"
                     },
@@ -109343,7 +109343,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  145,
+                        "line":  146,
                         "length":  12,
                         "status":  "unprotected"
                     },
@@ -109353,7 +109353,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  145,
+                        "line":  146,
                         "length":  23,
                         "status":  "unprotected"
                     },
@@ -109363,7 +109363,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  146,
+                        "line":  147,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -109373,7 +109373,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  152,
+                        "line":  153,
                         "length":  24,
                         "status":  "unprotected"
                     },
@@ -109383,7 +109383,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  157,
+                        "line":  158,
                         "length":  14,
                         "status":  "unprotected"
                     },
@@ -109393,7 +109393,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  157,
+                        "line":  158,
                         "length":  18,
                         "status":  "unprotected"
                     },
@@ -109403,7 +109403,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  157,
+                        "line":  158,
                         "length":  9,
                         "status":  "unprotected"
                     },
@@ -109413,9 +109413,9 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  159,
+                        "line":  160,
                         "length":  63,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "9ae5874e5e12092c",
@@ -109423,7 +109423,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  162,
+                        "line":  163,
                         "length":  17,
                         "status":  "unprotected"
                     },
@@ -109433,7 +109433,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  164,
+                        "line":  165,
                         "length":  4,
                         "status":  "unprotected"
                     },
@@ -109443,7 +109443,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  170,
+                        "line":  171,
                         "length":  19,
                         "status":  "unprotected"
                     },
@@ -109453,7 +109453,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  171,
+                        "line":  172,
                         "length":  4,
                         "status":  "unprotected"
                     },
@@ -109463,7 +109463,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  172,
+                        "line":  173,
                         "length":  20,
                         "status":  "unprotected"
                     },
@@ -109473,7 +109473,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  179,
+                        "line":  180,
                         "length":  90,
                         "status":  "unprotected"
                     },
@@ -109483,7 +109483,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  260,
+                        "line":  261,
                         "length":  11,
                         "status":  "unprotected"
                     },
@@ -109493,7 +109493,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  261,
+                        "line":  262,
                         "length":  11,
                         "status":  "unprotected"
                     },
@@ -109503,7 +109503,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  261,
+                        "line":  262,
                         "length":  5,
                         "status":  "unprotected"
                     },
@@ -109513,7 +109513,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  261,
+                        "line":  262,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -109523,7 +109523,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  263,
+                        "line":  264,
                         "length":  14,
                         "status":  "unprotected"
                     },
@@ -109533,7 +109533,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  264,
+                        "line":  265,
                         "length":  24,
                         "status":  "unprotected"
                     },
@@ -109543,7 +109543,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  264,
+                        "line":  265,
                         "length":  23,
                         "status":  "unprotected"
                     },
@@ -109553,7 +109553,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  265,
+                        "line":  266,
                         "length":  15,
                         "status":  "unprotected"
                     },
@@ -109563,7 +109563,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  267,
+                        "line":  268,
                         "length":  17,
                         "status":  "unprotected"
                     },
@@ -109573,7 +109573,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  267,
+                        "line":  268,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -109583,7 +109583,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  269,
+                        "line":  270,
                         "length":  14,
                         "status":  "unprotected"
                     },
@@ -109593,7 +109593,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  269,
+                        "line":  270,
                         "length":  11,
                         "status":  "unprotected"
                     },
@@ -109603,7 +109603,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  273,
+                        "line":  274,
                         "length":  21,
                         "status":  "unprotected"
                     },
@@ -109613,7 +109613,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  274,
+                        "line":  275,
                         "length":  23,
                         "status":  "unprotected"
                     },
@@ -109623,7 +109623,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  274,
+                        "line":  275,
                         "length":  26,
                         "status":  "unprotected"
                     },
@@ -109633,7 +109633,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  275,
+                        "line":  276,
                         "length":  10,
                         "status":  "unprotected"
                     },
@@ -109643,7 +109643,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  276,
+                        "line":  277,
                         "length":  10,
                         "status":  "unprotected"
                     },
@@ -109653,7 +109653,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  276,
+                        "line":  277,
                         "length":  9,
                         "status":  "unprotected"
                     },
@@ -109663,7 +109663,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  276,
+                        "line":  277,
                         "length":  10,
                         "status":  "unprotected"
                     },
@@ -109673,7 +109673,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  278,
+                        "line":  279,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -109683,7 +109683,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  279,
+                        "line":  280,
                         "length":  26,
                         "status":  "unprotected"
                     },
@@ -109693,7 +109693,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  279,
+                        "line":  280,
                         "length":  24,
                         "status":  "unprotected"
                     },
@@ -109703,7 +109703,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  284,
+                        "line":  285,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -109713,7 +109713,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  285,
+                        "line":  286,
                         "length":  10,
                         "status":  "unprotected"
                     },
@@ -109723,7 +109723,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  285,
+                        "line":  286,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -109733,7 +109733,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  285,
+                        "line":  286,
                         "length":  15,
                         "status":  "unprotected"
                     },
@@ -109743,7 +109743,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  289,
+                        "line":  290,
                         "length":  17,
                         "status":  "unprotected"
                     },
@@ -109753,7 +109753,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  290,
+                        "line":  291,
                         "length":  36,
                         "status":  "unprotected"
                     },
@@ -109763,7 +109763,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  291,
+                        "line":  292,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -109773,7 +109773,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  292,
+                        "line":  293,
                         "length":  4,
                         "status":  "unprotected"
                     },
@@ -109783,7 +109783,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  297,
+                        "line":  298,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -109793,7 +109793,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  298,
+                        "line":  299,
                         "length":  23,
                         "status":  "unprotected"
                     },
@@ -109803,7 +109803,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  298,
+                        "line":  299,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -109813,7 +109813,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  303,
+                        "line":  304,
                         "length":  24,
                         "status":  "unprotected"
                     },
@@ -109823,7 +109823,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  303,
+                        "line":  304,
                         "length":  17,
                         "status":  "unprotected"
                     },
@@ -109833,7 +109833,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  306,
+                        "line":  307,
                         "length":  18,
                         "status":  "unprotected"
                     },
@@ -109843,7 +109843,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  306,
+                        "line":  307,
                         "length":  22,
                         "status":  "unprotected"
                     },
@@ -109853,7 +109853,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  311,
+                        "line":  312,
                         "length":  25,
                         "status":  "unprotected"
                     },
@@ -109863,7 +109863,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  313,
+                        "line":  314,
                         "length":  28,
                         "status":  "unprotected"
                     },
@@ -109873,7 +109873,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  315,
+                        "line":  316,
                         "length":  33,
                         "status":  "unprotected"
                     },
@@ -109883,7 +109883,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  318,
+                        "line":  319,
                         "length":  15,
                         "status":  "unprotected"
                     },
@@ -109893,7 +109893,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  320,
+                        "line":  321,
                         "length":  15,
                         "status":  "unprotected"
                     },
@@ -109903,7 +109903,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  321,
+                        "line":  322,
                         "length":  5,
                         "status":  "unprotected"
                     },
@@ -109913,7 +109913,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  326,
+                        "line":  327,
                         "length":  19,
                         "status":  "unprotected"
                     },
@@ -109923,7 +109923,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  327,
+                        "line":  328,
                         "length":  19,
                         "status":  "unprotected"
                     },
@@ -109933,7 +109933,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  328,
+                        "line":  329,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -109943,7 +109943,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  330,
+                        "line":  331,
                         "length":  50,
                         "status":  "unprotected"
                     },
@@ -109953,7 +109953,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  332,
+                        "line":  333,
                         "length":  10,
                         "status":  "unprotected"
                     },
@@ -109963,7 +109963,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  333,
+                        "line":  334,
                         "length":  15,
                         "status":  "unprotected"
                     },
@@ -109973,7 +109973,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  333,
+                        "line":  334,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -109983,7 +109983,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  333,
+                        "line":  334,
                         "length":  6,
                         "status":  "unprotected"
                     },
@@ -109993,7 +109993,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  334,
+                        "line":  335,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -110003,7 +110003,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  334,
+                        "line":  335,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -110013,7 +110013,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  334,
+                        "line":  335,
                         "length":  4,
                         "status":  "unprotected"
                     },
@@ -110023,7 +110023,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  336,
+                        "line":  337,
                         "length":  18,
                         "status":  "unprotected"
                     },
@@ -110033,7 +110033,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  338,
+                        "line":  339,
                         "length":  21,
                         "status":  "unprotected"
                     },
@@ -110043,7 +110043,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  338,
+                        "line":  339,
                         "length":  16,
                         "status":  "unprotected"
                     },
@@ -110053,7 +110053,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  339,
+                        "line":  340,
                         "length":  19,
                         "status":  "unprotected"
                     },
@@ -110063,7 +110063,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  339,
+                        "line":  340,
                         "length":  10,
                         "status":  "unprotected"
                     },
@@ -110073,7 +110073,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  340,
+                        "line":  341,
                         "length":  12,
                         "status":  "unprotected"
                     },
@@ -110083,7 +110083,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  341,
+                        "line":  342,
                         "length":  16,
                         "status":  "unprotected"
                     },
@@ -110093,7 +110093,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  342,
+                        "line":  343,
                         "length":  21,
                         "status":  "unprotected"
                     },
@@ -110103,7 +110103,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  51,
+                        "line":  52,
                         "length":  11,
                         "status":  "unprotected"
                     },
@@ -110113,7 +110113,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  54,
+                        "line":  55,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -110123,7 +110123,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/pages/cs2/Cs2RadarPage.cpp",
-                        "line":  88,
+                        "line":  89,
                         "length":  42,
                         "status":  "unprotected"
                     },
@@ -112365,7 +112365,7 @@
                         "file":  "src/window/pages/fortnite/FortniteStatusPage.cpp",
                         "line":  18,
                         "length":  12,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "744eb764701151f8",
@@ -112415,7 +112415,7 @@
                         "file":  "src/window/pages/fortnite/FortniteStatusPage.cpp",
                         "line":  27,
                         "length":  48,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "d68562344acf4274",
@@ -112425,7 +112425,7 @@
                         "file":  "src/window/pages/fortnite/FortniteStatusPage.cpp",
                         "line":  32,
                         "length":  39,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "0db78b10c4033e47",
@@ -112435,7 +112435,7 @@
                         "file":  "src/window/pages/fortnite/FortniteStatusPage.cpp",
                         "line":  37,
                         "length":  50,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "db051fa2fffef2cf",
@@ -114313,7 +114313,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  127,
+                        "line":  123,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -114323,7 +114323,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  133,
+                        "line":  129,
                         "length":  8,
                         "status":  "unprotected"
                     },
@@ -114333,7 +114333,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  162,
+                        "line":  158,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -114343,7 +114343,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  163,
+                        "line":  159,
                         "length":  12,
                         "status":  "unprotected"
                     },
@@ -114353,7 +114353,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  163,
+                        "line":  159,
                         "length":  16,
                         "status":  "unprotected"
                     },
@@ -114363,7 +114363,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  164,
+                        "line":  160,
                         "length":  15,
                         "status":  "unprotected"
                     },
@@ -114373,7 +114373,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  164,
+                        "line":  160,
                         "length":  16,
                         "status":  "unprotected"
                     },
@@ -114383,7 +114383,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  165,
+                        "line":  161,
                         "length":  11,
                         "status":  "unprotected"
                     },
@@ -114393,7 +114393,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  166,
+                        "line":  162,
                         "length":  17,
                         "status":  "unprotected"
                     },
@@ -114403,7 +114403,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  166,
+                        "line":  162,
                         "length":  16,
                         "status":  "unprotected"
                     },
@@ -114413,7 +114413,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  222,
+                        "line":  218,
                         "length":  14,
                         "status":  "unprotected"
                     },
@@ -114423,7 +114423,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  225,
+                        "line":  221,
                         "length":  8,
                         "status":  "unprotected"
                     },
@@ -114433,7 +114433,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  99,
+                        "line":  95,
                         "length":  18,
                         "status":  "unprotected"
                     },

@@ -58,10 +58,6 @@ namespace CyberWidgets {
         TextLine(text.c_str(), tone);
     }
     void TextLineF(TextTone tone, const char* format, ...);
-    template <typename... Args>
-    inline void TextLineF(TextTone tone, const std::string& format, Args&&... args) {
-        TextLineF(tone, format.c_str(), std::forward<Args>(args)...);
-    }
     void KeyValueRow(const char* label, const char* value);
     void HealthRow(const char* label, const char* value, HealthStatus status);
     void StatusBadge(const char* label, bool online);

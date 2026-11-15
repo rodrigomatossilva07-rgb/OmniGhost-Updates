@@ -67,8 +67,8 @@ void DrawHome(ImVec2 display) {
     ImGui::SameLine(0.f, gap);
     CyberWidgets::BeginCard("BIBLIOTECA", overviewWidth);
     ImGui::Dummy(ImVec2(0.f, overviewExpansion * 0.5f));
-    CyberWidgets::TextLineF(CyberWidgets::TextTone::Primary, OGS_LIT("%zu produtos autorizados"), licensedCount);
-    CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, OGS_LIT("%zu prontos para iniciar"), readyCount);
+    CyberWidgets::TextLineF(CyberWidgets::TextTone::Primary, "%zu produtos autorizados", licensedCount);
+    CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%zu prontos para iniciar", readyCount);
     ImGui::Dummy(ImVec2(0.f, overviewExpansion * 0.5f));
     CyberWidgets::EndCard();
     if (available >= S(900.f)) ImGui::SameLine(0.f, gap); else ImGui::Dummy(ImVec2(0.f, gap));
@@ -76,7 +76,7 @@ void DrawHome(ImVec2 display) {
     ImGui::Dummy(ImVec2(0.f, overviewExpansion * 0.5f));
     const GameId overviewRecent = MostRecentHistoryGame();
     const GameHistory overviewHistory = GetGameHistory(overviewRecent);
-    CyberWidgets::TextLineF(CyberWidgets::TextTone::Primary, OGS_LIT("%u sessÃµes registadas"), overviewHistory.sessionCount);
+    CyberWidgets::TextLineF(CyberWidgets::TextTone::Primary, "%u sessÃµes registadas", overviewHistory.sessionCount);
     CyberWidgets::TextLine(FormatActiveDuration(overviewHistory.totalActiveSeconds).c_str(), CyberWidgets::TextTone::Secondary);
     ImGui::Dummy(ImVec2(0.f, overviewExpansion * 0.5f));
     CyberWidgets::EndCard();
@@ -106,10 +106,10 @@ void DrawHome(ImVec2 display) {
             ImGui::Dummy(ImVec2(0, S(5.f)));
             CyberWidgets::TextLine(game->name, CyberWidgets::TextTone::Primary);
             CyberWidgets::TextLine(account.websiteAccount ? "PERFIL REMOTO Â· ESTATÃSTICAS SINCRONIZADAS" : "PERFIL LOCAL Â· SESSÃƒO PROTEGIDA", CyberWidgets::TextTone::Secondary);
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, OGS_LIT("Ãšltima sessÃ£o Â· %s Â· %s"),
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "Ãšltima sessÃ£o Â· %s Â· %s",
                 SessionResultDisplay(history.lastResult), FormatLastUsed(history.lastUsedUnix).c_str());
             CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-                OGS_LIT("%u sessÃµes Â· %s de menu ativo"), history.sessionCount,
+                "%u sessÃµes Â· %s de menu ativo", history.sessionCount,
                 FormatActiveDuration(history.totalActiveSeconds).c_str());
             ImGui::Dummy(ImVec2(0, S(8.f)));
             if (IsReadyState(runtime->state)) {
@@ -274,11 +274,11 @@ void DrawMarketplace(ImVec2 display) {
             CyberWidgets::BeginCard(item.title.c_str(), cardWidth);
             CyberWidgets::Badge(item.official ? "OFICIAL OMNIGHOST" : "VERIFICADA",
                 item.official ? CyberWidgets::TextTone::Accent : CyberWidgets::TextTone::Success);
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, OGS_LIT("%s Â· %s Â· v%d"), item.author.c_str(), item.game.c_str(), item.version);
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%s Â· %s Â· v%d", item.author.c_str(), item.game.c_str(), item.version);
             CyberWidgets::TextLineF(item.compatible ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning,
-                OGS_LIT("Schema %d Â· Launcher mÃ­nimo %s"), item.schema_version, item.min_launcher_version.c_str());
+                "Schema %d Â· Launcher mÃ­nimo %s", item.schema_version, item.min_launcher_version.c_str());
             CyberWidgets::TextLine(item.description.empty() ? "Sem descriÃ§Ã£o." : item.description.c_str(), CyberWidgets::TextTone::Secondary);
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Accent, OGS_LIT("%d downloads Â· %.1f/5 Â· %d favoritos"),
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Accent, "%d downloads Â· %.1f/5 Â· %d favoritos",
                 item.downloads, item.rating, item.favorites);
             if (CyberWidgets::GoldButton("GUARDAR", ImVec2(S(100.f), S(31.f)))) {
                 const bool ok = config_manager::DownloadCommunityToLibrary(item.id);
@@ -710,7 +710,7 @@ void DrawDiagnostics(ImVec2 display) {
             const std::string when = FormatLastUsed(session.endedUnix);
             const std::string duration = FormatActiveDuration(session.activeSeconds);
             CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-                OGS_LIT("%s Â· %s Â· %s"), when.c_str(), duration.c_str(),
+                "%s Â· %s Â· %s", when.c_str(), duration.c_str(),
                 SessionResultDisplay(session.result));
         }
         if (!history.detail.empty()) CyberWidgets::TextLine(history.detail.c_str(), CyberWidgets::TextTone::Secondary);

@@ -14,8 +14,8 @@ void DrawFortniteStatus() {
     CyberWidgets::KeyValueRow("Status", Fortnite::StatusText());
     if (!Fortnite::runtime.last_fail.empty())
         CyberWidgets::KeyValueRow("Last failure", Fortnite::runtime.last_fail.c_str());
-    CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, OGS_LIT("PID: %u"), Fortnite::runtime.pid);
-    CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, OGS_LIT("Frames: %llu"),
+    CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "PID: %u", Fortnite::runtime.pid);
+    CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "Frames: %llu",
         static_cast<unsigned long long>(Fortnite::runtime.frames));
     CyberWidgets::EndCard();
 
@@ -24,17 +24,17 @@ void DrawFortniteStatus() {
     CyberWidgets::StatusBadge("Entradas legÃ­veis", Fortnite::runtime.player_data_ok);
     CyberWidgets::KeyValueRow("Estado", Fortnite::runtime.player_array_status.c_str());
     CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-        OGS_LIT("Entradas: %d / capacidade %d | apÃ³s filtros: %d"),
+        "Entradas: %d / capacidade %d | apÃ³s filtros: %d",
         Fortnite::runtime.player_array_count,
         Fortnite::runtime.player_array_capacity,
         static_cast<int>(Fortnite::runtime.players.size()));
     CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-        OGS_LIT("Local: %d | sem Pawn: %d | sem vida: %d"),
+        "Local: %d | sem Pawn: %d | sem vida: %d",
         Fortnite::runtime.players_local,
         Fortnite::runtime.players_without_pawn,
         Fortnite::runtime.players_dying);
     CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-        OGS_LIT("DistÃ¢ncia: %d | mesma equipa: %d | invÃ¡lidos: %d"),
+        "DistÃ¢ncia: %d | mesma equipa: %d | invÃ¡lidos: %d",
         Fortnite::runtime.players_out_of_range,
         Fortnite::runtime.players_same_team,
         Fortnite::runtime.players_invalid);

@@ -1,4 +1,5 @@
 ﻿#include "../../widgets.h"
+#include "../../platform/strprotect/strprotect.h"
 #include "cs2_game.h"
 #include "config/cs2_config.h"
 #include "config/app_settings.h"
@@ -56,9 +57,9 @@ void DrawCs2Misc()
         const int pressure = CS2::DmaPressureLevel();
         const char* budget = pressure == 0 ? "normal" : pressure == 1 ? "opcionais reduzidas" :
             pressure == 2 ? "metadados em cache" : "recuperacao";
-        TextLineF(TextTone::Secondary, OGS_LIT("Orcamento DMA: %s%s"), budget,
+        TextLineF(TextTone::Secondary, "Orcamento DMA: %s%s", budget,
             CS2::LastSlowDmaMs() >= 300.f ? " (ultimo pico protegido)" : "");
-        TextLineF(TextTone::Secondary, OGS_LIT("Custos recentes: arma %.1f ms | municao %.1f ms | flags/sons %.1f ms"),
+        TextLineF(TextTone::Secondary, "Custos recentes: arma %.1f ms | municao %.1f ms | flags/sons %.1f ms",
             CS2::LastWeaponPhaseMs(), CS2::LastAmmoPhaseMs(), CS2::LastFlagsPhaseMs());
         TextLine("Ficheiro: %%LOCALAPPDATA%%\\OmniGhost\\logs\\logs.txt", TextTone::Secondary);
     } else {

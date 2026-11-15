@@ -1,5 +1,6 @@
 ﻿#include "../../widgets.h"
 #include "../../theme.h"
+#include "../../platform/strprotect/strprotect.h"
 #include "config/cs2_config.h"
 #include "cs2_game.h"
 #include "platform/offset_auto.h"
@@ -156,7 +157,7 @@ void DrawCs2Radar() {
         const auto diagnostics = CS2::WebRadar::GetDiagnostics();
         CyberWidgets::KeyValueRow("Fonte de dados", diagnostics.sourceFresh ? "Em direto" : "A aguardar partida");
         CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-            OGS_LIT("%u jogadores | %u ligaÃ§Ãµes | %.1f / %.0f Hz | amostra %llu ms"),
+            "%u jogadores | %u ligaÃ§Ãµes | %.1f / %.0f Hz | amostra %llu ms",
             diagnostics.players, diagnostics.clients, diagnostics.updateHz, diagnostics.configuredHz,
             static_cast<unsigned long long>(diagnostics.lastSampleAgeMs));
         if (CyberWidgets::GoldButton("Abrir radar local", ImVec2(180.f, 34.f))) {
