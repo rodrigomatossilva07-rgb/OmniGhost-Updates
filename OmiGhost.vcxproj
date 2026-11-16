@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Release|x64">
@@ -9,16 +9,16 @@
       <Configuration>Publish</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
-</ItemGroup>
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{B6F916DC-A5DD-415F-B3BF-A364F511DAC8}</ProjectGuid>
     <RootNamespace>OmniGhost</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <ProjectName>OmniGhost</ProjectName>
   </PropertyGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props"/>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <PlatformToolset>v145</PlatformToolset>
@@ -28,41 +28,36 @@
     <UseDebugLibraries>false</UseDebugLibraries>
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
-<PropertyGroup Condition="'$(Configuration)'=='Publish'" Label="Configuration">
-
+  <PropertyGroup Condition="'$(Configuration)'=='Publish'" Label="Configuration">
     <UseDebugLibraries>false</UseDebugLibraries>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <OmniGhostPublishBuild>true</OmniGhostPublishBuild>
-</PropertyGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props"/>
-  <ImportGroup Label="ExtensionSettings"/>
-<ImportGroup Label="Shared"/>
-<ImportGroup Label="PropertySheets">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform"/>
-    <Import Project="$(ProjectDir)src\project\config\build\OmniGhost.Common.props"/>
-    <Import Project="$(ProjectDir)src\project\config\build\OmniGhost.Release.props" Condition="'$(Configuration)'=='Release' Or '$(Configuration)'=='Publish'"/>
-    <Import Project="$(ProjectDir)src\project\config\build\OmniGhost.Publish.props" Condition="'$(Configuration)'=='Publish'"/>
-</ImportGroup>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(ProjectDir)src\project\config\build\OmniGhost.Common.props" />
+    <Import Project="$(ProjectDir)src\project\config\build\OmniGhost.Release.props" Condition="'$(Configuration)'=='Release' Or '$(Configuration)'=='Publish'" />
+    <Import Project="$(ProjectDir)src\project\config\build\OmniGhost.Publish.props" Condition="'$(Configuration)'=='Publish'" />
+  </ImportGroup>
   <PropertyGroup Condition="'$(OmniGhostPayloadBuild)'=='true'">
     <OutDir>$(ProjectDir).cache\bootstrap\payload\$(Platform)\$(Configuration)\</OutDir>
     <TargetName>OmniGhostCore</TargetName>
   </PropertyGroup>
-  <PropertyGroup Label="UserMacros"/>
+  <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-
     <OmniGhostReleaseChannel Condition="'$(OmniGhostReleaseChannel)'==''">stable</OmniGhostReleaseChannel>
   </PropertyGroup>
   <PropertyGroup Condition="('$(Configuration)'=='Release' Or '$(Configuration)'=='Publish') And '$(Platform)'=='x64' And '$(OmniGhostPayloadBuild)'!='true'">
-
     <GenerateMsixPackage>false</GenerateMsixPackage>
     <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Publish|x64'">
-
     <OmniGhostReleaseChannel>stable</OmniGhostReleaseChannel>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='PrivateStatic|x64'">
-
     <OmniGhostReleaseChannel>private-development</OmniGhostReleaseChannel>
     <OutDir>$(ProjectDir)build\PrivateStatic\</OutDir>
   </PropertyGroup>
@@ -72,542 +67,498 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>$(ProjectDir).cache\private-static\vmm\vmm.lib;$(ProjectDir).cache\private-static\leechcore\leechcore.lib;d3d11.lib;dxgi.lib;d3dcompiler.lib;dwmapi.lib;user32.lib;gdi32.lib;imm32.lib;setupapi.lib;ws2_32.lib;windowscodecs.lib;ole32.lib;shell32.lib;winhttp.lib;wininet.lib;bcrypt.lib;crypt32.lib;shlwapi.lib;version.lib;advapi32.lib;credui.lib;rpcrt4.lib;secur32.lib;winusb.lib;ntdll.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <DelayLoadDLLs></DelayLoadDLLs>
+      <DelayLoadDLLs>
+      </DelayLoadDLLs>
       <AdditionalLibraryDirectories>$(ProjectDir).cache\private-static\vmm;$(ProjectDir).cache\private-static\leechcore;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\auth\keyauth_gateway.cpp"/>
-    <ClCompile Include="src\auth\keyauth_hwid_override.cpp"/>
-    <ClCompile Include="src\auth\keyauth_remote_provider.cpp"/>
-    <ClCompile Include="src\auth\launcher_account_service.cpp"/>
-
-
-
-    <OmniGhostLibRuntimeLibrary Include="$(ProjectDir)src\project\libs\*.dll"/>
-    <OmniGhostDmaRuntimeLibrary Include="$(ProjectDir)src\project\third_party\dma_stack\bin\*.dll"/>
-    <OmniGhostCustomRuntimeLibrary Include="$(ProjectDir)src\project\support\infrastructure\runtime\own\*.dll"/>
-    <OmniGhostDmaPlugin Include="$(ProjectDir)src\project\third_party\dma_stack\plugins\**\*"/>
-    <OmniGhostRootResource Include="$(ProjectDir)src\project\resources\OmniGhost.ico;$(ProjectDir)src\project\resources\OmniGhost.png"/>
-    <OmniGhostGameResource Include="$(ProjectDir)src\project\resources\games\**\*.png;$(ProjectDir)src\project\resources\games\**\*.jpg;$(ProjectDir)src\project\resources\games\**\*.jpeg;$(ProjectDir)src\project\resources\games\**\*.webp"/>
-    <OmniGhostProjectData Include="$(ProjectDir)src\project\data\**\*" Exclude="$(ProjectDir)src\project\data\*offsets.json;$(ProjectDir)src\project\data\offsets.json;$(ProjectDir)src\project\data\fortnite_offsets\**\*;$(ProjectDir)src\project\data\**\*offsets*.json;$(ProjectDir)src\project\data\fivem\collision*\**\*"/>
-    <OmniGhostCs2Data Include="$(ProjectDir)src\games\Cs2\data\weapons\**\*" Exclude="$(ProjectDir)src\games\Cs2\data\offsets.json"/>
+    <ClCompile Include="src\auth\keyauth_gateway.cpp" />
+    <ClCompile Include="src\auth\keyauth_hwid_override.cpp" />
+    <ClCompile Include="src\auth\keyauth_remote_provider.cpp" />
+    <ClCompile Include="src\auth\launcher_account_service.cpp" />
+    <OmniGhostLibRuntimeLibrary Include="$(ProjectDir)src\project\libs\*.dll" />
+    <OmniGhostDmaRuntimeLibrary Include="$(ProjectDir)src\project\third_party\dma_stack\bin\*.dll" />
+    <OmniGhostCustomRuntimeLibrary Include="$(ProjectDir)src\project\support\infrastructure\runtime\own\*.dll" />
+    <OmniGhostDmaPlugin Include="$(ProjectDir)src\project\third_party\dma_stack\plugins\**\*" />
+    <OmniGhostRootResource Include="$(ProjectDir)src\project\resources\OmniGhost.ico;$(ProjectDir)src\project\resources\OmniGhost.png" />
+    <OmniGhostGameResource Include="$(ProjectDir)src\project\resources\games\**\*.png;$(ProjectDir)src\project\resources\games\**\*.jpg;$(ProjectDir)src\project\resources\games\**\*.jpeg;$(ProjectDir)src\project\resources\games\**\*.webp" />
+    <OmniGhostProjectData Include="$(ProjectDir)src\project\data\**\*" Exclude="$(ProjectDir)src\project\data\*offsets.json;$(ProjectDir)src\project\data\offsets.json;$(ProjectDir)src\project\data\fortnite_offsets\**\*;$(ProjectDir)src\project\data\**\*offsets*.json;$(ProjectDir)src\project\data\fivem\collision*\**\*" />
+    <OmniGhostCs2Data Include="$(ProjectDir)src\games\Cs2\data\weapons\**\*" Exclude="$(ProjectDir)src\games\Cs2\data\offsets.json" />
   </ItemGroup>
   <Target Name="BuildOmniGhostEmbeddedOffsets" BeforeTargets="ResourceCompile" Condition="'$(DesignTimeBuild)'!='true'">
-    <Message Importance="High" Text="[OmniGhost Offsets] Generating embedded offset resources..."/>
+    <Message Importance="High" Text="[OmniGhost Offsets] Generating embedded offset resources..." />
     <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-offsets &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedOffsetsExitCode"/>
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedOffsetsExitCode" />
     </Exec>
-    <Error Condition="'$(OmniGhostEmbeddedOffsetsExitCode)'!='0'" Code="OGOFF001" Text="Falha ao gerar os recursos de offsets embutidos. Consulta a janela Saída."/>
+    <Error Condition="'$(OmniGhostEmbeddedOffsetsExitCode)'!='0'" Code="OGOFF001" Text="Falha ao gerar os recursos de offsets embutidos. Consulta a janela Saída." />
   </Target>
-
-
-
-  <Target Name="EnsureOmniGhostDmaDependencies" BeforeTargets="PrepareForBuild"
-          Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostUpdateDmaDependencies)'=='true'">
-    <Message Importance="High" Text="[OmniGhost 01/10] DMA dependencies"/>
+  <Target Name="EnsureOmniGhostDmaDependencies" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostUpdateDmaDependencies)'=='true'">
+    <Message Importance="High" Text="[OmniGhost 01/10] DMA dependencies" />
     <Exec Command="&quot;%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\src\project\tools\Update-DmaDependencies.ps1&quot; -EnsureLatest" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostDmaDependencyExitCode"/>
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostDmaDependencyExitCode" />
     </Exec>
-    <Error Condition="'$(OmniGhostDmaDependencyExitCode)'!='0'" Code="OGDMA001" Text="Nao foi possivel verificar/atualizar a stack DMA oficial. A build foi interrompida para nao compilar com dependencias incompletas."/>
+    <Error Condition="'$(OmniGhostDmaDependencyExitCode)'!='0'" Code="OGDMA001" Text="Nao foi possivel verificar/atualizar a stack DMA oficial. A build foi interrompida para nao compilar com dependencias incompletas." />
   </Target>
-  <Target Name="NoticeOmniGhostDmaDependenciesSkipped" BeforeTargets="PrepareForBuild"
-          Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostUpdateDmaDependencies)'!='true' And '$(OmniGhostSilentDependencyNotice)'!='true'">
-    <Message Importance="Low" Text="[OmniGhost] DMA dependency auto-update skipped (hermetic build). Set OmniGhostUpdateDmaDependencies=true to refresh the stack."/>
+  <Target Name="NoticeOmniGhostDmaDependenciesSkipped" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostUpdateDmaDependencies)'!='true' And '$(OmniGhostSilentDependencyNotice)'!='true'">
+    <Message Importance="Low" Text="[OmniGhost] DMA dependency auto-update skipped (hermetic build). Set OmniGhostUpdateDmaDependencies=true to refresh the stack." />
   </Target>
-  <Target Name="EnsureOmniGhostCloudflared" BeforeTargets="PrepareForBuild"
-          Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostUpdateCloudflared)'!='false'">
-    <Message Importance="High" Text="[OmniGhost Cloudflared] Verifying/updating the official Cloudflare helper..."/>
+  <Target Name="EnsureOmniGhostCloudflared" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostUpdateCloudflared)'!='false'">
+    <Message Importance="High" Text="[OmniGhost Cloudflared] Verifying/updating the official Cloudflare helper..." />
     <Exec Command="&quot;%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\src\project\tools\Update-Cloudflared.ps1&quot; -EnsureLatest -ProjectDir &quot;$(MSBuildProjectDirectory)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostCloudflaredExitCode"/>
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostCloudflaredExitCode" />
     </Exec>
-    <Error Condition="'$(OmniGhostCloudflaredExitCode)'!='0'" Code="OGCFD001" Text="Nao foi possivel garantir o cloudflared oficial assinado pela Cloudflare. A build foi interrompida para nao embutir um binario nao verificado. Corre src\project\tools\Update-Cloudflared.ps1 -Latest e consulta logs\cloudflared-update-*.log, ou define OmniGhostUpdateCloudflared=false para uma build hermetica."/>
+    <Error Condition="'$(OmniGhostCloudflaredExitCode)'!='0'" Code="OGCFD001" Text="Nao foi possivel garantir o cloudflared oficial assinado pela Cloudflare. A build foi interrompida para nao embutir um binario nao verificado. Corre src\project\tools\Update-Cloudflared.ps1 -Latest e consulta logs\cloudflared-update-*.log, ou define OmniGhostUpdateCloudflared=false para uma build hermetica." />
   </Target>
-  <Target Name="NoticeOmniGhostCloudflaredSkipped" BeforeTargets="PrepareForBuild"
-          Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostUpdateCloudflared)'=='false'">
-    <Message Importance="Low" Text="[OmniGhost] cloudflared auto-update skipped (hermetic build). Set OmniGhostUpdateCloudflared=true to refresh the helper."/>
+  <Target Name="NoticeOmniGhostCloudflaredSkipped" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostUpdateCloudflared)'=='false'">
+    <Message Importance="Low" Text="[OmniGhost] cloudflared auto-update skipped (hermetic build). Set OmniGhostUpdateCloudflared=true to refresh the helper." />
   </Target>
   <Target Name="BuildOmniGhostEmbeddedRuntime" BeforeTargets="ClCompile;ResourceCompile" Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipEmbeddedGeneration)'!='true'">
-    <Message Importance="High" Text="[OmniGhost Runtime] Generating single-process native dependency bundle..."/>
+    <Message Importance="High" Text="[OmniGhost Runtime] Generating single-process native dependency bundle..." />
     <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-runtime &quot;$(MSBuildProjectDirectory)&quot; &quot;$(VCInstallDir)Redist\MSVC\$(VCToolsVersion)\x64&quot; &quot;$(Configuration)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedRuntimeExitCode"/>
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedRuntimeExitCode" />
     </Exec>
-    <Error Condition="'$(OmniGhostEmbeddedRuntimeExitCode)'!='0'" Code="OGRUN001" Text="Falha ao gerar o runtime auto-instalável. Consulta a janela Saída."/>
+    <Error Condition="'$(OmniGhostEmbeddedRuntimeExitCode)'!='0'" Code="OGRUN001" Text="Falha ao gerar o runtime auto-instalável. Consulta a janela Saída." />
     <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; validate-embedded-runtime &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true" Condition="'$(Configuration)'!='PrivateStatic'">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedRuntimeValidationExitCode"/>
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedRuntimeValidationExitCode" />
     </Exec>
-    <Error Condition="'$(OmniGhostEmbeddedRuntimeValidationExitCode)'!='0' And '$(Configuration)'!='PrivateStatic'" Code="OGRUN002" Text="O runtime embedded está incompleto: vmm.dll/leechcore.dll não foram incorporados ao EXE."/>
+    <Error Condition="'$(OmniGhostEmbeddedRuntimeValidationExitCode)'!='0' And '$(Configuration)'!='PrivateStatic'" Code="OGRUN002" Text="O runtime embedded está incompleto: vmm.dll/leechcore.dll não foram incorporados ao EXE." />
   </Target>
-
   <ItemGroup Condition="'$(DesignTimeBuild)'!='true'">
-    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\project\resources\embedded-resources.json"/>
-    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\project\tools\Build-EmbeddedResources.ps1"/>
-    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\project\resources\games\**\*"/>
-    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\project\resources\OmniGhost.png"/>
-    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\project\resources\OmniGhost_EULA_and_Terms_of_Use.pdf"/>
-    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\project\config\release\versions.json"/>
-    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\games\Fivem\data\webradar\**\*"/>
-    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\games\Cs2\data\weapons\**\*"/>
-    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\games\Cs2\collision\**\*.tri"/>
-    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\games\Cs2\data\webradar\**\*"/>
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\project\resources\embedded-resources.json" />
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\project\tools\Build-EmbeddedResources.ps1" />
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\project\resources\games\**\*" />
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\project\resources\OmniGhost.png" />
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\project\resources\OmniGhost_EULA_and_Terms_of_Use.pdf" />
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\project\config\release\versions.json" />
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\games\Fivem\data\webradar\**\*" />
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\games\Cs2\data\weapons\**\*" />
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\games\Cs2\collision\**\*.tri" />
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\games\Cs2\data\webradar\**\*" />
   </ItemGroup>
   <PropertyGroup>
-
-
-
-
     <OmniGhostEmbeddedResourceOutputs>$(MSBuildProjectDirectory)\.cache\generated\$(Configuration)\$(Platform)\embedded_resource_catalog.h;$(MSBuildProjectDirectory)\.cache\generated\$(Configuration)\$(Platform)\embedded_resources.rc2</OmniGhostEmbeddedResourceOutputs>
-
-
-
     <OmniGhostEmbeddedResourceOutputs Condition="'$(Configuration)'=='Publish'">$(OmniGhostEmbeddedResourceOutputs);$(MSBuildProjectDirectory)\.cache\generated\$(Configuration)\$(Platform)\.publish-force-regenerate</OmniGhostEmbeddedResourceOutputs>
   </PropertyGroup>
-  <Target Name="BuildOmniGhostEmbeddedResources" BeforeTargets="ClCompile;ResourceCompile"
-          Inputs="@(OmniGhostEmbeddedResourceInput)"
-          Outputs="$(OmniGhostEmbeddedResourceOutputs)"
-          Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipEmbeddedGeneration)'!='true'">
-    <Message Importance="High" Text="[OmniGhost 03/10] Recursos embedded"/>
+  <Target Name="BuildOmniGhostEmbeddedResources" BeforeTargets="ClCompile;ResourceCompile" Inputs="@(OmniGhostEmbeddedResourceInput)" Outputs="$(OmniGhostEmbeddedResourceOutputs)" Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipEmbeddedGeneration)'!='true'">
+    <Message Importance="High" Text="[OmniGhost 03/10] Recursos embedded" />
     <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-resources &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedResourcesExitCode"/>
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedResourcesExitCode" />
     </Exec>
-    <Error Condition="'$(OmniGhostEmbeddedResourcesExitCode)'!='0'" Code="OGRES001" Text="Falha ao gerar os recursos embedded. Consulta a janela Saída."/>
+    <Error Condition="'$(OmniGhostEmbeddedResourcesExitCode)'!='0'" Code="OGRES001" Text="Falha ao gerar os recursos embedded. Consulta a janela Saída." />
   </Target>
   <Target Name="CleanOmniGhostRuntimeOutput" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostCleanRuntimeOutput)'!='false'">
-    <RemoveDir Directories="$(OutDir)" Condition="Exists('$(OutDir)')"/>
-    <MakeDir Directories="$(OutDir)"/>
+    <RemoveDir Directories="$(OutDir)" Condition="Exists('$(OutDir)')" />
+    <MakeDir Directories="$(OutDir)" />
   </Target>
-
-
-
-  <Target Name="CopyOmniGhostLegacyExternalRuntime" AfterTargets="Build"
-          Condition="'$(OmniGhostCopyLegacyExternalRuntime)'=='true'">
-
-
-
+  <Target Name="CopyOmniGhostLegacyExternalRuntime" AfterTargets="Build" Condition="'$(OmniGhostCopyLegacyExternalRuntime)'=='true'">
     <ItemGroup Condition="'$(Configuration)'=='Release'">
-      <OmniGhostVcRuntimeLibrary Include="$(VCToolsRedistDir)\x64\Microsoft.VC*.CRT\msvcp*.dll"/>
-      <OmniGhostVcRuntimeLibrary Include="$(VCToolsRedistDir)\x64\Microsoft.VC*.CRT\vcruntime*.dll"/>
-      <OmniGhostVcRuntimeLibrary Include="$(VCToolsRedistDir)\x64\Microsoft.VC*.CRT\concrt*.dll"/>
+      <OmniGhostVcRuntimeLibrary Include="$(VCToolsRedistDir)\x64\Microsoft.VC*.CRT\msvcp*.dll" />
+      <OmniGhostVcRuntimeLibrary Include="$(VCToolsRedistDir)\x64\Microsoft.VC*.CRT\vcruntime*.dll" />
+      <OmniGhostVcRuntimeLibrary Include="$(VCToolsRedistDir)\x64\Microsoft.VC*.CRT\concrt*.dll" />
     </ItemGroup>
-    <Error Condition="'@(OmniGhostLibRuntimeLibrary)'==''" Code="OGLIB001" Text="A pasta libs não contém DLLs. Coloca a pasta libs na raiz do OmniGhost antes de compilar."/>
-
-
-    <Error Condition="!Exists('$(ProjectDir)src\project\libs\vmm.dll') And !Exists('$(ProjectDir)src\project\third_party\dma_stack\bin\vmm.dll')" Code="OGDLL001" Text="Nenhuma cópia de vmm.dll foi encontrada em src\project\libs\ ou src\project\third_party\dma_stack\bin\."/>
-    <Error Condition="!Exists('$(ProjectDir)src\project\libs\leechcore.dll') And !Exists('$(ProjectDir)src\project\third_party\dma_stack\bin\leechcore.dll')" Code="OGDLL001" Text="Nenhuma cópia de leechcore.dll foi encontrada em src\project\libs\ ou src\project\third_party\dma_stack\bin\."/>
-    <MakeDir Directories="$(OutDir)data;$(OutDir)data\runtime;$(OutDir)resources"/>
-    <MakeDir Directories="$(OutDir)plugins" Condition="'@(OmniGhostDmaPlugin)'!=''"/>
-    <MakeDir Directories="$(OutDir)resources\games" Condition="'@(OmniGhostGameResource)'!=''"/>
-
-
-    <Copy SourceFiles="@(OmniGhostLibRuntimeLibrary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true"/>
-
-    <Copy SourceFiles="@(OmniGhostDmaRuntimeLibrary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true"/>
-    <Copy SourceFiles="@(OmniGhostCustomRuntimeLibrary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'@(OmniGhostCustomRuntimeLibrary)'!=''"/>
-    <Copy SourceFiles="@(OmniGhostVcRuntimeLibrary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'$(Configuration)'=='Release' And '@(OmniGhostVcRuntimeLibrary)'!=''"/>
-    <Copy SourceFiles="$(ProjectDir)src\project\config\release\versions.json" DestinationFiles="$(OutDir)data\runtime\dma_stack_versions.json" SkipUnchangedFiles="true"/>
-    <Copy SourceFiles="@(OmniGhostDmaPlugin)" DestinationFiles="@(OmniGhostDmaPlugin-&gt;'$(OutDir)plugins\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostDmaPlugin)'!=''"/>
-    <Copy SourceFiles="@(OmniGhostRootResource)" DestinationFolder="$(OutDir)resources" SkipUnchangedFiles="true" Condition="'@(OmniGhostRootResource)'!=''"/>
-    <Copy SourceFiles="@(OmniGhostGameResource)" DestinationFiles="@(OmniGhostGameResource-&gt;'$(OutDir)resources\games\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostGameResource)'!=''"/>
-    <Copy SourceFiles="@(OmniGhostProjectData)" DestinationFiles="@(OmniGhostProjectData-&gt;'$(OutDir)data\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostProjectData)'!=''"/>
-    <Copy SourceFiles="@(OmniGhostCs2Data)" DestinationFiles="@(OmniGhostCs2Data-&gt;'$(OutDir)data\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostCs2Data)'!=''"/>
+    <Error Condition="'@(OmniGhostLibRuntimeLibrary)'==''" Code="OGLIB001" Text="A pasta libs não contém DLLs. Coloca a pasta libs na raiz do OmniGhost antes de compilar." />
+    <Error Condition="!Exists('$(ProjectDir)src\project\libs\vmm.dll') And !Exists('$(ProjectDir)src\project\third_party\dma_stack\bin\vmm.dll')" Code="OGDLL001" Text="Nenhuma cópia de vmm.dll foi encontrada em src\project\libs\ ou src\project\third_party\dma_stack\bin\." />
+    <Error Condition="!Exists('$(ProjectDir)src\project\libs\leechcore.dll') And !Exists('$(ProjectDir)src\project\third_party\dma_stack\bin\leechcore.dll')" Code="OGDLL001" Text="Nenhuma cópia de leechcore.dll foi encontrada em src\project\libs\ ou src\project\third_party\dma_stack\bin\." />
+    <MakeDir Directories="$(OutDir)data;$(OutDir)data\runtime;$(OutDir)resources" />
+    <MakeDir Directories="$(OutDir)plugins" Condition="'@(OmniGhostDmaPlugin)'!=''" />
+    <MakeDir Directories="$(OutDir)resources\games" Condition="'@(OmniGhostGameResource)'!=''" />
+    <Copy SourceFiles="@(OmniGhostLibRuntimeLibrary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(OmniGhostDmaRuntimeLibrary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(OmniGhostCustomRuntimeLibrary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'@(OmniGhostCustomRuntimeLibrary)'!=''" />
+    <Copy SourceFiles="@(OmniGhostVcRuntimeLibrary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'$(Configuration)'=='Release' And '@(OmniGhostVcRuntimeLibrary)'!=''" />
+    <Copy SourceFiles="$(ProjectDir)src\project\config\release\versions.json" DestinationFiles="$(OutDir)data\runtime\dma_stack_versions.json" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(OmniGhostDmaPlugin)" DestinationFiles="@(OmniGhostDmaPlugin->'$(OutDir)plugins\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostDmaPlugin)'!=''" />
+    <Copy SourceFiles="@(OmniGhostRootResource)" DestinationFolder="$(OutDir)resources" SkipUnchangedFiles="true" Condition="'@(OmniGhostRootResource)'!=''" />
+    <Copy SourceFiles="@(OmniGhostGameResource)" DestinationFiles="@(OmniGhostGameResource->'$(OutDir)resources\games\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostGameResource)'!=''" />
+    <Copy SourceFiles="@(OmniGhostProjectData)" DestinationFiles="@(OmniGhostProjectData->'$(OutDir)data\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostProjectData)'!=''" />
+    <Copy SourceFiles="@(OmniGhostCs2Data)" DestinationFiles="@(OmniGhostCs2Data->'$(OutDir)data\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostCs2Data)'!=''" />
     <ItemGroup>
-      <OmniGhostRuntimeDestination Include="@(OmniGhostLibRuntimeLibrary-&gt;'$(OutDir)%(Filename)%(Extension)')"/>
-      <OmniGhostRuntimeDestination Include="@(OmniGhostDmaRuntimeLibrary-&gt;'$(OutDir)%(Filename)%(Extension)')"/>
-      <OmniGhostRuntimeDestination Include="@(OmniGhostCustomRuntimeLibrary-&gt;'$(OutDir)%(Filename)%(Extension)')"/>
-      <OmniGhostRuntimeDestination Include="@(OmniGhostVcRuntimeLibrary-&gt;'$(OutDir)%(Filename)%(Extension)')" Condition="'$(Configuration)'=='Release'"/>
+      <OmniGhostRuntimeDestination Include="@(OmniGhostLibRuntimeLibrary->'$(OutDir)%(Filename)%(Extension)')" />
+      <OmniGhostRuntimeDestination Include="@(OmniGhostDmaRuntimeLibrary->'$(OutDir)%(Filename)%(Extension)')" />
+      <OmniGhostRuntimeDestination Include="@(OmniGhostCustomRuntimeLibrary->'$(OutDir)%(Filename)%(Extension)')" />
+      <OmniGhostRuntimeDestination Include="@(OmniGhostVcRuntimeLibrary->'$(OutDir)%(Filename)%(Extension)')" Condition="'$(Configuration)'=='Release'" />
     </ItemGroup>
-    <Error Condition="!Exists('%(OmniGhostRuntimeDestination.Identity)')" Code="OGDLL002" Text="A DLL de runtime não foi copiada para junto do executável: %(OmniGhostRuntimeDestination.Filename)%(OmniGhostRuntimeDestination.Extension)"/>
-    <Error Condition="!Exists('$(OutDir)data\runtime\dma_stack_versions.json')" Code="OGDLL007" Text="O manifest de versões da stack DMA não foi copiado para data\runtime."/>
-    <Error Condition="Exists('$(OutDir)data\fortnite_offsets.json')" Code="OGOFF002" Text="Release não pode distribuir data\fortnite_offsets.json; o snapshot deve estar embutido no EXE."/>
-    <Error Condition="Exists('$(OutDir)data\warzone_offsets.json')" Code="OGOFF003" Text="Release não pode distribuir data\warzone_offsets.json; o snapshot deve estar embutido no EXE."/>
-    <Error Condition="Exists('$(OutDir)data\cs2_offsets.json')" Code="OGOFF004" Text="Release não pode distribuir plaintext cs2 offsets; devem estar embutidos."/>
-    <Error Condition="Exists('$(OutDir)data\rust_offsets.json')" Code="OGOFF005" Text="Release não pode distribuir plaintext rust offsets; devem estar embutidos."/>
-    <Error Condition="Exists('$(OutDir)data\fivem_offsets.json')" Code="OGOFF006" Text="Release não pode distribuir plaintext fivem offsets; devem estar embutidos."/>
-    <Error Condition="Exists('$(OutDir)data\apex_offsets.json')" Code="OGOFF007" Text="Release não pode distribuir data\apex_offsets.json; o snapshot deve estar embutido no EXE."/>
-    <Error Condition="Exists('$(OutDir)data\offsets.json')" Code="OGOFF008" Text="Release não pode distribuir plaintext offsets.json; devem estar embutidos."/>
-
-    <Message Importance="High" Text="[OmniGhost Runtime] DLLs de src\project\libs\ sincronizadas para build\; runtimes canónicos validados e copiados."/>
+    <Error Condition="!Exists('%(OmniGhostRuntimeDestination.Identity)')" Code="OGDLL002" Text="A DLL de runtime não foi copiada para junto do executável: %(OmniGhostRuntimeDestination.Filename)%(OmniGhostRuntimeDestination.Extension)" />
+    <Error Condition="!Exists('$(OutDir)data\runtime\dma_stack_versions.json')" Code="OGDLL007" Text="O manifest de versões da stack DMA não foi copiado para data\runtime." />
+    <Error Condition="Exists('$(OutDir)data\fortnite_offsets.json')" Code="OGOFF002" Text="Release não pode distribuir data\fortnite_offsets.json; o snapshot deve estar embutido no EXE." />
+    <Error Condition="Exists('$(OutDir)data\warzone_offsets.json')" Code="OGOFF003" Text="Release não pode distribuir data\warzone_offsets.json; o snapshot deve estar embutido no EXE." />
+    <Error Condition="Exists('$(OutDir)data\cs2_offsets.json')" Code="OGOFF004" Text="Release não pode distribuir plaintext cs2 offsets; devem estar embutidos." />
+    <Error Condition="Exists('$(OutDir)data\rust_offsets.json')" Code="OGOFF005" Text="Release não pode distribuir plaintext rust offsets; devem estar embutidos." />
+    <Error Condition="Exists('$(OutDir)data\fivem_offsets.json')" Code="OGOFF006" Text="Release não pode distribuir plaintext fivem offsets; devem estar embutidos." />
+    <Error Condition="Exists('$(OutDir)data\apex_offsets.json')" Code="OGOFF007" Text="Release não pode distribuir data\apex_offsets.json; o snapshot deve estar embutido no EXE." />
+    <Error Condition="Exists('$(OutDir)data\offsets.json')" Code="OGOFF008" Text="Release não pode distribuir plaintext offsets.json; devem estar embutidos." />
+    <Message Importance="High" Text="[OmniGhost Runtime] DLLs de src\project\libs\ sincronizadas para build\; runtimes canónicos validados e copiados." />
   </Target>
   <Target Name="ValidateOmniGhostSingleExeRuntime" AfterTargets="Build" Condition="'$(OmniGhostPayloadBuild)'!='true' And ( '$(Configuration)'=='Release' Or '$(Configuration)'=='Publish' )">
     <ItemGroup>
-      <OmniGhostUnexpectedCustomerRuntime Include="$(OutDir)**\*" Exclude="$(OutDir)OmniGhost.exe"/>
+      <OmniGhostUnexpectedCustomerRuntime Include="$(OutDir)**\*" Exclude="$(OutDir)OmniGhost.exe" />
     </ItemGroup>
-    <Error Condition="!Exists('$(OutDir)OmniGhost.exe')" Code="OGRUN002" Text="A build single-EXE não produziu OmniGhost.exe."/>
-    <Error Condition="'@(OmniGhostUnexpectedCustomerRuntime)'!=''" Code="OGRUN003" Text="A build comercial contém ficheiros externos inesperados: @(OmniGhostUnexpectedCustomerRuntime)."/>
-    <Message Importance="High" Text="[OmniGhost Runtime] Single-EXE distribution validated; no private OmniGhost.exe is installed or relaunched."/>
+    <Error Condition="!Exists('$(OutDir)OmniGhost.exe')" Code="OGRUN002" Text="A build single-EXE não produziu OmniGhost.exe." />
+    <Error Condition="'@(OmniGhostUnexpectedCustomerRuntime)'!=''" Code="OGRUN003" Text="A build comercial contém ficheiros externos inesperados: @(OmniGhostUnexpectedCustomerRuntime)." />
+    <Message Importance="High" Text="[OmniGhost Runtime] Single-EXE distribution validated; no private OmniGhost.exe is installed or relaunched." />
   </Target>
-  <Target Name="VerifyOmniGhostReproducibility" AfterTargets="ValidateOmniGhostSingleExeRuntime"
-          Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And '$(OmniGhostReproducibilityPass)'!='true'">
-    <Message Importance="High" Text="[OmniGhost 05/10] Build reprodutível"/>
+  <Target Name="VerifyOmniGhostReproducibility" AfterTargets="ValidateOmniGhostSingleExeRuntime" Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And '$(OmniGhostReproducibilityPass)'!='true'">
+    <Message Importance="High" Text="[OmniGhost 05/10] Build reprodutível" />
     <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(ProjectDir)src\project\tools\Verify-ReproducibleBuild.ps1&quot; -ProjectDir &quot;$(ProjectDir).&quot; -PrimaryExecutable &quot;$(TargetPath)&quot; -MSBuildPath &quot;$(MSBuildToolsPath)\MSBuild.exe&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostReproducibilityExitCode"/>
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostReproducibilityExitCode" />
     </Exec>
-    <Error Condition="'$(OmniGhostReproducibilityExitCode)'!='0'" Code="OGREPRO001" Text="A verificação da segunda build independente falhou. Consulta a mensagem anterior e .cache\logs\repro-build.log para distinguir erro de compilação de diferença binária."/>
+    <Error Condition="'$(OmniGhostReproducibilityExitCode)'!='0'" Code="OGREPRO001" Text="A verificação da segunda build independente falhou. Consulta a mensagem anterior e .cache\logs\repro-build.log para distinguir erro de compilação de diferença binária." />
   </Target>
-
-
   <Target Name="PublishOmniGhostRelease" AfterTargets="ValidateOmniGhostSingleExeRuntime" DependsOnTargets="VerifyOmniGhostReproducibility" Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipRemotePublish)'!='true'">
-    <Message Importance="High" Text="[OmniGhost Publish] A validar, empacotar e publicar a versão no GitHub."/>
+    <Message Importance="High" Text="[OmniGhost Publish] A validar, empacotar e publicar a versão no GitHub." />
     <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; publish-build &quot;$(MSBuildProjectDirectory)&quot; &quot;$(OutDir).&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostPublishExitCode"/>
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostPublishExitCode" />
     </Exec>
-    <Error Condition="'$(OmniGhostPublishExitCode)'!='0'" Code="OGPUB001" Text="A build Publish compilou, mas o pipeline de publicação falhou. Consulta a janela Saída e a primeira causa reportada; o upload para o GitHub pode ainda não ter começado. Release nunca publica remotamente."/>
+    <Error Condition="'$(OmniGhostPublishExitCode)'!='0'" Code="OGPUB001" Text="A build Publish compilou, mas o pipeline de publicação falhou. Consulta a janela Saída e a primeira causa reportada; o upload para o GitHub pode ainda não ter começado. Release nunca publica remotamente." />
   </Target>
-
-
-
-  <Target Name="CleanupVerifiedLocalBuildWorkspace" AfterTargets="ValidateOmniGhostSingleExeRuntime"
-          Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And '$(OmniGhostSkipPackaging)'!='true' And ( '$(Configuration)'=='Release' Or ( '$(Configuration)'=='Publish' And '$(OmniGhostSkipRemotePublish)'=='true' ) )">
-    <Message Importance="High" Text="[OmniGhost Build] Build validada; a manter build e .cache partilhada, limpando artifacts, logs e .temp."/>
+  <Target Name="CleanupVerifiedLocalBuildWorkspace" AfterTargets="ValidateOmniGhostSingleExeRuntime" Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And '$(OmniGhostSkipPackaging)'!='true' And ( '$(Configuration)'=='Release' Or ( '$(Configuration)'=='Publish' And '$(OmniGhostSkipRemotePublish)'=='true' ) )">
+    <Message Importance="High" Text="[OmniGhost Build] Build validada; a manter build e .cache partilhada, limpando artifacts, logs e .temp." />
     <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; cleanup-verified-build &quot;$(MSBuildProjectDirectory)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostLocalCleanupExitCode"/>
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostLocalCleanupExitCode" />
     </Exec>
-    <Warning Condition="'$(OmniGhostLocalCleanupExitCode)'!='0'" Text="A build foi validada, mas a limpeza local não terminou completamente. Fecha processos que estejam a usar o output e volta a compilar."/>
+    <Warning Condition="'$(OmniGhostLocalCleanupExitCode)'!='0'" Text="A build foi validada, mas a limpeza local não terminou completamente. Fecha processos que estejam a usar o output e volta a compilar." />
   </Target>
   <Target Name="ValidateOmniGhostPlatform" BeforeTargets="PrepareForBuild">
-    <Error Condition="'$(Platform)'!='x64'" Code="OGPLAT001" Text="OmniGhost suporta apenas Release ou Publish em x64."/>
+    <Error Condition="'$(Platform)'!='x64'" Code="OGPLAT001" Text="OmniGhost suporta apenas Release ou Publish em x64." />
   </Target>
   <ItemGroup>
-    <ClInclude Include="src\auth\keyauth_gateway.h"/>
-    <ClInclude Include="src\security\security_manager.h"/>
-    <ClInclude Include="src\gameplay\weapon_name_registry.h"/>
-    <ClInclude Include="src\games\Cs2\bomb\cs2_bomb.inl"/>
-    <ClInclude Include="src\games\Cs2\bones\cs2_bones_pipeline.inl"/>
-    <ClInclude Include="src\games\Cs2\state\cs2_cache_manager.h"/>
-    <ClInclude Include="src\games\Cs2\collision\cs2_collision_loader.h"/>
-    <ClInclude Include="src\games\Cs2\core\cs2_core_acquisition.inl"/>
-    <ClInclude Include="src\games\Cs2\core\cs2_core_world.h"/>
-    <ClInclude Include="src\games\Cs2\core\cs2_world_pipeline.inl"/>
-    <ClInclude Include="src\games\Cs2\dropped_items\cs2_dropped_items.inl"/>
-    <ClInclude Include="src\games\Cs2\metadata\cs2_metadata.h"/>
-    <ClInclude Include="src\games\Cs2\offsets\cs2_offset_validation.inl"/>
-    <ClInclude Include="src\games\Cs2\offsets\cs2_offsets_pipeline.inl"/>
-    <ClInclude Include="src\games\Cs2\runtime\cs2_camera.h"/>
-    <ClInclude Include="src\games\Cs2\runtime\cs2_optional_lane.inl"/>
-    <ClInclude Include="src\games\Cs2\runtime\cs2_runtime.h"/>
-    <ClInclude Include="src\games\Cs2\runtime\cs2_runtime_threads.inl"/>
-    <ClInclude Include="src\games\Cs2\session\cs2_lifecycle.inl"/>
-    <ClInclude Include="src\games\Cs2\session\cs2_session.inl"/>
-    <ClInclude Include="src\games\Cs2\spectators\cs2_spectators.inl"/>
-    <ClInclude Include="src\games\Cs2\telemetry\cs2_telemetry.h"/>
-    <ClInclude Include="src\games\Cs2\visibility\cs2_visibility_worker.h"/>
-    <ClInclude Include="src\makcu\makcu_connection.h"/>
-    <ClInclude Include="src\makcu\makcu_protocol.h"/>
-    <ClInclude Include="src\makcu\makcu_transport.h"/>
-    <ClCompile Include="src\main.cpp"/>
-    <ClCompile Include="src\config\app_settings.cpp"/>
-    <ClCompile Include="src\config\config_manager.cpp"/>
-    <ClCompile Include="src\config\config_core.cpp"/>
-    <ClCompile Include="src\config\config_games.cpp"/>
-    <ClCompile Include="src\config\config_esp.cpp"/>
-    <ClCompile Include="src\config\config_aim.cpp"/>
-    <ClCompile Include="src\config\config_vehicle.cpp"/>
-    <ClCompile Include="src\config\config_friends.cpp"/>
-    <ClCompile Include="src\config\config_aimtype.cpp"/>
-    <ClCompile Include="src\config\config_profiles.cpp"/>
-    <ClCompile Include="src\config\config_legacy.cpp"/>
-    <ClCompile Include="src\licensing\license_service.cpp"/>
-    <ClCompile Include="src\security\security_manager.cpp"/>
-    <ClCompile Include="src\ferrum\ferrum_device.cpp"/>
-    <ClCompile Include="src\kmbox\kmbox_net.cpp"/>
-    <ClCompile Include="src\launcher\changelog_service.cpp"/>
-    <ClCompile Include="src\launcher\steam_game_update_check.cpp"/>
-    <ClCompile Include="src\launcher\epic_game_update_check.cpp"/>
-    <ClCompile Include="src\launcher\game_select.cpp"/>
-    <ClInclude Include="src\launcher\game_select_session.inl"/>
-    <ClInclude Include="src\launcher\steam_game_update_check.h"/>
-    <ClInclude Include="src\launcher\epic_game_update_check.h"/>
-    <ClInclude Include="src\launcher\game_select_presentation.inl"/>
-    <ClInclude Include="src\launcher\game_select_pages.inl"/>
-    <ClInclude Include="src\launcher\admin\admin_panel.inl"/>
-    <ClInclude Include="src\launcher\game_select_modals.inl"/>
-    <ClCompile Include="src\launcher\launcher_assets.cpp"/>
-    <ClCompile Include="src\launcher\launcher_data.cpp"/>
-    <ClCompile Include="src\launcher\remote_usage_service.cpp"/>
-    <ClCompile Include="src\launcher\launcher_status.cpp"/>
-    <ClCompile Include="src\launcher\updates_page.cpp"/>
-    <ClCompile Include="src\launcher\update_time_utils.cpp"/>
-    <ClCompile Include="src\makcu\makcu.cpp"/>
-    <ClCompile Include="src\makcu\makcu_connection.cpp"/>
-    <ClCompile Include="src\makcu\makcu_protocol.cpp"/>
-    <ClCompile Include="src\makcu\makcu_wrapper.cpp"/>
-    <ClCompile Include="src\makcu\serialport.cpp"/>
+    <ClInclude Include="src\auth\keyauth_gateway.h" />
+    <ClInclude Include="src\security\security_manager.h" />
+    <ClInclude Include="src\gameplay\weapon_name_registry.h" />
+    <ClInclude Include="src\games\Cs2\bomb\cs2_bomb.inl" />
+    <ClInclude Include="src\games\Cs2\bones\cs2_bones_pipeline.inl" />
+    <ClInclude Include="src\games\Cs2\state\cs2_cache_manager.h" />
+    <ClInclude Include="src\games\Cs2\collision\cs2_collision_loader.h" />
+    <ClInclude Include="src\games\Cs2\core\cs2_core_acquisition.inl" />
+    <ClInclude Include="src\games\Cs2\core\cs2_core_world.h" />
+    <ClInclude Include="src\games\Cs2\core\cs2_world_pipeline.inl" />
+    <ClInclude Include="src\games\Cs2\dropped_items\cs2_dropped_items.inl" />
+    <ClInclude Include="src\games\Cs2\metadata\cs2_metadata.h" />
+    <ClInclude Include="src\games\Cs2\offsets\cs2_offset_validation.inl" />
+    <ClInclude Include="src\games\Cs2\offsets\cs2_offsets_pipeline.inl" />
+    <ClInclude Include="src\games\Cs2\runtime\cs2_camera.h" />
+    <ClInclude Include="src\games\Cs2\runtime\cs2_optional_lane.inl" />
+    <ClInclude Include="src\games\Cs2\runtime\cs2_runtime.h" />
+    <ClInclude Include="src\games\Cs2\runtime\cs2_runtime_threads.inl" />
+    <ClInclude Include="src\games\Cs2\session\cs2_lifecycle.inl" />
+    <ClInclude Include="src\games\Cs2\session\cs2_session.inl" />
+    <ClInclude Include="src\games\Cs2\spectators\cs2_spectators.inl" />
+    <ClInclude Include="src\games\Cs2\telemetry\cs2_telemetry.h" />
+    <ClInclude Include="src\games\Cs2\visibility\cs2_visibility_worker.h" />
+    <ClInclude Include="src\makcu\makcu_connection.h" />
+    <ClInclude Include="src\makcu\makcu_protocol.h" />
+    <ClInclude Include="src\makcu\makcu_transport.h" />
+    <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\config\app_settings.cpp" />
+    <ClCompile Include="src\config\config_manager.cpp" />
+    <ClCompile Include="src\config\config_core.cpp" />
+    <ClCompile Include="src\config\config_games.cpp" />
+    <ClCompile Include="src\config\config_esp.cpp" />
+    <ClCompile Include="src\config\config_aim.cpp" />
+    <ClCompile Include="src\config\config_vehicle.cpp" />
+    <ClCompile Include="src\config\config_friends.cpp" />
+    <ClCompile Include="src\config\config_aimtype.cpp" />
+    <ClCompile Include="src\config\config_profiles.cpp" />
+    <ClCompile Include="src\config\config_legacy.cpp" />
+    <ClCompile Include="src\licensing\license_service.cpp" />
+    <ClCompile Include="src\security\security_manager.cpp" />
+    <ClCompile Include="src\ferrum\ferrum_device.cpp" />
+    <ClCompile Include="src\kmbox\kmbox_net.cpp" />
+    <ClCompile Include="src\launcher\changelog_service.cpp" />
+    <ClCompile Include="src\launcher\steam_game_update_check.cpp" />
+    <ClCompile Include="src\launcher\epic_game_update_check.cpp" />
+    <ClCompile Include="src\launcher\game_select.cpp" />
+    <ClInclude Include="src\launcher\game_select_session.inl" />
+    <ClInclude Include="src\launcher\steam_game_update_check.h" />
+    <ClInclude Include="src\launcher\epic_game_update_check.h" />
+    <ClInclude Include="src\launcher\game_select_presentation.inl" />
+    <ClInclude Include="src\launcher\game_select_pages.inl" />
+    <ClInclude Include="src\launcher\admin\admin_panel.inl" />
+    <ClInclude Include="src\launcher\game_select_modals.inl" />
+    <ClCompile Include="src\launcher\launcher_assets.cpp" />
+    <ClCompile Include="src\launcher\launcher_data.cpp" />
+    <ClCompile Include="src\launcher\remote_usage_service.cpp" />
+    <ClCompile Include="src\launcher\launcher_status.cpp" />
+    <ClCompile Include="src\launcher\updates_page.cpp" />
+    <ClCompile Include="src\launcher\update_time_utils.cpp" />
+    <ClCompile Include="src\makcu\makcu.cpp" />
+    <ClCompile Include="src\makcu\makcu_connection.cpp" />
+    <ClCompile Include="src\makcu\makcu_protocol.cpp" />
+    <ClCompile Include="src\makcu\makcu_wrapper.cpp" />
+    <ClCompile Include="src\makcu\serialport.cpp" />
     <ClCompile Include="src\makcu\makcu_tests.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)'=='Publish'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="src\math\math.cpp"/>
-    <ClCompile Include="src\platform\app_paths.cpp"/>
-
-    <ClCompile Include="src\platform\interfaces.cpp"/>
-    <ClCompile Include="src\platform\service_container.cpp"/>
-    <ClCompile Include="src\platform\monitor_utils.cpp"/>
-    <ClCompile Include="src\platform\crash_handler.cpp"/>
-    <ClCompile Include="src\platform\text_encoding.cpp"/>
-    <ClCompile Include="src\platform\process_metrics.cpp"/>
-    <ClCompile Include="src\platform\system_info.cpp"/>
+    <ClCompile Include="src\math\math.cpp" />
+    <ClCompile Include="src\platform\app_paths.cpp" />
+    <ClCompile Include="src\platform\interfaces.cpp" />
+    <ClCompile Include="src\platform\service_container.cpp" />
+    <ClCompile Include="src\platform\monitor_utils.cpp" />
+    <ClCompile Include="src\platform\crash_handler.cpp" />
+    <ClCompile Include="src\platform\text_encoding.cpp" />
+    <ClCompile Include="src\platform\process_metrics.cpp" />
+    <ClCompile Include="src\platform\system_info.cpp" />
     <ClCompile Include="src\platform\offset_auto.cpp">
       <ObjectFileName>$(IntDir)platform_offset_auto.obj</ObjectFileName>
     </ClCompile>
-<ClCompile Include="src\platform\session_log.cpp"/>
-<ClCompile Include="src\platform\screenshot.cpp"/>
-<ClCompile Include="src\platform\resource_tracker.cpp"/>
-        <ClCompile Include="src\platform\shutdown_coordinator.cpp"/>
-    <ClCompile Include="src\platform\window_instance_guard.cpp"/>
-    <ClCompile Include="src\platform\diagnostics_package.cpp"/>
-    <ClCompile Include="src\platform\hardware_manager.cpp"/>
-    <ClCompile Include="src\platform\radar_access.cpp"/>
-    <ClCompile Include="src\platform\support_error.cpp"/>
-    <ClCompile Include="src\updater\crypto.cpp"/>
-    <ClCompile Include="src\updater\github_release_resolver.cpp"/>
-    <ClCompile Include="src\updater\json.cpp"/>
-    <ClCompile Include="src\updater\http_policy.cpp"/>
-    <ClCompile Include="src\updater\http_client.cpp"/>
-    <ClCompile Include="src\updater\install_engine.cpp"/>
-    <ClCompile Include="src\updater\installation_integrity.cpp"/>
-    <ClCompile Include="src\updater\manifest.cpp"/>
-    <ClCompile Include="src\updater\update_log.cpp"/>
-    <ClCompile Include="src\updater\update_service.cpp"/>
-    <ClCompile Include="src\updater\update_ui.cpp"/>
-    <ClCompile Include="src\updater\updater_mode.cpp"/>
-    <ClCompile Include="src\updater\version_comparer.cpp"/>
-    <ClCompile Include="src\updater\wininet_fallback.cpp"/>
-    <ClCompile Include="src\window\animations.cpp"/>
-    <ClCompile Include="src\window\ui_feedback.cpp"/>
-    <ClCompile Include="src\window\brand_assets.cpp"/>
-    <ClCompile Include="src\window\cards.cpp"/>
-    <ClCompile Include="src\window\changelog.cpp"/>
-    <ClCompile Include="src\window\config_history.cpp"/>
-    <ClCompile Include="src\window\digital_rain.cpp"/>
-    <ClCompile Include="src\window\fonts.cpp"/>
-    <ClCompile Include="src\window\footer.cpp"/>
-    <ClCompile Include="src\window\global_search.cpp"/>
-    <ClCompile Include="src\window\hardware_monitor.cpp"/>
-    <ClCompile Include="src\window\header.cpp"/>
-    <ClCompile Include="src\window\hotkeys.cpp"/>
-    <ClCompile Include="src\window\icons.cpp"/>
-    <ClCompile Include="src\window\InputDevicesCard.cpp"/>
-    <ClCompile Include="src\window\localization.cpp"/>
-    <ClCompile Include="src\window\layout.cpp"/>
-    <ClCompile Include="src\window\pages\common\AimPage.cpp"/>
-    <ClCompile Include="src\window\pages\common\ConfigsPage.cpp"/>
-    <ClCompile Include="src\window\pages\common\FriendsPage.cpp"/>
-    <ClCompile Include="src\window\pages\common\RadarPage.cpp"/>
-    <ClCompile Include="src\window\pages\common\SaveConfigsPage.cpp"/>
-    <ClCompile Include="src\window\pages\common\StatusPage.cpp"/>
-    <ClCompile Include="src\window\pages\common\VehiclesPage.cpp"/>
-    <ClCompile Include="src\window\pages\common\VisualsPage.cpp"/>
-    <ClCompile Include="src\window\pages\common\EspPreview.cpp"/>
-    <ClCompile Include="src\window\pages\cs2\Cs2AimPage.cpp"/>
-    <ClCompile Include="src\window\pages\cs2\Cs2VisualsPage.cpp"/>
-    <ClCompile Include="src\window\pages\cs2\Cs2MiscPage.cpp"/>
-    <ClCompile Include="src\window\pages\cs2\Cs2RadarPage.cpp"/>
-        <ClCompile Include="src\gameplay\smooth_curves.cpp"/>
-    <ClCompile Include="src\gameplay\dma_telemetry_log.cpp"/>
-    <ClCompile Include="src\gameplay\unified_stub.cpp"/>
-    <ClCompile Include="src\gameplay\gameplay_stubs.cpp"/>
-    <ClCompile Include="src\gameplay\weapon_name_registry.cpp"/>
-    <ClCompile Include="src\window\onboarding.cpp"/>
-    <ClCompile Include="src\window\performance_manager.cpp"/>
-    <ClCompile Include="src\window\performance_mode.cpp"/>
-    <ClCompile Include="src\window\sidebar.cpp"/>
-    <ClCompile Include="src\window\theme.cpp"/>
-    <ClCompile Include="src\window\transition_overlay.cpp"/>
-    <ClCompile Include="src\launcher\application_transitions.cpp"/>
-    <ClCompile Include="src\launcher\game_launch_service.cpp"/>
-    <ClCompile Include="src\launcher\game_adapter_registry.cpp"/>
-    <ClCompile Include="src\launcher\game_adapter.cpp"/>
-    <ClCompile Include="src\auth\local_auth_service.cpp"/>
-    <ClCompile Include="src\launcher\auth_page.cpp"/>
-<ClCompile Include="src\window\widgets.cpp"/>
-<ClCompile Include="src\window\window.cpp"/>
-  <ClCompile Include="src\window\window_runtime.cpp"/>
-    <ClCompile Include="src\games\Fivem\aimbot\aim_type.cpp"/>
-    <ClCompile Include="src\games\Fivem\collision\fivem_collision_world.cpp"/>
-    <ClCompile Include="src\games\Fivem\aimbot\aimbot.cpp"/>
-    <ClCompile Include="src\games\Fivem\esp\esp.cpp"/>
-    <ClCompile Include="src\games\Fivem\esp\vehicle_esp.cpp"/>
-    <ClCompile Include="src\games\Fivem\friends\friends.cpp"/>
-    <ClCompile Include="src\games\Fivem\game\esp_manager.cpp"/>
-    <ClCompile Include="src\games\Fivem\game\game.cpp"/>
-    <ClCompile Include="src\games\Fivem\game\game_setup.cpp"/>
-    <ClCompile Include="src\games\Fivem\game\offsets.cpp"/>
-    <ClCompile Include="src\games\Fivem\radar\fivem_web_radar.cpp"/>
-    <ClCompile Include="src\games\Cs2\radar\cs2_web_radar.cpp"/>
-    <ClCompile Include="src\project\third_party\keyauth\x64\lib\QRCode\qrcode.cpp"/>
-    <ClCompile Include="src\games\Fivem\playerInfo\PedData.cpp"/>
-    <ClCompile Include="src\games\Cs2\aimbot\cs2_aim.cpp"/>
-    <ClCompile Include="src\games\Cs2\rcs\local_player_resolver.cpp"/>
-    <ClCompile Include="src\games\Cs2\rcs\recoil_reader.cpp"/>
-    <ClCompile Include="src\games\Cs2\rcs\rcs_controller.cpp"/>
-    <ClCompile Include="src\games\Cs2\rcs\rcs_debug.cpp"/>
-    <ClCompile Include="src\games\Cs2\esp\cs2_esp.cpp"/>
-    <ClCompile Include="src\games\Cs2\cs2_game.cpp"/>
-    <ClCompile Include="src\games\Cs2\bones\cs2_bones.cpp"/>
-    <ClCompile Include="src\games\Cs2\state\cs2_cache_manager.cpp"/>
-    <ClCompile Include="src\games\Cs2\collision\cs2_collision_loader.cpp"/>
-    <ClCompile Include="src\games\Cs2\core\cs2_core_world.cpp"/>
-    <ClCompile Include="src\games\Cs2\metadata\cs2_metadata.cpp"/>
-    <ClCompile Include="src\games\Cs2\offsets\cs2_offsets.cpp"/>
-    <ClCompile Include="src\games\Cs2\runtime\cs2_camera.cpp"/>
-    <ClCompile Include="src\games\Cs2\runtime\cs2_runtime.cpp"/>
-    <ClCompile Include="src\games\Cs2\telemetry\cs2_telemetry.cpp"/>
-    <ClCompile Include="src\games\Cs2\visibility\cs2_visibility_worker.cpp"/>
-    <ClCompile Include="src\games\Cs2\trajectory\cs2_collision_mesh.cpp"/>
-    <ClCompile Include="src\games\Cs2\trajectory\cs2_map_collision_cache.cpp"/>
-    <ClCompile Include="src\games\Cs2\config\cs2_config_io.cpp"/>
-    <ClCompile Include="src\games\Cs2\weapons\cs2_weapon_icons.cpp"/>
-    <ClCompile Include="src\games\Fortnite\fortnite_game.cpp"/>
-    <ClCompile Include="src\games\Rust\rust_game.cpp"/>
-    <ClCompile Include="src\games\Rust\rust_esp.cpp"/>
-    <ClCompile Include="src\window\pages\fortnite\FortniteVisualsPage.cpp"/>
-    <ClCompile Include="src\window\pages\fortnite\FortniteStatusPage.cpp"/>
-    <ClCompile Include="src\window\pages\fortnite\FortniteAimPage.cpp"/>
-    <ClCompile Include="src\window\pages\fivem\FivemVisualsPage.cpp"/>
-    <ClCompile Include="src\window\pages\unified_stubs.cpp"/>
-
-    <ClCompile Include="src\project\third_party\ImGui\imgui.cpp"/>
-    <ClCompile Include="src\project\third_party\ImGui\imgui_draw.cpp"/>
-    <ClCompile Include="src\project\third_party\ImGui\imgui_impl_dx11.cpp"/>
-    <ClCompile Include="src\project\third_party\ImGui\imgui_impl_win32.cpp"/>
-    <ClCompile Include="src\project\third_party\ImGui\imgui_tables.cpp"/>
-    <ClCompile Include="src\project\third_party\ImGui\imgui_widgets.cpp"/>
-    <ClCompile Include="src\project\third_party\DMALibrary\Memory\InputManager.cpp"/>
-    <ClCompile Include="src\project\third_party\DMALibrary\Memory\Memory.cpp"/>
-    <ClCompile Include="src\project\third_party\DMALibrary\Memory\MemoryInit.cpp"/>
-    <ClCompile Include="src\project\third_party\DMALibrary\Memory\MemoryIO.cpp"/>
-    <ClCompile Include="src\project\third_party\DMALibrary\Memory\MemoryLifecycle.cpp"/>
-    <ClCompile Include="src\project\third_party\DMALibrary\Memory\Registry.cpp"/>
-    <ClCompile Include="src\project\third_party\DMALibrary\Memory\Shellcode.cpp"/>
-    <ClCompile Include="src\project\third_party\DMALibrary\pch.cpp"/>
-    <ClCompile Include="src\platform\file_integrity.cpp"/>
-    <ClCompile Include="src\platform\strprotect\strprotect.cpp"/>
-    <ClCompile Include="src\platform\secret_store.cpp"/>
-    <ClCompile Include="src\platform\embedded_offsets.cpp"/>
-    <ClCompile Include="src\platform\offset_source.cpp"/>
-    <ClCompile Include="src\platform\embedded_resources.cpp"/>
-    <ClCompile Include="src\platform\runtime_bootstrap.cpp"/>
+    <ClCompile Include="src\platform\session_log.cpp" />
+    <ClCompile Include="src\platform\screenshot.cpp" />
+    <ClCompile Include="src\platform\resource_tracker.cpp" />
+    <ClCompile Include="src\platform\shutdown_coordinator.cpp" />
+    <ClCompile Include="src\platform\window_instance_guard.cpp" />
+    <ClCompile Include="src\platform\diagnostics_package.cpp" />
+    <ClCompile Include="src\platform\hardware_manager.cpp" />
+    <ClCompile Include="src\platform\radar_access.cpp" />
+    <ClCompile Include="src\platform\support_error.cpp" />
+    <ClCompile Include="src\updater\crypto.cpp" />
+    <ClCompile Include="src\updater\github_release_resolver.cpp" />
+    <ClCompile Include="src\updater\json.cpp" />
+    <ClCompile Include="src\updater\http_policy.cpp" />
+    <ClCompile Include="src\updater\http_client.cpp" />
+    <ClCompile Include="src\updater\install_engine.cpp" />
+    <ClCompile Include="src\updater\installation_integrity.cpp" />
+    <ClCompile Include="src\updater\manifest.cpp" />
+    <ClCompile Include="src\updater\update_log.cpp" />
+    <ClCompile Include="src\updater\update_service.cpp" />
+    <ClCompile Include="src\updater\update_ui.cpp" />
+    <ClCompile Include="src\updater\updater_mode.cpp" />
+    <ClCompile Include="src\updater\version_comparer.cpp" />
+    <ClCompile Include="src\updater\wininet_fallback.cpp" />
+    <ClCompile Include="src\window\animations.cpp" />
+    <ClCompile Include="src\window\ui_feedback.cpp" />
+    <ClCompile Include="src\window\brand_assets.cpp" />
+    <ClCompile Include="src\window\cards.cpp" />
+    <ClCompile Include="src\window\changelog.cpp" />
+    <ClCompile Include="src\window\config_history.cpp" />
+    <ClCompile Include="src\window\digital_rain.cpp" />
+    <ClCompile Include="src\window\fonts.cpp" />
+    <ClCompile Include="src\window\footer.cpp" />
+    <ClCompile Include="src\window\global_search.cpp" />
+    <ClCompile Include="src\window\hardware_monitor.cpp" />
+    <ClCompile Include="src\window\header.cpp" />
+    <ClCompile Include="src\window\hotkeys.cpp" />
+    <ClCompile Include="src\window\icons.cpp" />
+    <ClCompile Include="src\window\InputDevicesCard.cpp" />
+    <ClCompile Include="src\window\localization.cpp" />
+    <ClCompile Include="src\window\layout.cpp" />
+    <ClCompile Include="src\window\pages\common\AimPage.cpp" />
+    <ClCompile Include="src\window\pages\common\ConfigsPage.cpp" />
+    <ClCompile Include="src\window\pages\common\FriendsPage.cpp" />
+    <ClCompile Include="src\window\pages\common\RadarPage.cpp" />
+    <ClCompile Include="src\window\pages\common\SaveConfigsPage.cpp" />
+    <ClCompile Include="src\window\pages\common\StatusPage.cpp" />
+    <ClCompile Include="src\window\pages\common\VehiclesPage.cpp" />
+    <ClCompile Include="src\window\pages\common\VisualsPage.cpp" />
+    <ClCompile Include="src\window\pages\common\EspPreview.cpp" />
+    <ClCompile Include="src\window\pages\cs2\Cs2AimPage.cpp" />
+    <ClCompile Include="src\window\pages\cs2\Cs2VisualsPage.cpp" />
+    <ClCompile Include="src\window\pages\cs2\Cs2MiscPage.cpp" />
+    <ClCompile Include="src\window\pages\cs2\Cs2RadarPage.cpp" />
+    <ClCompile Include="src\gameplay\smooth_curves.cpp" />
+    <ClCompile Include="src\gameplay\dma_telemetry_log.cpp" />
+    <ClCompile Include="src\gameplay\unified_stub.cpp" />
+    <ClCompile Include="src\gameplay\gameplay_stubs.cpp" />
+    <ClCompile Include="src\gameplay\weapon_name_registry.cpp" />
+    <ClCompile Include="src\window\onboarding.cpp" />
+    <ClCompile Include="src\window\performance_manager.cpp" />
+    <ClCompile Include="src\window\performance_mode.cpp" />
+    <ClCompile Include="src\window\sidebar.cpp" />
+    <ClCompile Include="src\window\theme.cpp" />
+    <ClCompile Include="src\window\transition_overlay.cpp" />
+    <ClCompile Include="src\launcher\application_transitions.cpp" />
+    <ClCompile Include="src\launcher\game_launch_service.cpp" />
+    <ClCompile Include="src\launcher\game_adapter_registry.cpp" />
+    <ClCompile Include="src\launcher\game_adapter.cpp" />
+    <ClCompile Include="src\auth\local_auth_service.cpp" />
+    <ClCompile Include="src\launcher\auth_page.cpp" />
+    <ClCompile Include="src\window\widgets.cpp" />
+    <ClCompile Include="src\window\window.cpp" />
+    <ClCompile Include="src\window\window_runtime.cpp" />
+    <ClCompile Include="src\games\Fivem\aimbot\aim_type.cpp" />
+    <ClCompile Include="src\games\Fivem\collision\fivem_collision_world.cpp" />
+    <ClCompile Include="src\games\Fivem\aimbot\aimbot.cpp" />
+    <ClCompile Include="src\games\Fivem\esp\esp.cpp" />
+    <ClCompile Include="src\games\Fivem\esp\vehicle_esp.cpp" />
+    <ClCompile Include="src\games\Fivem\friends\friends.cpp" />
+    <ClCompile Include="src\games\Fivem\game\esp_manager.cpp" />
+    <ClCompile Include="src\games\Fivem\game\game.cpp" />
+    <ClCompile Include="src\games\Fivem\game\game_setup.cpp" />
+    <ClCompile Include="src\games\Fivem\game\offsets.cpp" />
+    <ClCompile Include="src\games\Fivem\radar\fivem_web_radar.cpp" />
+    <ClCompile Include="src\games\Cs2\radar\cs2_web_radar.cpp" />
+    <ClCompile Include="src\project\third_party\keyauth\x64\lib\QRCode\qrcode.cpp" />
+    <ClCompile Include="src\games\Fivem\playerInfo\PedData.cpp" />
+    <ClCompile Include="src\games\Cs2\aimbot\cs2_aim.cpp" />
+    <ClCompile Include="src\games\Cs2\rcs\local_player_resolver.cpp" />
+    <ClCompile Include="src\games\Cs2\rcs\recoil_reader.cpp" />
+    <ClCompile Include="src\games\Cs2\rcs\rcs_controller.cpp" />
+    <ClCompile Include="src\games\Cs2\rcs\rcs_debug.cpp" />
+    <ClCompile Include="src\games\Cs2\esp\cs2_esp.cpp" />
+    <ClCompile Include="src\games\Cs2\cs2_game.cpp" />
+    <ClCompile Include="src\games\Cs2\bones\cs2_bones.cpp" />
+    <ClCompile Include="src\games\Cs2\state\cs2_cache_manager.cpp" />
+    <ClCompile Include="src\games\Cs2\collision\cs2_collision_loader.cpp" />
+    <ClCompile Include="src\games\Cs2\core\cs2_core_world.cpp" />
+    <ClCompile Include="src\games\Cs2\metadata\cs2_metadata.cpp" />
+    <ClCompile Include="src\games\Cs2\offsets\cs2_offsets.cpp" />
+    <ClCompile Include="src\games\Cs2\runtime\cs2_camera.cpp" />
+    <ClCompile Include="src\games\Cs2\runtime\cs2_runtime.cpp" />
+    <ClCompile Include="src\games\Cs2\telemetry\cs2_telemetry.cpp" />
+    <ClCompile Include="src\games\Cs2\visibility\cs2_visibility_worker.cpp" />
+    <ClCompile Include="src\games\Cs2\trajectory\cs2_collision_mesh.cpp" />
+    <ClCompile Include="src\games\Cs2\trajectory\cs2_map_collision_cache.cpp" />
+    <ClCompile Include="src\games\Cs2\config\cs2_config_io.cpp" />
+    <ClCompile Include="src\games\Cs2\weapons\cs2_weapon_icons.cpp" />
+    <ClCompile Include="src\games\Fortnite\fortnite_game.cpp" />
+    <ClCompile Include="src\games\Rust\rust_game.cpp" />
+    <ClCompile Include="src\games\Rust\rust_esp.cpp" />
+    <ClCompile Include="src\window\pages\fortnite\FortniteVisualsPage.cpp" />
+    <ClCompile Include="src\window\pages\fortnite\FortniteStatusPage.cpp" />
+    <ClCompile Include="src\window\pages\fortnite\FortniteAimPage.cpp" />
+    <ClCompile Include="src\window\pages\fivem\FivemVisualsPage.cpp" />
+    <ClCompile Include="src\window\pages\unified_stubs.cpp" />
+    <ClCompile Include="src\project\third_party\ImGui\imgui.cpp" />
+    <ClCompile Include="src\project\third_party\ImGui\imgui_draw.cpp" />
+    <ClCompile Include="src\project\third_party\ImGui\imgui_impl_dx11.cpp" />
+    <ClCompile Include="src\project\third_party\ImGui\imgui_impl_win32.cpp" />
+    <ClCompile Include="src\project\third_party\ImGui\imgui_tables.cpp" />
+    <ClCompile Include="src\project\third_party\ImGui\imgui_widgets.cpp" />
+    <ClCompile Include="src\project\third_party\DMALibrary\Memory\InputManager.cpp" />
+    <ClCompile Include="src\project\third_party\DMALibrary\Memory\Memory.cpp" />
+    <ClCompile Include="src\project\third_party\DMALibrary\Memory\MemoryInit.cpp" />
+    <ClCompile Include="src\project\third_party\DMALibrary\Memory\MemoryIO.cpp" />
+    <ClCompile Include="src\project\third_party\DMALibrary\Memory\MemoryLifecycle.cpp" />
+    <ClCompile Include="src\project\third_party\DMALibrary\Memory\Registry.cpp" />
+    <ClCompile Include="src\project\third_party\DMALibrary\Memory\Shellcode.cpp" />
+    <ClCompile Include="src\project\third_party\DMALibrary\pch.cpp" />
+    <ClCompile Include="src\platform\file_integrity.cpp" />
+    <ClCompile Include="src\platform\strprotect\strprotect.cpp" />
+    <ClCompile Include="src\platform\secret_store.cpp" />
+    <ClCompile Include="src\platform\embedded_offsets.cpp" />
+    <ClCompile Include="src\platform\offset_source.cpp" />
+    <ClCompile Include="src\platform\embedded_resources.cpp" />
+    <ClCompile Include="src\platform\runtime_bootstrap.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="src\project\resources\app.rc"/>
+    <ResourceCompile Include="src\project\resources\app.rc" />
   </ItemGroup>
   <Target Name="ProtectOmniGhostStrings" BeforeTargets="ClCompile" Condition="'$(DesignTimeBuild)'!='true'">
-    <Message Importance="High" Text="[OmniGhost Strings] String protection: scan, manifest, history, key generation..."/>
+    <Message Importance="High" Text="[OmniGhost Strings] String protection: scan, manifest, history, key generation..." />
     <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; protect-strings &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostStringProtectionExitCode"/>
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostStringProtectionExitCode" />
     </Exec>
-    <Error Condition="'$(OmniGhostStringProtectionExitCode)'!='0'" Code="OGPS001" Text="A politica de protecao de strings falhou (OGPS001). Consulta a janela Saída: strings elegiveis desprotegidas em areas sensiveis devem ser envolvidas com OGS_LIT/OGS_ONE/OGS_WIDE (ou Protect-Strings.ps1 -Command apply -ApplyAutoProtect)."/>
+    <Error Condition="'$(OmniGhostStringProtectionExitCode)'!='0'" Code="OGPS001" Text="A politica de protecao de strings falhou (OGPS001). Consulta a janela Saída: strings elegiveis desprotegidas em areas sensiveis devem ser envolvidas com OGS_LIT/OGS_ONE/OGS_WIDE (ou Protect-Strings.ps1 -Command apply -ApplyAutoProtect)." />
   </Target>
-
   <Target Name="ValidateOmniGhostStringBinary" AfterTargets="Link" Condition="'$(DesignTimeBuild)'!='true' And ( '$(Configuration)'=='Release' Or '$(Configuration)'=='Publish' )">
     <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; validate-string-protection &quot;$(MSBuildProjectDirectory)&quot; &quot;$(TargetPath)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostStringBinaryExitCode"/>
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostStringBinaryExitCode" />
     </Exec>
-    <Error Condition="'$(OmniGhostStringBinaryExitCode)'!='0'" Code="OGPS002" Text="Texto simples de strings protegidas foi encontrado no executavel (OGPS002). Consulta a janela Saída para a lista de fingerprints e origens."/>
+    <Error Condition="'$(OmniGhostStringBinaryExitCode)'!='0'" Code="OGPS002" Text="Texto simples de strings protegidas foi encontrado no executavel (OGPS002). Consulta a janela Saída para a lista de fingerprints e origens." />
   </Target>
-
   <Target Name="ValidateOmniGhostEmbeddedOffsets" AfterTargets="Link" Condition="'$(DesignTimeBuild)'!='true'">
     <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; validate-embedded-offsets &quot;$(MSBuildProjectDirectory)&quot; &quot;$(TargetPath)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedOffsetsValidationExitCode"/>
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedOffsetsValidationExitCode" />
     </Exec>
-    <Error Condition="'$(OmniGhostEmbeddedOffsetsValidationExitCode)'!='0'" Code="OGOFF002" Text="O executável não contém todos os snapshots de offsets embedded obrigatórios."/>
+    <Error Condition="'$(OmniGhostEmbeddedOffsetsValidationExitCode)'!='0'" Code="OGOFF002" Text="O executável não contém todos os snapshots de offsets embedded obrigatórios." />
   </Target>
   <ItemGroup>
-    <ClInclude Include="src\auth\auth_types.h"/>
-    <ClInclude Include="src\auth\local_auth_service.h"/>
-    <ClInclude Include="src\auth\keyauth_remote_provider.h"/>
-    <ClInclude Include="src\auth\launcher_account_service.h"/>
-    <ClInclude Include="src\launcher\auth_page.h"/>
-    <ClInclude Include="src\platform\crash_handler.h"/>
-    <ClInclude Include="src\platform\monitor_utils.h"/>
-    <ClInclude Include="src\platform\process_metrics.h"/>
-    <ClInclude Include="src\platform\system_info.h"/>
-    <ClInclude Include="src\platform\unique_socket.h"/>
-    <ClInclude Include="src\platform\unique_handle.h"/>
-    <ClInclude Include="src\platform\text_encoding.h"/>
-    <ClInclude Include="src\platform\thread_utils.h"/>
-    <ClInclude Include="src\platform\scope_exit.h"/>
-    <ClInclude Include="src\ferrum\ferrum_device.h"/>
-    <ClInclude Include="src\kmbox\kmbox_net.h"/>
-    <ClInclude Include="src\window\InputDevicesCard.h"/>
-    <ClInclude Include="src\window\layout.h"/>
-    <ClInclude Include="src\platform\session_log.h"/>
-    <ClInclude Include="src\platform\shutdown_coordinator.h"/>
-    <ClInclude Include="src\platform\window_instance_guard.h"/>
-    <ClInclude Include="src\window\transition_overlay.h"/>
-    <ClInclude Include="src\launcher\application_transitions.h"/>
-    <ClInclude Include="src\launcher\game_launch_service.h"/>
-    <ClInclude Include="src\launcher\game_adapter.h"/>
-    <ClInclude Include="src\launcher\game_adapter_registry.h"/>
-    <ClInclude Include="src\platform\diagnostics_package.h"/>
-    <ClInclude Include="src\updater\github_release_resolver.h"/>
-    <ClInclude Include="src\updater\json.h"/>
-    <ClInclude Include="src\updater\http_policy.h"/>
-    <ClInclude Include="src\updater\installation_integrity.h"/>
-    <ClInclude Include="src\updater\wininet_fallback.h"/>
-    <ClInclude Include="src\platform\build_info.h"/>
-    <ClInclude Include="src\platform\internet_handle.h"/>
-    <ClInclude Include="src\platform\file_integrity.h"/>
-    <ClInclude Include="src\platform\strprotect\strprotect.h"/>
-    <ClInclude Include="src\platform\strprotect\strprotect_crypto.h"/>
-    <ClInclude Include="src\platform\secret_store.h"/>
-    <ClInclude Include="src\platform\embedded_offsets.h"/>
-    <ClInclude Include="src\platform\offset_source.h"/>
-    <ClInclude Include="src\platform\embedded_resources.h"/>
-    <ClInclude Include="src\platform\runtime_bootstrap.h"/>
-    <ClInclude Include="src\platform\path_security.h"/>
-    <ClInclude Include="src\platform\radar_access.h"/>
-    <ClInclude Include="src\games\Fivem\radar\fivem_web_radar.h"/>
-    <ClInclude Include="src\games\Rust\rust_config.h"/>
-    <ClInclude Include="src\games\Rust\rust_game.h"/>
-    <ClInclude Include="src\games\Rust\rust_esp.h"/>
-    <ClInclude Include="src\games\Rust\rust_offsets.h"/>
-    <ClInclude Include="src\games\Cs2\radar\cs2_web_radar.h"/>
-    <ClInclude Include="src\games\Cs2\rcs\local_player_resolver.h"/>
-    <ClInclude Include="src\games\Cs2\rcs\recoil_reader.h"/>
-    <ClInclude Include="src\games\Cs2\rcs\rcs_config.h"/>
-    <ClInclude Include="src\games\Cs2\rcs\rcs_controller.h"/>
-    <ClInclude Include="src\games\Cs2\rcs\rcs_debug.h"/>
-    <ClInclude Include="src\games\Fivem\collision\fivem_collision_world.h"/>
-    <ClInclude Include="src\platform\support_error.h"/>
-    <ClInclude Include="src\licensing\license_service.h"/>
+    <ClInclude Include="src\auth\auth_types.h" />
+    <ClInclude Include="src\auth\local_auth_service.h" />
+    <ClInclude Include="src\auth\keyauth_remote_provider.h" />
+    <ClInclude Include="src\auth\launcher_account_service.h" />
+    <ClInclude Include="src\launcher\auth_page.h" />
+    <ClInclude Include="src\platform\crash_handler.h" />
+    <ClInclude Include="src\platform\monitor_utils.h" />
+    <ClInclude Include="src\platform\process_metrics.h" />
+    <ClInclude Include="src\platform\system_info.h" />
+    <ClInclude Include="src\platform\unique_socket.h" />
+    <ClInclude Include="src\platform\unique_handle.h" />
+    <ClInclude Include="src\platform\text_encoding.h" />
+    <ClInclude Include="src\platform\thread_utils.h" />
+    <ClInclude Include="src\platform\scope_exit.h" />
+    <ClInclude Include="src\ferrum\ferrum_device.h" />
+    <ClInclude Include="src\kmbox\kmbox_net.h" />
+    <ClInclude Include="src\window\InputDevicesCard.h" />
+    <ClInclude Include="src\window\layout.h" />
+    <ClInclude Include="src\platform\session_log.h" />
+    <ClInclude Include="src\platform\shutdown_coordinator.h" />
+    <ClInclude Include="src\platform\window_instance_guard.h" />
+    <ClInclude Include="src\window\transition_overlay.h" />
+    <ClInclude Include="src\launcher\application_transitions.h" />
+    <ClInclude Include="src\launcher\game_launch_service.h" />
+    <ClInclude Include="src\launcher\game_adapter.h" />
+    <ClInclude Include="src\launcher\game_adapter_registry.h" />
+    <ClInclude Include="src\platform\diagnostics_package.h" />
+    <ClInclude Include="src\updater\github_release_resolver.h" />
+    <ClInclude Include="src\updater\json.h" />
+    <ClInclude Include="src\updater\http_policy.h" />
+    <ClInclude Include="src\updater\installation_integrity.h" />
+    <ClInclude Include="src\updater\wininet_fallback.h" />
+    <ClInclude Include="src\platform\build_info.h" />
+    <ClInclude Include="src\platform\internet_handle.h" />
+    <ClInclude Include="src\platform\file_integrity.h" />
+    <ClInclude Include="src\platform\strprotect\strprotect.h" />
+    <ClInclude Include="src\platform\strprotect\strprotect_crypto.h" />
+    <ClInclude Include="src\platform\secret_store.h" />
+    <ClInclude Include="src\platform\embedded_offsets.h" />
+    <ClInclude Include="src\platform\offset_source.h" />
+    <ClInclude Include="src\platform\embedded_resources.h" />
+    <ClInclude Include="src\platform\runtime_bootstrap.h" />
+    <ClInclude Include="src\platform\path_security.h" />
+    <ClInclude Include="src\platform\radar_access.h" />
+    <ClInclude Include="src\games\Fivem\radar\fivem_web_radar.h" />
+    <ClInclude Include="src\games\Rust\rust_config.h" />
+    <ClInclude Include="src\games\Rust\rust_game.h" />
+    <ClInclude Include="src\games\Rust\rust_esp.h" />
+    <ClInclude Include="src\games\Rust\rust_offsets.h" />
+    <ClInclude Include="src\games\Cs2\radar\cs2_web_radar.h" />
+    <ClInclude Include="src\games\Cs2\rcs\local_player_resolver.h" />
+    <ClInclude Include="src\games\Cs2\rcs\recoil_reader.h" />
+    <ClInclude Include="src\games\Cs2\rcs\rcs_config.h" />
+    <ClInclude Include="src\games\Cs2\rcs\rcs_controller.h" />
+    <ClInclude Include="src\games\Cs2\rcs\rcs_debug.h" />
+    <ClInclude Include="src\games\Fivem\collision\fivem_collision_world.h" />
+    <ClInclude Include="src\platform\support_error.h" />
+    <ClInclude Include="src\licensing\license_service.h" />
   </ItemGroup>
   <Target Name="ValidateOmniGhostProjectLayout" BeforeTargets="PrepareForBuild" DependsOnTargets="CleanOmniGhostRuntimeOutput">
     <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; validate-project &quot;$(MSBuildProjectDirectory)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostProjectValidationExitCode"/>
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostProjectValidationExitCode" />
     </Exec>
-    <Error Condition="'$(OmniGhostProjectValidationExitCode)'!='0'" Code="OGENG001" Text="Falha na validação de engenharia/dependências do projeto. Consulta a janela Saída e procura a primeira linha [FAIL] para ver a causa exata."/>
+    <Error Condition="'$(OmniGhostProjectValidationExitCode)'!='0'" Code="OGENG001" Text="Falha na validação de engenharia/dependências do projeto. Consulta a janela Saída e procura a primeira linha [FAIL] para ver a causa exata." />
   </Target>
   <Target Name="ValidateOmniGhostPublishVersion" BeforeTargets="ValidateOmniGhostProjectLayout" Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipRemotePublish)'!='true' And '$(OmniGhostSkipVersionAdvance)'!='true'">
-    <Message Importance="High" Text="[OmniGhost 02/10] Versão, Git e política de publicação"/>
+    <Message Importance="High" Text="[OmniGhost 02/10] Versão, Git e política de publicação" />
     <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; prepare-publish-version &quot;$(MSBuildProjectDirectory)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostPreparePublishVersionExitCode"/>
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostPreparePublishVersionExitCode" />
     </Exec>
-    <Error Condition="'$(OmniGhostPreparePublishVersionExitCode)'!='0'" Code="OGVER002" Text="Pré-validação Publish falhou. Consulta todas as linhas [ERROR] no log de Release validation."/>
+    <Error Condition="'$(OmniGhostPreparePublishVersionExitCode)'!='0'" Code="OGVER002" Text="Pré-validação Publish falhou. Consulta todas as linhas [ERROR] no log de Release validation." />
   </Target>
   <Target Name="EnsureOmniGhostMetadata" BeforeTargets="PrepareForBuild">
     <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; ensure-metadata &quot;$(MSBuildProjectDirectory)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostMetadataExitCode"/>
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostMetadataExitCode" />
     </Exec>
-    <Error Condition="'$(OmniGhostMetadataExitCode)'!='0'" Code="OGVER001" Text="Falha ao validar os metadados e a versão do OmniGhost."/>
+    <Error Condition="'$(OmniGhostMetadataExitCode)'!='0'" Code="OGVER001" Text="Falha ao validar os metadados e a versão do OmniGhost." />
   </Target>
   <Target Name="ValidateOmniGhostDistributionBuild" BeforeTargets="PrepareForBuild" Condition="'$(Configuration)'!='PrivateStatic'">
     <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; validate-distribution &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostDistributionValidationExitCode"/>
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostDistributionValidationExitCode" />
     </Exec>
-    <Error Condition="'$(OmniGhostDistributionValidationExitCode)'!='0'" Code="OGDIST001" Text="A configuração de distribuição $(Configuration) não cumpre a política de segurança."/>
+    <Error Condition="'$(OmniGhostDistributionValidationExitCode)'!='0'" Code="OGDIST001" Text="A configuração de distribuição $(Configuration) não cumpre a política de segurança." />
   </Target>
   <Target Name="GenerateOmniGhostBuildMetadata" BeforeTargets="ClCompile">
     <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; generate-build-metadata &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot; &quot;$(OmniGhostReleaseChannel)&quot; &quot;$(WindowsTargetPlatformVersion)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostBuildMetadataExitCode"/>
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostBuildMetadataExitCode" />
     </Exec>
-    <Error Condition="'$(OmniGhostBuildMetadataExitCode)'!='0'" Code="OGBLD001" Text="Falha ao gerar os metadados de build do OmniGhost."/>
+    <Error Condition="'$(OmniGhostBuildMetadataExitCode)'!='0'" Code="OGBLD001" Text="Falha ao gerar os metadados de build do OmniGhost." />
   </Target>
   <Target Name="ReportOmniGhostCompileStart" BeforeTargets="ClCompile" Condition="'$(DesignTimeBuild)'!='true'">
-    <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; compile-phase Start &quot;$(IntDir)omnighost-compile-start.txt&quot; &quot;@(ClCompile-&gt;Count())&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true"/>
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; compile-phase Start &quot;$(IntDir)omnighost-compile-start.txt&quot; &quot;@(ClCompile-&gt;Count())&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true" />
   </Target>
   <Target Name="ReportOmniGhostCompileComplete" AfterTargets="ClCompile" Condition="'$(DesignTimeBuild)'!='true'">
-    <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; compile-phase Complete &quot;$(IntDir)omnighost-compile-start.txt&quot; &quot;@(ClCompile-&gt;Count())&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true"/>
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; compile-phase Complete &quot;$(IntDir)omnighost-compile-start.txt&quot; &quot;@(ClCompile-&gt;Count())&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true" />
   </Target>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets"/>
-  <ImportGroup Label="ExtensionTargets"/>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
 </Project>

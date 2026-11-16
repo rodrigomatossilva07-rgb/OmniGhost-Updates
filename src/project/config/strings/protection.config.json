@@ -1,4 +1,4 @@
-{
+﻿{
     "schemaVersion":  1,
     "minEligibleLength":  4,
     "wrappers":  [
@@ -129,5 +129,6 @@
                           "file":  "src/makcu/makcu_protocol\\.cpp",
                           "length":  3
                       }
-                  ]
+                  ],
+    "binaryAllowlist":  []
 }
