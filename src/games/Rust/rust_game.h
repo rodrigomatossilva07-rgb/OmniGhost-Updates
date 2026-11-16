@@ -31,9 +31,9 @@ struct Runtime {
     std::uint32_t entity_count = 0;
     std::uint32_t valid_player_count = 0;
     std::uint32_t transform_failures = 0;
-    std::string collection_status = "Não validada";
-    std::string transform_status = "Não validado";
-    std::string camera_status = "Não validada";
+    std::string collection_status = "Nao validada";
+    std::string transform_status = "Nao validado";
+    std::string camera_status = "Nao validada";
     float view_matrix[16]{};
     std::vector<Player> players;
     std::uint64_t last_probe_ms = 0;
@@ -64,4 +64,3 @@ bool ValidateLiveOffsets();
 const char* StatusLine();
 
 }
-

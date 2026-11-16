@@ -173,6 +173,7 @@
     <Copy SourceFiles="@(OmniGhostGameResource)" DestinationFiles="@(OmniGhostGameResource->'$(OutDir)resources\games\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostGameResource)'!=''" />
     <Copy SourceFiles="@(OmniGhostProjectData)" DestinationFiles="@(OmniGhostProjectData->'$(OutDir)data\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostProjectData)'!=''" />
     <Copy SourceFiles="@(OmniGhostCs2Data)" DestinationFiles="@(OmniGhostCs2Data->'$(OutDir)data\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostCs2Data)'!=''" />
+    <Copy SourceFiles="$(ProjectDir)src\project\data\rust_offsets.json" DestinationFiles="$(OutDir)data\rust_offsets.json" SkipUnchangedFiles="true" Condition="'$(Configuration)'=='PrivateStatic'" />
     <ItemGroup>
       <OmniGhostRuntimeDestination Include="@(OmniGhostLibRuntimeLibrary->'$(OutDir)%(Filename)%(Extension)')" />
       <OmniGhostRuntimeDestination Include="@(OmniGhostDmaRuntimeLibrary->'$(OutDir)%(Filename)%(Extension)')" />
@@ -184,7 +185,7 @@
     <Error Condition="Exists('$(OutDir)data\fortnite_offsets.json')" Code="OGOFF002" Text="Release não pode distribuir data\fortnite_offsets.json; o snapshot deve estar embutido no EXE." />
     <Error Condition="Exists('$(OutDir)data\warzone_offsets.json')" Code="OGOFF003" Text="Release não pode distribuir data\warzone_offsets.json; o snapshot deve estar embutido no EXE." />
     <Error Condition="Exists('$(OutDir)data\cs2_offsets.json')" Code="OGOFF004" Text="Release não pode distribuir plaintext cs2 offsets; devem estar embutidos." />
-    <Error Condition="Exists('$(OutDir)data\rust_offsets.json')" Code="OGOFF005" Text="Release não pode distribuir plaintext rust offsets; devem estar embutidos." />
+    <Error Condition="Exists('$(OutDir)data\rust_offsets.json') And ('$(Configuration)'=='Release' Or '$(Configuration)'=='Publish')" Code="OGOFF005" Text="Release não pode distribuir plaintext rust offsets; devem estar embutidos." />
     <Error Condition="Exists('$(OutDir)data\fivem_offsets.json')" Code="OGOFF006" Text="Release não pode distribuir plaintext fivem offsets; devem estar embutidos." />
     <Error Condition="Exists('$(OutDir)data\apex_offsets.json')" Code="OGOFF007" Text="Release não pode distribuir data\apex_offsets.json; o snapshot deve estar embutido no EXE." />
     <Error Condition="Exists('$(OutDir)data\offsets.json')" Code="OGOFF008" Text="Release não pode distribuir plaintext offsets.json; devem estar embutidos." />
@@ -511,7 +512,7 @@
     <ClInclude Include="src\games\Rust\rust_config.h" />
     <ClInclude Include="src\games\Rust\rust_game.h" />
     <ClInclude Include="src\games\Rust\rust_esp.h" />
-    <ClInclude Include="src\games\Rust\rust_offsets.h" />
+    
     <ClInclude Include="src\games\Cs2\radar\cs2_web_radar.h" />
     <ClInclude Include="src\games\Cs2\rcs\local_player_resolver.h" />
     <ClInclude Include="src\games\Cs2\rcs\recoil_reader.h" />

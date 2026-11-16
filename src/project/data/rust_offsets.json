@@ -30,12 +30,12 @@
           "comment": ""
         },
         "convar_graphics_pointer": {
-          "offset": "0x111F03E0",
+          "offset": "0xF083240",
           "resolved": true,
           "comment": ""
         },
         "convar_admin_pointer": {
-          "offset": "0x11239810",
+          "offset": "0xF069EB0",
           "resolved": true,
           "comment": ""
         },
@@ -1599,7 +1599,7 @@
     "GameManager": {
       "fields": {
         "Class": {
-          "offset": "0x11181780",
+          "offset": "0xF0CE228",
           "resolved": true,
           "comment": ""
         },
@@ -1614,6 +1614,25 @@
           "comment": ""
         }
       }
+    }
+  },
+  "decryptions": {
+    "namespace": "decryption",
+    "functions": [
+      "client_entities",
+      "entity_list",
+      "clActiveItem",
+      "PlayerInventory",
+      "PlayerEyes",
+      "decrypt_fov",
+      "encrypt_fov"
+    ],
+    "rva_fingerprints": {
+      "PlayerEyesDecryption": "0x36A5D30",
+      "PlayerInventoryDecryption": "0x3634360",
+      "ActiveItemDecryption": "0x366037B",
+      "client_entities_decrypt": "0x256A013",
+      "entity_list_decrypt": "0x259050D"
     }
   }
 }
