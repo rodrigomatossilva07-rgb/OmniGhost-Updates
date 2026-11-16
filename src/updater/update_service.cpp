@@ -185,7 +185,7 @@ std::string ExactErrorTitle(const std::string& stage, const std::string& detail)
         return OGS_CSTR("NÃƒO FOI POSSÃVEL CONFIRMAR A VERSÃƒO MAIS RECENTE");
     if (stage == OGS_CSTR("manifest"))
         return OGS_CSTR("MANIFESTO DE ATUALIZAÃ‡ÃƒO INVÃLIDO");
-    if (stage == OGS_CSTR("integrity"))
+    if (stage == OGS_LIT("integrity"))
         return OGS_CSTR("A INSTALAÃ‡ÃƒO TEM FICHEIROS ALTERADOS");
     if (stage == OGS_CSTR("repair"))
         return OGS_CSTR("NÃƒO FOI POSSÃVEL PREPARAR A REPARAÃ‡ÃƒO");
@@ -940,7 +940,7 @@ void UpdateService::RetryLastFailure() {
         if (current.repairMode) PrepareRepairAsync(); else CheckAsync(true);
         return;
     }
-    if (stage == OGS_CSTR("integrity")) { VerifyInstallationAsync(); return; }
+    if (stage == OGS_LIT("integrity")) { VerifyInstallationAsync(); return; }
     if (stage == OGS_CSTR("repair")) { PrepareRepairAsync(); return; }
     CheckAsync(true);
 }

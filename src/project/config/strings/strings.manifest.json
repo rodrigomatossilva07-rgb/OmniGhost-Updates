@@ -2,10 +2,10 @@
     "schemaVersion":  1,
     "tool":  "Protect-Strings.ps1",
     "appVersion":  "1.3.4",
-    "gitCommit":  "3b55c0b06605c0a737d4da3b83fe82fdabbe081d",
+    "gitCommit":  "aca02c51ce1232968f9b6a5b04304ef525f6d104",
     "gitBranch":  "main",
-    "updatedUtc":  "2026-11-16T21:05:16.3832211Z",
-    "entryCount":  11571,
+    "updatedUtc":  "2026-11-16T22:37:15.8464966Z",
+    "entryCount":  11577,
     "entries":  [
                     {
                         "id":  "cb7f8f38f5ab9529",
@@ -28298,102 +28298,172 @@
                         "status":  "unprotected"
                     },
                     {
-                        "id":  "3c41f8b7f51282ea",
-                        "fp":  "6f85ba6788266b30",
+                        "id":  "d54be586bfcf4548",
+                        "fp":  "fa73437f6a134cf4",
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/games/Rust/rust_game.cpp",
-                        "line":  103,
-                        "length":  32,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "292b9c8c47e19fe8",
-                        "fp":  "0bf65767e463edc3",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/games/Rust/rust_game.cpp",
-                        "line":  154,
-                        "length":  21,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "a544153b13cf0907",
-                        "fp":  "d0622eb5259f0f18",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/games/Rust/rust_game.cpp",
-                        "line":  154,
-                        "length":  30,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "a4ae5372701afe15",
-                        "fp":  "cdcd6cfcf333a6d3",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/games/Rust/rust_game.cpp",
-                        "line":  179,
-                        "length":  25,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "9b1ae15aaae80612",
-                        "fp":  "7b8dd15b1cc10cba",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/games/Rust/rust_game.cpp",
-                        "line":  213,
-                        "length":  32,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "2c73ed248d002e51",
-                        "fp":  "b1597c3711f8d319",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/games/Rust/rust_game.cpp",
-                        "line":  219,
-                        "length":  28,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "e1509ed97f0bc67f",
-                        "fp":  "764e5001a283521d",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/games/Rust/rust_game.cpp",
-                        "line":  244,
-                        "length":  21,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "8e2f28291a200c7c",
-                        "fp":  "5a2b232381756dc0",
-                        "category":  "path",
-                        "sensitivity":  "medium",
-                        "file":  "src/games/Rust/rust_game.cpp",
-                        "line":  245,
+                        "line":  102,
                         "length":  29,
                         "status":  "unprotected"
                     },
                     {
-                        "id":  "9602807cdee26bdb",
-                        "fp":  "c73f264ca340e2d9",
+                        "id":  "e5c3baad9a00c3a9",
+                        "fp":  "e63292660a329fe1",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/games/Rust/rust_game.cpp",
+                        "line":  103,
+                        "length":  20,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "a5bad55b8a89f7a8",
+                        "fp":  "12c56211270a8934",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/games/Rust/rust_game.cpp",
+                        "line":  132,
+                        "length":  33,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "ae0d756f3d9f0211",
+                        "fp":  "3ce2cdfb609f55ae",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/games/Rust/rust_game.cpp",
+                        "line":  136,
+                        "length":  8,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "f20da34982cade94",
+                        "fp":  "4432480dc7c57038",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/games/Rust/rust_game.cpp",
+                        "line":  136,
+                        "length":  28,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "6d92e89dedc3346d",
+                        "fp":  "d8ca47a125f5ef97",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/games/Rust/rust_game.cpp",
+                        "line":  170,
+                        "length":  34,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "cd2e4fe07ac2bd03",
+                        "fp":  "433f2f52790d2704",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/games/Rust/rust_game.cpp",
+                        "line":  179,
+                        "length":  16,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "37f207c88ce411e6",
+                        "fp":  "b1f2eaba9c414b2b",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/games/Rust/rust_game.cpp",
+                        "line":  190,
+                        "length":  32,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "ef36ae674e1ce83f",
+                        "fp":  "870be168268e7e98",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/games/Rust/rust_game.cpp",
+                        "line":  241,
+                        "length":  21,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "173e4cd08daf84f8",
+                        "fp":  "a0c8fc71e5f30a6d",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/games/Rust/rust_game.cpp",
+                        "line":  241,
+                        "length":  30,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "5227fe28ba478180",
+                        "fp":  "4ec1cc01cf4dd700",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/games/Rust/rust_game.cpp",
+                        "line":  266,
+                        "length":  25,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "089954df550558c0",
+                        "fp":  "0c02915f5e63a055",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/games/Rust/rust_game.cpp",
+                        "line":  300,
+                        "length":  32,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "de513543b3eeac16",
+                        "fp":  "280a2c4403b33267",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/games/Rust/rust_game.cpp",
+                        "line":  306,
+                        "length":  28,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "f73747703a7e727b",
+                        "fp":  "87a70c1bd0a80cb2",
+                        "category":  "ui",
+                        "sensitivity":  "standard",
+                        "file":  "src/games/Rust/rust_game.cpp",
+                        "line":  331,
+                        "length":  21,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "1ca24b02e4f11286",
+                        "fp":  "85962278c73dc3cc",
                         "category":  "path",
                         "sensitivity":  "medium",
                         "file":  "src/games/Rust/rust_game.cpp",
-                        "line":  246,
+                        "line":  332,
+                        "length":  29,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "c2a73f045651efbb",
+                        "fp":  "f4f62961832237ca",
+                        "category":  "path",
+                        "sensitivity":  "medium",
+                        "file":  "src/games/Rust/rust_game.cpp",
+                        "line":  333,
                         "length":  46,
                         "status":  "unprotected"
                     },
                     {
-                        "id":  "cd07a634b4ebe114",
-                        "fp":  "9a7874040b1aad7a",
+                        "id":  "80374f8b20838b5a",
+                        "fp":  "54a322a4ab8b86a9",
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/games/Rust/rust_game.cpp",
-                        "line":  247,
+                        "line":  334,
                         "length":  37,
                         "status":  "unprotected"
                     },
@@ -28403,7 +28473,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/games/Rust/rust_game.cpp",
-                        "line":  251,
+                        "line":  338,
                         "length":  17,
                         "status":  "unprotected"
                     },
@@ -28413,33 +28483,23 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/games/Rust/rust_game.cpp",
-                        "line":  257,
+                        "line":  343,
                         "length":  18,
                         "status":  "unprotected"
                     },
                     {
-                        "id":  "411dc2ce7282a4e1",
-                        "fp":  "f267d6c4681ce2c9",
+                        "id":  "ab8a20272fa9da42",
+                        "fp":  "c0f2e8f8ee0482ee",
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/games/Rust/rust_game.cpp",
-                        "line":  83,
-                        "length":  34,
+                        "line":  96,
+                        "length":  27,
                         "status":  "unprotected"
                     },
                     {
-                        "id":  "dd025d73de0388e6",
-                        "fp":  "e945a1726b1aefe1",
-                        "category":  "ui",
-                        "sensitivity":  "standard",
-                        "file":  "src/games/Rust/rust_game.cpp",
-                        "line":  92,
-                        "length":  16,
-                        "status":  "unprotected"
-                    },
-                    {
-                        "id":  "18133eebe08cd54b",
-                        "fp":  "4c638e1408c7edc0",
+                        "id":  "3bf1f639b8cb82c6",
+                        "fp":  "9d97f41ae7988b72",
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/games/Rust/rust_game.h",
@@ -28448,8 +28508,8 @@
                         "status":  "unprotected"
                     },
                     {
-                        "id":  "d4fd56cba6ca6cd0",
-                        "fp":  "a26c8e2a7ae58463",
+                        "id":  "8414215c10644e0f",
+                        "fp":  "bf50337fe5b75260",
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/games/Rust/rust_game.h",
@@ -28458,8 +28518,8 @@
                         "status":  "unprotected"
                     },
                     {
-                        "id":  "18133eebe08cd54b",
-                        "fp":  "4c638e1408c7edc0",
+                        "id":  "3bf1f639b8cb82c6",
+                        "fp":  "9d97f41ae7988b72",
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/games/Rust/rust_game.h",
