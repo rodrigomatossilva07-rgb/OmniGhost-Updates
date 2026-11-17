@@ -5,38 +5,29 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <span>
+
+#include "memory_span.h"
 
 namespace OmniGhost::EmbeddedOffsets {
 
-class ByteView {
-public:
-    constexpr ByteView() noexcept = default;
-    constexpr ByteView(const std::uint8_t* data, std::size_t size) noexcept
-        : data_(data), size_(size) {}
+// Use standard std::span-based types
+using ByteView = OmniGhost::ByteSpan;
+using MutableByteView = OmniGhost::MutableByteSpan;
 
-    ByteView(const std::vector<std::uint8_t>& data) noexcept
-        : data_(data.data()), size_(data.size()) {}
+// Helper to create ByteView from vector (for compatibility)
+[[nodiscard]] inline ByteView MakeByteView(const std::vector<std::uint8_t>& data) noexcept {
+    return OmniGhost::AsBytes(data);
+}
 
-    template <std::size_t N>
-    constexpr ByteView(const std::uint8_t (&data)[N]) noexcept : data_(data), size_(N) {}
+[[nodiscard]] inline ByteView MakeByteView(const std::uint8_t* data, std::size_t size) noexcept {
+    return OmniGhost::AsBytes(data, size);
+}
 
-    [[nodiscard]] constexpr const std::uint8_t* data() const noexcept { return data_; }
-    [[nodiscard]] constexpr std::size_t size() const noexcept { return size_; }
-    [[nodiscard]] constexpr bool empty() const noexcept { return size_ == 0; }
-    [[nodiscard]] constexpr const std::uint8_t& operator[](std::size_t index) const noexcept { return data_[index]; }
-    [[nodiscard]] constexpr const std::uint8_t* begin() const noexcept { return data_; }
-    [[nodiscard]] constexpr const std::uint8_t* end() const noexcept { return data_ ? data_ + size_ : data_; }
-
-    [[nodiscard]] constexpr ByteView subview(std::size_t offset, std::size_t count) const noexcept {
-        return (offset <= size_ && count <= size_ - offset)
-            ? ByteView(data_ + offset, count)
-            : ByteView{};
-    }
-
-private:
-    const std::uint8_t* data_{};
-    std::size_t size_{};
-};
+template <std::size_t N>
+[[nodiscard]] inline ByteView MakeByteView(const std::uint8_t (&data)[N]) noexcept {
+    return OmniGhost::AsSpan(data);
+}
 
 enum class Game : std::uint16_t {
     Fortnite = 1,

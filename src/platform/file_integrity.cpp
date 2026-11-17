@@ -1,4 +1,4 @@
-#include "file_integrity.h"
+﻿#include "file_integrity.h"
 #include "scope_exit.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -136,6 +136,16 @@ bool Sha256Text(std::string_view text, std::string& hexDigest, std::string& erro
     return true;
 }
 
+bool Sha256Bytes(OmniGhost::ByteSpan data, std::string& hexDigest, std::string& error) {
+    if (data.empty()) {
+        hexDigest.clear();
+        error = "Dados vazios para SHA-256.";
+        return false;
+    }
+    return Sha256Text(std::string_view(reinterpret_cast<const char*>(data.data()), data.size()), hexDigest, error);
+}
+
+// Legacy compatibility
 bool Sha256Bytes(const void* data, std::size_t size, std::string& hexDigest, std::string& error) {
     if (!data && size != 0) {
         hexDigest.clear();
@@ -157,3 +167,4 @@ bool ConstantTimeEquals(std::string_view left, std::string_view right) noexcept 
 }
 
 }
+

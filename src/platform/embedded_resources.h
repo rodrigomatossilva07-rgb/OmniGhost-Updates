@@ -26,26 +26,27 @@ inline constexpr std::array<EmbeddedResourceDescriptor, 0> kEmbeddedResourceCata
 }
 #endif
 
+#include "memory_span.h"
+
 namespace OmniGhost {
 
-class EmbeddedByteView {
-public:
-    constexpr EmbeddedByteView() noexcept = default;
-    constexpr EmbeddedByteView(const std::uint8_t* data, std::size_t size) noexcept
-        : data_(data), size_(size) {}
-    constexpr const std::uint8_t* data() const noexcept { return data_; }
-    constexpr std::size_t size() const noexcept { return size_; }
-    constexpr bool empty() const noexcept { return size_ == 0; }
-    constexpr const std::uint8_t* begin() const noexcept { return data_; }
-    constexpr const std::uint8_t* end() const noexcept { return data_ + size_; }
-    constexpr EmbeddedByteView subview(std::size_t offset, std::size_t count) const noexcept {
-        return offset <= size_ && count <= size_ - offset
-            ? EmbeddedByteView(data_ + offset, count) : EmbeddedByteView{};
-    }
-private:
-    const std::uint8_t* data_ = nullptr;
-    std::size_t size_ = 0;
-};
+// Use standard std::span-based types
+using EmbeddedByteView = OmniGhost::ByteSpan;
+using MutableEmbeddedByteView = OmniGhost::MutableByteSpan;
+
+// Helper to create EmbeddedByteView from vector (for compatibility)
+[[nodiscard]] inline EmbeddedByteView MakeEmbeddedByteView(const std::vector<std::uint8_t>& data) noexcept {
+    return OmniGhost::AsBytes(data);
+}
+
+[[nodiscard]] inline EmbeddedByteView MakeEmbeddedByteView(const std::uint8_t* data, std::size_t size) noexcept {
+    return OmniGhost::AsBytes(data, size);
+}
+
+template <std::size_t N>
+[[nodiscard]] inline EmbeddedByteView MakeEmbeddedByteView(const std::uint8_t (&data)[N]) noexcept {
+    return OmniGhost::AsSpan(data);
+}
 
 enum class EmbeddedCompression : std::uint8_t { None = 0, PackBits = 1, Lzms = 2 };
 

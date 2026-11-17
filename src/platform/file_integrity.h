@@ -5,6 +5,9 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <span>
+
+#include "memory_span.h"
 
 namespace OmniGhost::Platform {
 [[nodiscard]] bool Sha256File(const std::filesystem::path& file,
@@ -13,6 +16,10 @@ namespace OmniGhost::Platform {
 [[nodiscard]] bool Sha256Text(std::string_view text,
                               std::string& hexDigest,
                               std::string& error);
+[[nodiscard]] bool Sha256Bytes(OmniGhost::ByteSpan data,
+                               std::string& hexDigest,
+                               std::string& error);
+// Legacy compatibility
 [[nodiscard]] bool Sha256Bytes(const void* data, std::size_t size,
                                std::string& hexDigest,
                                std::string& error);
