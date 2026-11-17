@@ -48,6 +48,7 @@
 #include "platform/logging.h"
 #include "security/security_manager.h"
 #include "security/anti_tamper.h"
+#include "config/config_hot_reload.h"
 #include "window/performance_mode.h"
 #include "window/widgets.h"
 #include "window/ui_feedback.h"
@@ -564,6 +565,14 @@ int RunOmniGhost(int argc, wchar_t** argv) {
         OGS_LOG_WARN("[HotReload] No offset JSON files found, hot-reload disabled");
     }
 
+    // Initialize config hot-reload
+    if (OmniGhost::Config::InitializeConfigHotReload()) {
+        OmniGhost::Config::ConfigHotReloadManager::Instance().StartAll();
+        OGS_LOG_INFO("[ConfigHotReload] Config hot-reload enabled");
+    } else {
+        OGS_LOG_WARN("[ConfigHotReload] Failed to initialize config hot-reload");
+    }
+
     Overlay application;
 
 
@@ -586,6 +595,11 @@ int RunOmniGhost(int argc, wchar_t** argv) {
     (void)shutdownCoordinator.Register(
         OmniGhost::Platform::ShutdownComponent::Core, 50,
         [] { OmniGhost::HotReload::ShutdownHotReload(); });
+
+    // Register config hot-reload shutdown
+    (void)shutdownCoordinator.Register(
+        OmniGhost::Platform::ShutdownComponent::Core, 50,
+        [] { OmniGhost::Config::ShutdownConfigHotReload(); });
 
 
     OmniGhost::CrashHandler::MarkStartupComplete();
