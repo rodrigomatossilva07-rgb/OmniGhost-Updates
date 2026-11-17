@@ -1,6 +1,10 @@
 ﻿#pragma once
 #include "src/project/third_party/ImGui/imgui.h"
 #include "menu_tab.h"
+#include "widgets_core.h"
+#include "widgets_card.h"
+#include "widgets_input.h"
+#include "widgets_layout.h"
 #include <cstddef>
 #include <vector>
 #include <algorithm>
@@ -12,11 +16,16 @@
 
 namespace CyberWidgets {
 
-    enum class TextTone { Primary, Secondary, Accent, Success, Warning, Error, Info };
-    enum class ButtonStyle { Primary, Secondary, Ghost, Destructive };
-    enum class ModalResult { None, Confirmed, Cancelled };
-    enum class HealthStatus { Ok, Warning, Error };
+    // Forward declarations for types defined in sub-headers
+    using CyberWidgets::TextTone;
+    using CyberWidgets::ButtonStyle;
+    using CyberWidgets::ModalResult;
+    using CyberWidgets::HealthStatus;
 
+    // Re-export core functions that were in the original widgets.h
+    // These are now implemented in the split files
+    
+    // Button widgets (from widgets_core.h)
     bool ToggleSwitch(const char* label, bool* v);
     bool Button(const char* label, ButtonStyle style = ButtonStyle::Secondary,
                 const ImVec2& size = ImVec2(0, 0), bool enabled = true);
@@ -136,7 +145,6 @@ namespace CyberWidgets {
 
     void ColorEditU32(const char* label, ImU32* col);
 
-
     enum class VisualState {
         Normal,
         Loading,
@@ -154,14 +162,13 @@ namespace CyberWidgets {
         bool (*actionCallback)() = nullptr,
         float width = -1.0f);
 
-
     bool DrawLoadingState(const char* message = "A carregar...", float width = -1.0f);
     bool DrawUnavailableState(const char* message = "Indisponível", const char* actionLabel = "Tentar novamente", bool (*actionCallback)() = nullptr, float width = -1.0f);
     bool DrawErrorState(const char* message = "Ocorreu um erro", const char* actionLabel = "Tentar novamente", bool (*actionCallback)() = nullptr, float width = -1.0f);
-    bool DrawEmptyState(const char* title = "Nenhum item", const char* description = nullptr, const char* actionLabel = nullptr, bool (*actionCallback)() = nullptr, float width = -1.0f);
+    bool DrawEmptyState(const char* title = "Nenhum item", const char* description = nullptr, const char* actionLabel = nullptr, const char* actionCallback = nullptr, float width = -1.0f);
     bool DrawRetryState(const char* message = "Falha na operação", const char* actionLabel = "Tentar novamente", bool (*actionCallback)() = nullptr, float width = -1.0f);
 
-
+    // VirtualizedList template is defined inline
     template<typename T>
     void VirtualizedList(
         const char* id,
@@ -209,65 +216,71 @@ namespace CyberWidgets {
         ImGui::PopID();
     }
 
-}
+    // ProgressDialog class (unchanged)
+    class ProgressDialog {
+    public:
+        struct Config {
+            const char* title = "A processar...";
+            const char* message = nullptr;
+            bool cancellable = true;
+            const char* cancelLabel = "Cancelar";
+            float minDuration = 0.5f;
+            bool showProgressBar = true;
+            bool showTimeElapsed = true;
+            float width = 400.0f;
+        };
+
+        ProgressDialog() = default;
+        ~ProgressDialog() = default;
+
+        ProgressDialog(const ProgressDialog&) = delete;
+        ProgressDialog& operator=(const ProgressDialog&) = delete;
 
 
-class ProgressDialog {
-public:
-    struct Config {
-        const char* title = "A processar...";
-        const char* message = nullptr;
-        bool cancellable = true;
-        const char* cancelLabel = "Cancelar";
-        float minDuration = 0.5f;
-        bool showProgressBar = true;
-        bool showTimeElapsed = true;
-        float width = 400.0f;
+        void Open(const Config& config = Config()) noexcept;
+
+
+        void SetProgress(float progress, const char* message = nullptr) noexcept;
+
+
+        [[nodiscard]] float GetProgress() const noexcept { return progress_; }
+
+
+        [[nodiscard]] const std::string& GetMessage() const noexcept { return message_; }
+
+
+        [[nodiscard]] bool IsCancelled() const noexcept { return cancelled_; }
+
+
+        void Cancel() noexcept { cancelled_ = true; }
+
+
+        void Close() noexcept;
+
+
+        [[nodiscard]] bool IsOpen() const noexcept { return open_; }
+
+
+        [[nodiscard]] float GetElapsedSeconds() const noexcept;
+
+
+        [[nodiscard]] const Config& GetConfig() const noexcept { return config_; }
+
+    private:
+        Config config_;
+        bool open_ = false;
+        bool cancelled_ = false;
+        float progress_ = 0.0f;
+        std::string message_;
+        std::chrono::steady_clock::time_point startTime_;
+        bool minDurationMet_ = false;
     };
 
-    ProgressDialog() = default;
-    ~ProgressDialog() = default;
+}
 
-    ProgressDialog(const ProgressDialog&) = delete;
-    ProgressDialog& operator=(const ProgressDialog&) = delete;
+#include "widgets_core.h"
+#include "widgets_card.h"
+#include "widgets_input.h"
+#include "widgets_layout.h"
 
-
-    void Open(const Config& config = Config()) noexcept;
-
-
-    void SetProgress(float progress, const char* message = nullptr) noexcept;
-
-
-    [[nodiscard]] float GetProgress() const noexcept { return progress_; }
-
-
-    [[nodiscard]] const std::string& GetMessage() const noexcept { return message_; }
-
-
-    [[nodiscard]] bool IsCancelled() const noexcept { return cancelled_; }
-
-
-    void Cancel() noexcept { cancelled_ = true; }
-
-
-    void Close() noexcept;
-
-
-    [[nodiscard]] bool IsOpen() const noexcept { return open_; }
-
-
-    [[nodiscard]] float GetElapsedSeconds() const noexcept;
-
-
-    [[nodiscard]] const Config& GetConfig() const noexcept { return config_; }
-
-private:
-    Config config_;
-    bool open_ = false;
-    bool cancelled_ = false;
-    float progress_ = 0.0f;
-    std::string message_;
-    std::chrono::steady_clock::time_point startTime_;
-    bool minDurationMet_ = false;
-};
-
+#endif // CYBERWIDGETS_H
