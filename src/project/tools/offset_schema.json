@@ -1,0 +1,145 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omnighost.dev/schemas/offset_schema.json",
+  "title": "OmniGhost Game Offsets Schema",
+  "description": "Schema for game offset JSON files used by OmniGhost DMA overlay",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "game",
+    "build",
+    "build_id",
+    "module",
+    "source",
+    "generated_at",
+    "namespaces",
+    "decryptions"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "description": "Schema version for migration compatibility"
+    },
+    "game": {
+      "type": "string",
+      "enum": ["rust", "cs2", "fivem", "fortnite", "warzone", "apex", "unknown"],
+      "description": "Game identifier"
+    },
+    "build": {
+      "type": "string",
+      "pattern": "^[0-9]+$",
+      "description": "Game build number (numeric string)"
+    },
+    "build_id": {
+      "type": "string",
+      "description": "Extended build identifier (may include branch/commit)"
+    },
+    "module": {
+      "type": "string",
+      "description": "Target module name (e.g., GameAssembly.dll, client.dll)"
+    },
+    "source": {
+      "type": "string",
+      "description": "Source of offsets (e.g., 'rustoffsets.com', 'a2x/cs2-dumper', 'manual')"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when offsets were generated"
+    },
+    "cl": {
+      "type": "string",
+      "description": "Changelist number (perforce/changelist)"
+    },
+    "note": {
+      "type": "string",
+      "description": "Additional notes about this offset set"
+    },
+    "verified_utc": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When offsets were last verified in-game"
+    },
+    "namespaces": {
+      "type": "object",
+      "description": "Namespace/class hierarchy with field offsets",
+      "patternProperties": {
+        "^[A-Za-z_][A-Za-z0-9_:]*$": {
+          "type": "object",
+          "required": ["fields"],
+          "properties": {
+            "fields": {
+              "type": "object",
+              "description": "Field name to offset mapping",
+              "patternProperties": {
+                "^[A-Za-z_][A-Za-z0-9_]*$": {
+                  "type": "object",
+                  "required": ["offset", "resolved"],
+                  "properties": {
+                    "offset": {
+                      "type": "string",
+                      "pattern": "^0x[0-9A-Fa-f]+$",
+                      "description": "Hexadecimal offset (RVA or absolute)"
+                    },
+                    "resolved": {
+                      "type": "boolean",
+                      "description": "Whether this offset has been validated"
+                    },
+                    "comment": {
+                      "type": "string",
+                      "description": "Optional comment about the offset"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "decryptions": {
+      "type": "object",
+      "description": "Decryption function RVAs and fingerprints",
+      "required": ["namespace", "functions", "rva_fingerprints"],
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "description": "Namespace containing decryption functions"
+        },
+        "functions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "minItems": 1,
+          "description": "List of decryption function names"
+        },
+        "rva_fingerprints": {
+          "type": "object",
+          "description": "Function name to RVA fingerprint mapping",
+          "patternProperties": {
+            "^[A-Za-z_][A-Za-z0-9_]*$": {
+              "type": "string",
+              "pattern": "^0x[0-9A-Fa-f]+$",
+              "description": "RVA fingerprint for function identification"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
+
+
+
+

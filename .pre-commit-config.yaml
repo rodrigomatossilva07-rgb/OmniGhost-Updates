@@ -1,0 +1,109 @@
+# Pre-commit hooks for OmniGhost
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.(json|md|txt)$'
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-added-large-files
+        args: ['--maxkb=5000']
+      - id: check-merge-conflict
+      - id: debug-log-statements
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v17.0.6
+    hooks:
+      - id: clang-format
+        types: [c++, c, cuda, objc]
+        args: ['--style=file', '--fallback-style=none']
+
+  - repo: https://github.com/pre-commit/mirrors-cppcheck
+    rev: v2.13.0
+    hooks:
+      - id: cppcheck
+        types: [c++, c]
+        args: [
+          '--enable=warning,style,performance,portability',
+          '--std=c++20',
+          '--platform=windows',
+          '--suppress=missingIncludeSystem',
+          '--suppress=unmatchedSuppression',
+          '--inline-suppr',
+          '--force',
+          '-j', '8'
+        ]
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.3.2
+    hooks:
+      - id: prettier
+        types: [json, yaml, markdown, toml]
+        args: ['--tab-width=2', '--single-quote=false', '--trailing-comma=es5']
+
+  - repo: local
+    hooks:
+      - id: validate-offsets
+        name: Validate Offset JSONs
+        entry: py src/project/tools/validate_offsets.py
+        language: system
+        types: [json]
+        files: 'src/project/data/.*_offsets\.json$'
+        pass_filenames: true
+        always_run: false
+
+      - id: sync-localization
+        name: Sync Localization
+        entry: py src/project/tools/sync_localization.py --dry-run
+        language: system
+        types: [json]
+        files: 'src/window/locales/.*\.json$'
+        pass_filenames: false
+        always_run: false
+
+      - id: check-encoding
+        name: Check UTF-8 Encoding (no BOM)
+        entry: py -c "import sys; [sys.exit(1) for f in sys.argv[1:] if open(f, 'rb').read(3) == b'\xef\xbb\xbf']"
+        language: system
+        types: [c++, c, h, hpp, inl, json, md, txt, py, ps1, bat, cmd]
+        pass_filenames: true
+
+      - id: check-line-endings
+        name: Check CRLF Line Endings
+        entry: py -c "import sys; [sys.exit(1) for f in sys.argv[1:] if f.endswith(('.cpp','.h','.hpp','.inl','.ps1','.bat','.cmd')) and b'\r\n' not in open(f, 'rb').read()]"
+        language: system
+        types: [c++, c, h, hpp, inl, ps1, bat, cmd]
+        pass_filenames: true
+
+      - id: cmake-format
+        name: Format CMake Files
+        entry: cmake-format
+        language: system
+        types: [cmake]
+        args: ['-i']
+        pass_filenames: true
+
+      - id: validate-project-structure
+        name: Validate Project Structure
+        entry: py src/project/tools/validate_structure.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+ci:
+  autofix_commit_msg: "chore: pre-commit autofixes"
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: "chore: update pre-commit hooks"
+  autoupdate_schedule: weekly
+  skip: []
+  submodules: false

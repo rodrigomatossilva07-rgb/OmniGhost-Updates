@@ -61,23 +61,9 @@ std::filesystem::path RequiredDataPath(GameId id) {
     switch (id) {
     case GameId::FiveM: return {};
     case GameId::CS2:
-#if defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
-        return root / L"data" / L"cs2_offsets.json";
-#else
-        return {};
-#endif
     case GameId::Warzone:
-#if defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
-        return root / L"data" / L"warzone_offsets.json";
-#else
-        return {};
-#endif
     case GameId::Apex:
-#if defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
-        return root / L"data" / L"apex_offsets.json";
-#else
         return {};
-#endif
     default: return {};
     }
 }
@@ -91,13 +77,8 @@ bool DetectInstalled(const GameDefinition& game) {
 }
 
 bool HasRequiredOffsets(const GameDefinition& game) {
-    if (game.coming_soon)
-        return false;
-    const auto data = RequiredDataPath(game.launch_id);
-    if (data.empty())
-        return true;
-    std::error_code error;
-    return std::filesystem::is_regular_file(data, error);
+    // Offsets are embedded in EXE - no external files needed
+    return !game.coming_soon;
 }
 
 bool LocalProcessRunning(std::initializer_list<const wchar_t*> names) {

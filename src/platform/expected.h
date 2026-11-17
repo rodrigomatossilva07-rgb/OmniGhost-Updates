@@ -201,16 +201,18 @@ template <typename T>
     return exp.error();
 }
 
+// Safe value access - returns pointer (nullptr if error), never throws
 template <typename T>
-[[nodiscard]] inline T& GetValue(Expected<T>& exp) {
-    return exp.value();
+[[nodiscard]] inline T* TryGetValue(Expected<T>& exp) noexcept {
+    return exp ? &exp.value() : nullptr;
 }
 
 template <typename T>
-[[nodiscard]] inline const T& GetValue(const Expected<T>& exp) {
-    return exp.value();
+[[nodiscard]] inline const T* TryGetValue(const Expected<T>& exp) noexcept {
+    return exp ? &exp.value() : nullptr;
 }
 
+// Assume value exists (UB if error) - use only when certain
 template <typename T>
 [[nodiscard]] inline T& AssumeValue(Expected<T>& exp) noexcept {
     return *exp;
@@ -222,19 +224,14 @@ template <typename T>
 }
 
 // =============================================================================
-// Logging helpers
+// Logging helpers (use OGS_LOG_* macros internally)
 // =============================================================================
 
 template <typename T>
 void LogIfError(const Expected<T>& exp, std::string_view context = "") {
     if (!exp) {
         const auto& err = exp.error();
-        std::cerr << "[ERROR] " << context;
-        if (!context.empty()) std::cerr << ": ";
-        std::cerr << err.code << " - " << err.message << "\n";
-        if (err.sysError) {
-            std::cerr << "  System error: " << err.sysError.message() << " (" << err.sysError.value() << ")\n";
-        }
+        OGS_LOG_ERROR("{}: {} - {} (code: {})", context, err.code, err.message, err.sysError ? err.sysError.message() : "none");
     }
 }
 

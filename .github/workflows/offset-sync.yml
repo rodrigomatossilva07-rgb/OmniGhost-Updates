@@ -1,0 +1,126 @@
+name: Offset Sync & Validation
+
+on:
+  schedule:
+    # Daily at 02:00 UTC to check for game updates
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      game:
+        description: 'Specific game to sync (empty = all)'
+        required: false
+        type: choice
+        options:
+          - cs2
+          - fivem
+          - fortnite
+          - warzone
+          - apex
+          - rust
+      force:
+        description: 'Force update even if offsets appear current'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  sync-offsets:
+    name: Sync & Validate Offsets
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          submodules: recursive
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ env.VCPKG_ROOT }}
+          vcpkgTriplet: x64-windows-static-md
+          vcpkgArguments: nlohmann-json fmt spdlog imgui glfw3
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install offset sync dependencies
+        run: |
+          pip install requests aiohttp
+
+      - name: Run Offset Sync
+        id: sync
+        shell: pwsh
+        run: |
+          ./src/project/tools/Sync-Offsets.ps1 `
+            -Game "${{ github.event.inputs.game }}" `
+            -Force:${{ github.event.inputs.force }} `
+            -Verbose
+
+      - name: Validate Updated Offsets
+        if: steps.sync.outputs.changed == 'true'
+        shell: pwsh
+        run: |
+          ./src/project/tools/Validate-Offsets.ps1 -Path "src/project/data" -Strict -Verbose
+
+      - name: Create Pull Request
+        if: steps.sync.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(offsets): automated offset sync [skip ci]"
+          title: "chore(offsets): automated offset sync"
+          body: |
+            Automated offset synchronization from upstream sources.
+
+            **Changes:**
+            - Updated game offset JSON files to latest upstream versions
+            - Validated against schema v7
+            - All critical offsets verified present
+
+            **Source:** Automated sync via GitHub Actions
+          branch: chore/offset-sync-${{ github.run_number }}
+          labels: |
+            offsets
+            automated
+            skip-ci
+
+  validate-schema:
+    name: Validate Offset Schema
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate Offset Schema
+        shell: pwsh
+        run: |
+          ./src/project/tools/Validate-Offsets.ps1 -Path "src/project/data" -Strict -Verbose
+
+      - name: Check Schema Version Consistency
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path "src/project/data" -Filter "*_offsets.json"
+          $versions = @{}
+          foreach ($f in $files) {
+            $content = gc $f.FullName -Raw -Enc UTF8
+            if ($content.StartsWith([char]0xFEFF)) { $content = $content.Substring(1) }
+            $json = $content | ConvertFrom-Json
+            $versions[$f.BaseName] = $json.schema_version
+          }
+          $expected = 7
+          $mismatched = $versions.GetEnumerator() | Where-Object { $_.Value -ne $expected }
+          if ($mismatched) {
+            Write-Error "Schema version mismatch (expected v$expected):"
+            $mismatched | ForEach-Object { Write-Error "  $($_.Key): v$($_.Value)" }
+            exit 1
+          }
+          Write-Host "All $($files.Count) offset files use schema v$expected"

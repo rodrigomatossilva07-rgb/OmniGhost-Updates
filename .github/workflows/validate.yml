@@ -1,0 +1,219 @@
+name: Validate Project
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src/**'
+      - 'CMakeLists.txt'
+      - 'CMakePresets.json'
+      - 'vcpkg.json'
+      - '.github/workflows/validate.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'src/**'
+      - 'CMakeLists.txt'
+      - 'CMakePresets.json'
+      - 'vcpkg.json'
+      - '.github/workflows/validate.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate Project Structure
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup PowerShell
+        uses: actions/setup-powershell@v1
+        with:
+          version: '7.4'
+
+      - name: Run Validate-Project.ps1
+        run: |
+          & .\src\project\tools\Validate-Project.ps1 -ProjectDir .
+        shell: pwsh
+        env:
+          OMNIGHOST_VERBOSE_VALIDATION: '1'
+
+      - name: Validate CMake syntax
+        run: |
+          cmake --preset=release-x64 --dry-run
+        shell: cmd
+        continue-on-error: true
+
+      - name: Validate JSON files
+        run: |
+          # Validate vcpkg.json
+          python -m json.tool vcpkg.json > nul
+          
+          # Validate CMakePresets.json
+          python -m json.tool CMakePresets.json > nul
+          
+          # Validate offset JSONs
+          for f in src/project/data/*.json; do
+            python -m json.tool "$f" > nul
+            echo "OK: $f"
+          done
+        shell: bash
+
+      - name: Check for hardcoded paths
+        run: |
+          $patterns = @(
+            'C:\\Users\\',
+            'C:\\Program Files\\',
+            'D:\\',
+            'E:\\',
+            '\.vcxproj\.user',
+            '\.vs\\'
+          )
+          $files = Get-ChildItem -Recurse -File -Path src -Include *.cpp,*.h,*.hpp,*.inl,*.props,*.targets,*.json,*.ps1 | Where-Object { $_.FullName -notmatch '\\.git\\' }
+          $found = $false
+          foreach ($file in $files) {
+            $content = Get-Content $file.FullName -Raw
+            foreach ($pattern in $patterns) {
+              if ($content -match $pattern) {
+                Write-Warning "Hardcoded path pattern '$pattern' found in $($file.FullName)"
+                $found = $true
+              }
+            }
+          }
+          if ($found) { exit 1 }
+        shell: pwsh
+
+      - name: Check for TODO/FIXME/HACK in production code
+        run: |
+          $badPatterns = @('TODO:', 'FIXME:', 'HACK:', 'XXX:', 'TEMP:')
+          $files = Get-ChildItem -Recurse -File -Path src -Include *.cpp,*.h,*.hpp,*.inl | Where-Object { $_.FullName -notmatch '\\.git\\' }
+          $found = $false
+          foreach ($file in $files) {
+            $lines = Get-Content $file.FullName
+            for ($i = 0; $i -lt $lines.Count; $i++) {
+              foreach ($pattern in $badPatterns) {
+                if ($lines[$i] -match $pattern) {
+                  Write-Warning "$($file.FullName):$($i+1): Found '$pattern' - ${lines[$i].Trim()}"
+                  $found = $true
+                }
+              }
+            }
+          }
+          if ($found) { Write-Warning "Consider resolving these before merge" }
+        shell: pwsh
+
+      - name: Validate encoding (no BOM, UTF-8)
+        run: |
+          $files = Get-ChildItem -Recurse -File -Path src -Include *.cpp,*.h,*.hpp,*.inl,*.json,*.md,*.txt | Where-Object { $_.FullName -notmatch '\\.git\\' }
+          $badEncoding = $false
+          foreach ($file in $files) {
+            $bytes = [System.IO.File]::ReadAllBytes($file.FullName)
+            # Check for UTF-8 BOM (EF BB BF)
+            if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+              Write-Warning "UTF-8 BOM found in $($file.FullName) - should be UTF-8 without BOM"
+              $badEncoding = $true
+            }
+            # Check for UTF-16 BOM
+            if ($bytes.Length -ge 2 -and (($bytes[0] -eq 0xFF -and $bytes[1] -eq 0xFE) -or ($bytes[0] -eq 0xFE -and $bytes[1] -eq 0xFF))) {
+              Write-Warning "UTF-16 BOM found in $($file.FullName) - should be UTF-8"
+              $badEncoding = $true
+            }
+          }
+          if ($badEncoding) { exit 1 }
+        shell: pwsh
+
+      - name: Check line endings (CRLF for Windows)
+        run: |
+          $files = Get-ChildItem -Recurse -File -Path src -Include *.cpp,*.h,*.hpp,*.inl,*.json,*.md,*.txt,*.ps1,*.bat,*.cmd | Where-Object { $_.FullName -notmatch '\\.git\\' }
+          $badLineEndings = $false
+          foreach ($file in $files) {
+            $content = [System.IO.File]::ReadAllText($file.FullName)
+            if ($content -match "`r`n") {
+              # Has CRLF - good for Windows
+            } elseif ($content -match "`n") {
+              # Has LF only - check if it's a file that should be CRLF
+              if ($file.Extension -in @('.cpp', '.h', '.hpp', '.inl', '.ps1', '.bat', '.cmd')) {
+                Write-Warning "LF line endings in $($file.FullName) - should be CRLF"
+                $badLineEndings = $true
+              }
+            }
+          }
+        shell: pwsh
+
+  license-check:
+    name: License Header Check
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check license headers
+        run: |
+          $licenseHeader = @"
+  // OmniGhost - DMA Overlay for Games
+  // Copyright (C) 2024 OmniGhost Team
+  // Licensed under the MIT License
+"@
+          $files = Get-ChildItem -Recurse -File -Path src -Include *.cpp,*.h,*.hpp,*.inl | Where-Object { $_.FullName -notmatch '\\.git\\' }
+          $missing = @()
+          foreach ($file in $files) {
+            $content = Get-Content $file.FullName -Raw
+            if (-not ($content -match 'OmniGhost - DMA Overlay')) {
+              $missing += $file.FullName
+            }
+          }
+          if ($missing.Count -gt 0) {
+            Write-Warning "Files missing license header:"
+            $missing | ForEach-Object { Write-Warning "  $_" }
+            # Don't fail - just warn for now
+          }
+        shell: pwsh
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: windows-latest
+    timeout-minutes: 15
+    needs: validate
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Review vcpkg dependencies
+        run: |
+          $vcpkgJson = Get-Content vcpkg.json | ConvertFrom-Json
+          Write-Host "Dependencies found: $($vcpkgJson.dependencies.Count)"
+          foreach ($dep in $vcpkgJson.dependencies) {
+            Write-Host "  - $($dep.name) $($dep.version)"
+          }
+          
+          # Check for known vulnerable packages (manual list - in production use OSV/Dependabot)
+          $vulnerable = @(
+            "openssl < 3.0.12",
+            "zlib < 1.3",
+            "libzip < 1.10"
+          )
+          
+          foreach ($vuln in $vulnerable) {
+            $parts = $vuln -split ' '
+            $name = $parts[0]
+            $minVer = $parts[2]
+            $dep = $vcpkgJson.dependencies | Where-Object { $_.name -eq $name }
+            if ($dep) {
+              Write-Host "Checking $name: found $($dep.version), minimum $minVer"
+            }
+          }
+        shell: pwsh
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
