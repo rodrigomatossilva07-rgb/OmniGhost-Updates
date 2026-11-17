@@ -58,6 +58,8 @@
 #include "config/config_schema_validator.h"
 #include "platform/ihardware_manager.h"
 #include "platform/hardware_manager_factory.h"
+#include "platform/idma_thread_pool.h"
+#include "platform/dma_thread_pool_factory.h"
 #include "window/performance_mode.h"
 #include "window/widgets.h"
 #include "window/ui_feedback.h"
@@ -612,6 +614,17 @@ int RunOmniGhost(int argc, wchar_t** argv) {
             OGS_LOG_WARN("[DI] Failed to initialize ConfigSchemaValidator: {}", initResult.error().message);
         }
         builder.AddInstance<OmniGhost::Config::ConfigSchemaValidator>(std::move(validator));
+    }
+
+    // DmaThreadPool
+    {
+        auto factory = OmniGhost::Platform::DmaThreadPoolFactory{};
+        auto poolResult = factory.Create();
+        if (!poolResult) {
+            OGS_LOG_ERROR("[DI] Failed to create DmaThreadPool: {}", poolResult.error().message);
+            return 1;
+        }
+        builder.AddInstance<OmniGhost::Platform::IDmaThreadPool>(std::move(poolResult.value()));
     }
 
     // Build the container
