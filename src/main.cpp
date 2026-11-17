@@ -45,6 +45,7 @@
 #include "platform/text_encoding.h"
 #include "platform/window_instance_guard.h"
 #include "platform/hot_reload_offsets.h"
+#include "platform/logging.h"
 #include "security/security_manager.h"
 #include "window/performance_mode.h"
 #include "window/widgets.h"
@@ -221,7 +222,7 @@ int RunDmaIntegrationTest(int argc, wchar_t** argv) {
 
     wchar_t ciEnv[256]{};
     if (!GetEnvironmentVariableW(L"OMNIGHOST_CI_INTEGRATION_TEST", ciEnv, 256) || ciEnv[0] == L'\0') {
-        std::clog << "[SECURITY] RunDmaIntegrationTest blocked: OMNIGHOST_CI_INTEGRATION_TEST not set\n";
+        OGS_SEC_LOG_ERROR("RunDmaIntegrationTest blocked: OMNIGHOST_CI_INTEGRATION_TEST not set");
         return 100;
     }
 
@@ -238,7 +239,7 @@ int RunDmaIntegrationTest(int argc, wchar_t** argv) {
 
 
     if (providedToken.empty()) {
-        std::clog << "[SECURITY] RunDmaIntegrationTest blocked: --token is required\n";
+        OGS_SEC_LOG_ERROR("RunDmaIntegrationTest blocked: --token is required");
         return 101;
     }
 
@@ -259,14 +260,14 @@ int RunDmaIntegrationTest(int argc, wchar_t** argv) {
         std::string tokenStr;
         tokenStr.reserve(providedToken.size());
         for (wchar_t ch : providedToken) {
-            if (ch > 0x7F) { std::clog << "[SECURITY] Invalid token char\n"; return 101; }
+            if (ch > 0x7F) { OGS_SEC_LOG_ERROR("Invalid token char"); return 101; }
             tokenStr.push_back(static_cast<char>(ch));
         }
 
 
 
         if (tokenStr.size() != 64 || tokenStr.substr(0, 8) != "OMNITEST") {
-            std::clog << "[SECURITY] RunDmaIntegrationTest blocked: invalid token format\n";
+            OGS_SEC_LOG_ERROR("RunDmaIntegrationTest blocked: invalid token format");
             return 101;
         }
 
@@ -325,9 +326,8 @@ int RunDmaIntegrationTest(int argc, wchar_t** argv) {
         !mem.Read(world + 0x8, &localPed, sizeof(localPed)) || localPed < 0x10000) return 8;
     unsigned char visibleFlag = 0;
     if (!mem.Read(localPed + offsets->ped_visibility_offset, &visibleFlag, sizeof(visibleFlag))) return 9;
-    std::clog << "[DMA integration] build=" << build << " pid=" << expectedPid
-              << " world/viewport/localPed/visibilityFlag read OK, flag="
-              << static_cast<unsigned>(visibleFlag) << '\n';
+    OGS_DMA_LOG_INFO("[DMA integration] build={} pid={} world/viewport/localPed/visibilityFlag read OK, flag={}",
+                   build, expectedPid, static_cast<unsigned>(visibleFlag));
     return 0;
 }
 
@@ -411,38 +411,37 @@ int RunOmniGhost(int argc, wchar_t** argv) {
 
     OmniGhost::Platform::SetCurrentThreadName(L"OmniGhost.Main");
 
-
+    // Initialize logging system
+    OmniGhost::Logging::InitializeDefaultLogging();
 
     DisableProcessWindowsGhosting();
     OmniGhost::CrashHandler::Install();
-    std::clog << "[RUNTIME] mode=SINGLE_PROCESS_PORTABLE\n"
-                 "[RUNTIME] self_install=DISABLED\n"
-                 "[RUNTIME] private_executable=DISABLED\n"
+    OGS_LOG_INFO("[RUNTIME] mode=SINGLE_PROCESS_PORTABLE");
+    OGS_LOG_INFO("[RUNTIME] self_install=DISABLED");
+    OGS_LOG_INFO("[RUNTIME] private_executable=DISABLED");
 #if defined(OMNIGHOST_PRIVATE_STATIC_VMM)
-                 "[RUNTIME] build=PRIVATE_DEVELOPMENT_BUILD\n"
-                 "[RUNTIME] distribution=NOT_FOR_DISTRIBUTION\n"
-                 "[RUNTIME] static_vmm=YES source_integration\n"
-                 "[RUNTIME] static_leechcore=YES source_integration\n"
+    OGS_LOG_INFO("[RUNTIME] build=PRIVATE_DEVELOPMENT_BUILD");
+    OGS_LOG_INFO("[RUNTIME] distribution=NOT_FOR_DISTRIBUTION");
+    OGS_LOG_INFO("[RUNTIME] static_vmm=YES source_integration");
+    OGS_LOG_INFO("[RUNTIME] static_leechcore=YES source_integration");
 #else
-                 "[RUNTIME] static_vmm=NO import_library_only\n"
-                 "[RUNTIME] static_leechcore=NO import_library_only\n"
+    OGS_LOG_INFO("[RUNTIME] static_vmm=NO import_library_only");
+    OGS_LOG_INFO("[RUNTIME] static_leechcore=NO import_library_only");
 #endif
-                 "[RUNTIME] vendor_d3xx=EXTERNAL_FTD3XXWU_ON_FPGA_OPEN\n"
+    OGS_LOG_INFO("[RUNTIME] vendor_d3xx=EXTERNAL_FTD3XXWU_ON_FPGA_OPEN");
 #if defined(OMNIGHOST_DISABLE_VMM_INFODB)
-                 "[RUNTIME] info_db=DISABLED_BY_BUILD (-disable-infodb)\n"
+    OGS_LOG_INFO("[RUNTIME] info_db=DISABLED_BY_BUILD (-disable-infodb)");
 #else
-                 "[RUNTIME] info_db=EXTERNAL_REQUIRED_BY_MEMPROCFS\n"
+    OGS_LOG_INFO("[RUNTIME] info_db=EXTERNAL_REQUIRED_BY_MEMPROCFS");
 #endif
 #if defined(OMNIGHOST_DISABLE_VMM_SYMBOLS)
-                 "[RUNTIME] pdbcrust=DISABLED_BY_BUILD (-disable-symbols)\n"
+    OGS_LOG_INFO("[RUNTIME] pdbcrust=DISABLED_BY_BUILD (-disable-symbols)");
 #else
-                 "[RUNTIME] pdbcrust=OPTIONAL_EAT_FALLBACK\n"
+    OGS_LOG_INFO("[RUNTIME] pdbcrust=OPTIONAL_EAT_FALLBACK");
 #endif
-                 "[RUNTIME] cloudflared=EXTERNAL_PROCESS_OPTIONAL\n";
+    OGS_LOG_INFO("[RUNTIME] cloudflared=EXTERNAL_PROCESS_OPTIONAL");
     const auto previousRun = OmniGhost::CrashHandler::PreviousRun();
-    std::clog << "[SESSION] previous_run="
-              << OmniGhost::CrashHandler::PreviousRunStateName(previousRun)
-              << "\n";
+    OGS_LOG_INFO("[SESSION] previous_run={}", OmniGhost::CrashHandler::PreviousRunStateName(previousRun));
     OmniGhost::SessionLog::Write(
         OmniGhost::SessionLog::Severity::Info,
         OmniGhost::SessionLog::Subsystem::Core,
@@ -543,16 +542,16 @@ int RunOmniGhost(int argc, wchar_t** argv) {
     hotReloadConfig.enabled = true;
     hotReloadConfig.requireValidation = true;
     hotReloadConfig.onReloadSuccess = [](const std::string& msg) {
-        std::clog << "[HotReload] Offsets reloaded: " << msg << "\n";
+        OGS_LOG_INFO("[HotReload] Offsets reloaded: {}", msg);
     };
     hotReloadConfig.onReloadFailure = [](const std::string& err) {
-        std::cerr << "[HotReload] Reload failed: " << err << "\n";
+        OGS_LOG_ERROR("[HotReload] Reload failed: {}", err);
     };
     const bool hotReloadStarted = OmniGhost::HotReload::InitializeHotReload("src/project/data", hotReloadConfig);
     if (hotReloadStarted) {
-        std::clog << "[HotReload] Offset hot-reload enabled for all games\n";
+        OGS_LOG_INFO("[HotReload] Offset hot-reload enabled for all games");
     } else {
-        std::clog << "[HotReload] No offset JSON files found, hot-reload disabled\n";
+        OGS_LOG_WARN("[HotReload] No offset JSON files found, hot-reload disabled");
     }
 
     Overlay application;
@@ -649,7 +648,7 @@ while (application.shouldRun && !authenticated) {
         OmniGhost::SessionLog::Severity::Info,
         OmniGhost::SessionLog::Subsystem::Core,
         "hardware discovery started in launcher background");
-    std::clog << "[UI][Transition] authentication -> launcher begin; hardware probe remains background-only\n";
+    OGS_UI_LOG_INFO("[UI][Transition] authentication -> launcher begin; hardware probe remains background-only");
     const HWND startupHwnd = application.overlay;
     OmniGhost::Platform::LogWindowAudit("before-launcher-transition", startupHwnd);
     application.SetCompactMode(false);
@@ -681,14 +680,14 @@ while (application.shouldRun && !authenticated) {
 
 
     if (transitionAudit.currentProcessWindows != 1) {
-        std::clog << "[WINDOW][Invariant] transient launcher audit mismatch; continuing with valid HWND. current="
-                  << transitionAudit.currentProcessWindows << "\n";
+        OGS_UI_LOG_WARN("[WINDOW][Invariant] transient launcher audit mismatch; continuing with valid HWND. current={}",
+                       transitionAudit.currentProcessWindows);
     }
 
 
 
     WritePostAuthStage("launcher-window-resize-pending");
-    std::clog << "[UI][Transition] SetCompactMode(false) returned; same HWND retained and first resized frame will reveal it\n";
+    OGS_UI_LOG_INFO("[UI][Transition] SetCompactMode(false) returned; same HWND retained and first resized frame will reveal it");
     OmniGhost::SessionLog::Write(
         OmniGhost::SessionLog::Severity::Info,
         OmniGhost::SessionLog::Subsystem::Core,
@@ -844,8 +843,8 @@ while (application.shouldRun && !authenticated) {
     if (!selectedDefinition ||
         !OmniGhost::Security::SecurityManager::Instance().CanUseProtectedFeatures() ||
         !OmniGhost::Licensing::HasGameAccess(selectedDefinition->id)) {
-        std::clog << "[LICENSE] Game launch blocked: no entitlement for "
-                  << (selectedDefinition ? selectedDefinition->id : "unknown") << ".\n";
+        OGS_SEC_LOG_WARN("[LICENSE] Game launch blocked: no entitlement for {}",
+                        selectedDefinition ? selectedDefinition->id : "unknown");
         continue;
     }
 
@@ -853,8 +852,7 @@ while (application.shouldRun && !authenticated) {
     OmniGhost::Launcher::IGameAdapter* adapter =
         OmniGhost::Launcher::FindGameAdapter(selected);
     if (!adapter) {
-        std::clog << "[LAUNCHER] No adapter found for game ID: "
-                  << static_cast<int>(selected) << std::endl;
+        OGS_LOG_WARN("[LAUNCHER] No adapter found for game ID: {}", static_cast<int>(selected));
         (void)startupState.Transition(OmniGhost::Startup::State::StartingGame,
                                       OmniGhost::Startup::State::Ready);
         continue;
@@ -1326,7 +1324,7 @@ while (application.shouldRun && !authenticated) {
         application.Render();
         application.EndRender();
         if (application.ConsumeReturnToLauncherRequest()) {
-            std::clog << "[SESSION] user requested game shutdown and launcher return\n";
+            OGS_LOG_INFO("[SESSION] user requested game shutdown and launcher return");
             if (g_activeGame == ActiveGame::CS2) {
                 CS2::config.radar_2d = false;
                 CS2::config.esp_enabled = false;
