@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ihardware_manager.h"
 #include <atomic>
 #include <chrono>
 #include <iostream>
@@ -35,21 +36,21 @@ struct TimeoutConfig {
 
 
 
-class Manager final {
+class Manager final : public OmniGhost::Platform::IHardwareManager {
 public:
     Manager() = default;
-    ~Manager();
+    ~Manager() override;
     Manager(const Manager&) = delete;
     Manager& operator=(const Manager&) = delete;
 
-    void SetTimeouts(const TimeoutConfig& config) noexcept { timeouts_ = config; }
-    [[nodiscard]] const TimeoutConfig& GetTimeouts() const noexcept { return timeouts_; }
+    void SetTimeouts(const TimeoutConfig& config) noexcept override { timeouts_ = config; }
+    [[nodiscard]] TimeoutConfig GetTimeouts() const noexcept override { return timeouts_; }
 
-    void BeginStartupProbe();
-    void Shutdown() noexcept;
-    void Poll();
-    [[nodiscard]] State Snapshot() const;
-    [[nodiscard]] bool Complete() const;
+    void BeginStartupProbe() override;
+    void Shutdown() noexcept override;
+    void Poll() override;
+    [[nodiscard]] HardwareState Snapshot() const override;
+    [[nodiscard]] bool Complete() const noexcept override;
 
 private:
     void StartDmaProbeLocked();

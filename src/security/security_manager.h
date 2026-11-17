@@ -1,38 +1,35 @@
 #pragma once
 
-#include <cstdint>
-#include <string_view>
+#include "isecurity_manager.h"
 
 namespace OmniGhost::Security {
 
-enum class Severity : std::uint8_t { Info, Low, Medium, High, Critical };
-enum class Enforcement : std::uint8_t { None, Observe, Recheck, DenyFeatures };
-enum class EventId : std::uint8_t {
-    InstallManifestInvalid, InstallManifestMissing,
-    RuntimeFileInvalid, SessionInvalid, SessionUnavailable, SessionRestored,
-    DebuggerObserved, UnknownModuleObserved
-};
+// Keep existing types for backward compatibility
+using Severity = ISecurityManager::Severity;
+using Enforcement = ISecurityManager::Enforcement;
+using EventId = ISecurityManager::SecurityEventId;
+using Assessment = ISecurityManager::Assessment;
 
-struct Assessment {
-    EventId id;
-    Severity severity;
-    Enforcement enforcement;
-};
-
-
-class SecurityManager final {
+class SecurityManager final : public ISecurityManager {
 public:
     static SecurityManager& Instance() noexcept;
-    [[nodiscard]] bool VerifyHostExecutablePresent() noexcept;
-    [[nodiscard]] bool VerifyStartup() noexcept;
-    [[nodiscard]] bool VerifyProtectedFiles() noexcept;
-    [[nodiscard]] bool CanUseProtectedFeatures() const noexcept;
-    void Record(EventId id) noexcept;
+    [[nodiscard]] Expected<bool> VerifyHostExecutablePresent() noexcept override;
+    [[nodiscard]] Expected<bool> VerifyStartup() noexcept override;
+    [[nodiscard]] Expected<bool> VerifyProtectedFiles() noexcept override;
+    [[nodiscard]] bool CanUseProtectedFeatures() const noexcept override;
+    void Record(EventId id) noexcept override;
+
+    // Static methods (unchanged)
     [[nodiscard]] static Assessment Classify(EventId id) noexcept;
     [[nodiscard]] static std::string_view Code(EventId id) noexcept;
+
+    // Backward compatibility - returns bool instead of Expected<bool>
+    [[nodiscard]] bool VerifyHostExecutablePresentLegacy() noexcept;
+    [[nodiscard]] bool VerifyStartupLegacy() noexcept;
+    [[nodiscard]] bool VerifyProtectedFilesLegacy() noexcept;
 
 private:
     SecurityManager() = default;
 };
 
-}
+} // namespace OmniGhost::Security

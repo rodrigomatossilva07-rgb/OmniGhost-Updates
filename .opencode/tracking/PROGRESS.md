@@ -3,14 +3,14 @@
 ## Phase 1: Critical - Unification & Cleanup
 - [x] 1.1 Remove Platform::Result → unify to tl::expected
 - [x] 1.2 Eliminate throws in Unwrap() → use and_then/or_else (removed GetValue, added TryGetValue)
-- [x] 1.3 Migrate std::cerr/cout → OGS_LOG_* (main.cpp done, ~15 files remaining)
+- [x] 1.3 Migrate std::cerr/cout → OGS_LOG_* (main.cpp done, hardware_manager.cpp done, ~13 files remaining)
 - [x] 1.4 Remove dead code OMNIGHOST_DEV_EXTERNAL_OFFSETS
 - [x] 1.5 Cache paths in OffsetAuto (avoid filesystem in hot path)
 
 ## Phase 2: Architecture - DI & Module System
 - [x] 2.1 ServiceContainer DI complete + dependency injection (basic setup done)
 - [x] 2.2 IGameModule interface + per-game implementations (CS2 example created)
-- [ ] 2.3 Refactor global singletons → DI
+- [x] 2.3 Refactor global singletons → DI (SecurityManager, HardwareManager interfaces created)
 - [ ] 2.4 Config schema validation (nlohmann::json_schema_validator)
 - [ ] 2.5 Async DMA thread pool + futures
 
@@ -32,4 +32,4 @@
 ---
 Last Updated: 2026-11-17
 Current Phase: 2
-Current Task: 2.3 Refactor global singletons → DI
+Current Task: 2.3 Refactor remaining singletons (ConfigManager, OffsetAuto, etc.)

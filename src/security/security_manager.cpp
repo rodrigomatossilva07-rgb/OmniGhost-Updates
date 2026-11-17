@@ -19,8 +19,6 @@ std::mutex eventMutex;
 bool denied = false;
 bool sessionDenied = false;
 
-
-
 std::filesystem::path VerifiedExecutablePath() {
     const auto exePath = OmniGhost::Paths::Executable();
     std::error_code error;
@@ -95,66 +93,76 @@ bool SecurityManager::CanUseProtectedFeatures() const noexcept {
     return !denied && !sessionDenied;
 }
 
-bool SecurityManager::VerifyProtectedFiles() noexcept {
+// Expected-based implementations
+Expected<bool> SecurityManager::VerifyProtectedFiles() noexcept {
+    try {
+        for (const wchar_t* module : {OGS_WCSTR("libs/vmm.dll"), OGS_WCSTR("libs/leechcore.dll"), OGS_WCSTR("libs/FTD3XXWU.dll")}) {
+            std::wstring error;
+            if (!OmniGhost::RuntimeBootstrap::ValidatePrivateRuntimeFile(module, error)) {
+                Record(EventId::RuntimeFileInvalid);
+                return Failure<bool>(ErrorCode::RuntimeFileInvalid, "Runtime file validation failed");
+            }
+        }
 
+        const auto verifiedExe = VerifiedExecutablePath();
+        if (!verifiedExe.empty()) {
+            const auto report = OmniGhost::Update::VerifyInstallationFiles(verifiedExe.parent_path());
 
+            if (report.status == OmniGhost::Update::IntegrityStatus::Damaged) {
+                Record(EventId::RuntimeFileInvalid);
+                return Failure<bool>(ErrorCode::RuntimeFileInvalid, "Installation files damaged");
+            }
+            if (report.status == OmniGhost::Update::IntegrityStatus::Error) {
+                Record(EventId::InstallManifestInvalid);
+                return Failure<bool>(ErrorCode::InstallManifestInvalid, "Manifest validation error");
+            }
+            if (report.status == OmniGhost::Update::IntegrityStatus::ManifestMissing)
+                Record(EventId::InstallManifestMissing);
+        }
 
-    for (const wchar_t* module : {OGS_WCSTR("libs/vmm.dll"), OGS_WCSTR("libs/leechcore.dll"), OGS_WCSTR("libs/FTD3XXWU.dll")}) {
-        std::wstring error;
-        if (!OmniGhost::RuntimeBootstrap::ValidatePrivateRuntimeFile(module, error)) {
+        if (verifiedExe.empty()) {
             Record(EventId::RuntimeFileInvalid);
-            return false;
+            return Failure<bool>(ErrorCode::RuntimeFileInvalid, "Executable not found");
         }
+        return Success(true);
+    } catch (const std::exception& ex) {
+        return Failure<bool>(ErrorCode::InternalError, ex.what());
     }
+}
 
+// Legacy compatibility
+bool SecurityManager::VerifyProtectedFilesLegacy() noexcept {
+    return VerifyProtectedFiles().value_or(false);
+}
 
+Expected<bool> SecurityManager::VerifyHostExecutablePresent() noexcept {
+    try {
+        const auto verifiedExe = VerifiedExecutablePath();
 
-    const auto verifiedExe = VerifiedExecutablePath();
-    if (!verifiedExe.empty()) {
-        const auto report = OmniGhost::Update::VerifyInstallationFiles(verifiedExe.parent_path());
-
-
-
-        if (report.status == OmniGhost::Update::IntegrityStatus::Damaged) {
+        if (verifiedExe.empty()) {
             Record(EventId::RuntimeFileInvalid);
-            return false;
+            return Failure<bool>(ErrorCode::RuntimeFileInvalid, "Executable not found");
         }
-        if (report.status == OmniGhost::Update::IntegrityStatus::Error) {
-            Record(EventId::InstallManifestInvalid);
-            return false;
-        }
-        if (report.status == OmniGhost::Update::IntegrityStatus::ManifestMissing)
-            Record(EventId::InstallManifestMissing);
+        return Success(true);
+    } catch (const std::exception& ex) {
+        return Failure<bool>(ErrorCode::InternalError, ex.what());
     }
+}
 
-    if (verifiedExe.empty()) {
-        Record(EventId::RuntimeFileInvalid);
-        return false;
+bool SecurityManager::VerifyHostExecutablePresentLegacy() noexcept {
+    return VerifyHostExecutablePresent().value_or(false);
+}
+
+Expected<bool> SecurityManager::VerifyStartup() noexcept {
+    try {
+        return VerifyProtectedFiles();
+    } catch (const std::exception& ex) {
+        return Failure<bool>(ErrorCode::InternalError, ex.what());
     }
-    return true;
 }
 
-bool SecurityManager::VerifyHostExecutablePresent() noexcept {
-
-
-
-
-    const auto verifiedExe = VerifiedExecutablePath();
-
-    if (verifiedExe.empty()) {
-        Record(EventId::RuntimeFileInvalid);
-        return false;
-    }
-    return true;
+bool SecurityManager::VerifyStartupLegacy() noexcept {
+    return VerifyStartup().value_or(false);
 }
 
-bool SecurityManager::VerifyStartup() noexcept {
-
-
-
-
-
-    return VerifyProtectedFiles();
-}
-
-}
+} // namespace OmniGhost::Security

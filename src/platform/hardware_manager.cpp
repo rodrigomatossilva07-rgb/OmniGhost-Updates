@@ -1,10 +1,11 @@
 #include "hardware_manager.h"
+#include "ihardware_manager.h"
+#include "logging.h"
 
 #include "src/project/third_party/DMALibrary/Memory/Memory.h"
 #include "../makcu/makcu_wrapper.h"
 #include "src/games/Fivem/aimbot/aim_type.h"
 
-#include <iostream>
 #include <atomic>
 #include <cstdio>
 #include <functional>
@@ -24,9 +25,7 @@ static bool PassiveDmaPnpProbe() {
 
 
     const bool present = mem.ProbeDeviceAvailability();
-    std::clog << "[STARTUP][Hardware] active_probe=SKIPPED passive_pnp="
-              << (present ? "DETECTED" : "NOT_FOUND")
-              << " note=PnP_is_diagnostic_only_not_functional_session\n";
+    OGS_LOG_INFO("[STARTUP][Hardware] active_probe=SKIPPED passive_pnp={} note=PnP_is_diagnostic_only_not_functional_session", `n                 present ? "DETECTED" : "NOT_FOUND");
     return present;
 }
 
@@ -112,7 +111,7 @@ void Manager::BeginStartupProbe() {
     state_.makcuAvailable = false;
     state_.makcuFinished = false;
     stageStarted_ = std::chrono::steady_clock::now();
-    std::clog << "[STARTUP][Hardware] stage=CheckingMakcu mode=MOCK optional=YES\n";
+    OGS_LOG_INFO("[STARTUP][Hardware] stage=CheckingMakcu mode=MOCK optional=YES");
     return;
 #else
 
@@ -125,8 +124,7 @@ void Manager::BeginStartupProbe() {
     if (!state_.makcuAvailable) {
         StartWorkerLocked(1, [] { return RunMakcuProbeIsolated(); });
     }
-    std::clog << "[STARTUP][Hardware] stage=CheckingMakcu optional=YES auto_connect=YES already_connected="
-              << (state_.makcuAvailable ? "YES" : "NO") << "\n";
+    OGS_LOG_INFO("[STARTUP][Hardware] stage=CheckingMakcu optional=YES auto_connect=YES already_connected={}", `n                  state_.makcuAvailable ? "YES" : "NO");
     if (state_.makcuAvailable)
         StartDmaProbeLocked();
 #endif
@@ -143,8 +141,7 @@ void Manager::StartDmaProbeLocked() {
         return;
     state_.stage = ProbeStage::CheckingDma;
     stageStarted_ = std::chrono::steady_clock::now();
-    std::clog << "[STARTUP][Hardware] stage=CheckingDma required=YES mode=PASSIVE_PNP timeout_ms="
-              << timeouts_.dmaTimeout.count() << "\n";
+    OGS_LOG_INFO("[STARTUP][Hardware] stage=CheckingDma required=YES mode=PASSIVE_PNP timeout_ms={}", `n                  timeouts_.dmaTimeout.count());
     StartWorkerLocked(2, [] { return PassiveDmaPnpProbe(); });
 }
 
@@ -167,14 +164,14 @@ void Manager::Poll() {
         state_.makcuFinished = true;
         state_.stage = ProbeStage::CheckingDma;
         stageStarted_ = now;
-        std::clog << "[STARTUP][Hardware] makcu=AVAILABLE mode=MOCK\n";
+        OGS_LOG_INFO("[STARTUP][Hardware] makcu=AVAILABLE mode=MOCK");
         return;
     }
     if (state_.stage == ProbeStage::CheckingDma) {
         state_.dmaAvailable = true;
         state_.dmaFinished = true;
         state_.stage = ProbeStage::Complete;
-        std::clog << "[STARTUP][Hardware] dma=DETECTED complete=YES mode=MOCK\n";
+        OGS_LOG_INFO("[STARTUP][Hardware] dma=DETECTED complete=YES mode=MOCK");
         return;
     }
 #endif
@@ -192,9 +189,7 @@ void Manager::Poll() {
             state_.dmaAvailable = result;
             state_.dmaFinished = true;
             state_.stage = ProbeStage::Complete;
-            std::clog << "[STARTUP][Hardware] dma="
-                      << (state_.dmaAvailable ? "PRESENT_PNP" : "NOT_DETECTED")
-                      << " complete=YES note=PnP_is_diagnostic_only\n";
+            OGS_LOG_INFO("[STARTUP][Hardware] dma={} complete=YES note=PnP_is_diagnostic_only", `n                  state_.dmaAvailable ? "PRESENT_PNP" : "NOT_DETECTED");
         }
         DrainWorkerLocked();
     }
@@ -217,7 +212,7 @@ void Manager::Poll() {
         if (makcu_wrapper::IsConnectedSnapshot()) {
             state_.makcuAvailable = true;
             state_.makcuFinished = true;
-            std::clog << "[STARTUP][Hardware] makcu=AVAILABLE\n";
+            OGS_LOG_INFO("[STARTUP][Hardware] makcu=AVAILABLE");
             StartDmaProbeLocked();
         } else if (!state_.makcuFinished && now - stageStarted_ >= timeouts_.makcuTimeout) {
 
@@ -226,7 +221,7 @@ void Manager::Poll() {
                 worker_.request_stop();
             state_.makcuFinished = true;
             state_.makcuAvailable = false;
-            std::clog << "[STARTUP][Hardware] makcu=TIMEOUT optional=YES continuing=DMA\n";
+            OGS_LOG_WARN("[STARTUP][Hardware] makcu=TIMEOUT optional=YES continuing=DMA");
         }
 
 
@@ -253,9 +248,7 @@ void Manager::Poll() {
             std::clog << "[STARTUP][Hardware] dma=TIMEOUT launcher_continues=YES note=PnP_probe_does_not_guarantee_functional_session\n";
         }
         if (state_.stage == ProbeStage::Complete)
-            std::clog << "[STARTUP][Hardware] dma="
-                      << (state_.dmaAvailable ? "PRESENT_PNP" : "NOT_DETECTED")
-                      << " complete=YES note=PnP_is_diagnostic_only\n";
+            OGS_LOG_INFO("[STARTUP][Hardware] dma={} complete=YES note=PnP_is_diagnostic_only", `n                  state_.dmaAvailable ? "PRESENT_PNP" : "NOT_DETECTED");
     }
 
 
