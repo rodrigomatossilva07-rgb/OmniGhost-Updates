@@ -223,8 +223,13 @@ add_compile_definitions(
     _CRT_SECURE_NO_WARNINGS
     NOMINMAX
     WIN32_LEAN_AND_MEAN
-    OMNIGHOST_DEV_EXTERNAL_OFFSETS
+    # OMNIGHOST_DEV_EXTERNAL_OFFSETS  // Removido: usar embedded offsets por padrão (single EXE)
 )
+
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    # Apenas debug builds podem usar offsets externos (desenvolvimento)
+    add_compile_definitions(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
+endif()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Publish")
     add_compile_definitions(OMNIGHOST_PUBLISH_BUILD)
