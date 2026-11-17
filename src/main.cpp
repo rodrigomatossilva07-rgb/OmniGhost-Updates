@@ -1,4 +1,4 @@
-#include <Windows.h>
+﻿#include <Windows.h>
 #include <TlHelp32.h>
 #include <Shellapi.h>
 
@@ -44,6 +44,7 @@
 #include "platform/shutdown_coordinator.h"
 #include "platform/text_encoding.h"
 #include "platform/window_instance_guard.h"
+#include "platform/hot_reload_offsets.h"
 #include "security/security_manager.h"
 #include "window/performance_mode.h"
 #include "window/widgets.h"
@@ -536,6 +537,24 @@ int RunOmniGhost(int argc, wchar_t** argv) {
     app_settings::Initialize();
     config_manager::Initialize();
 
+    // Initialize hot-reload for offset JSON files
+    OmniGhost::HotReload::OffsetReloader::Config hotReloadConfig;
+    hotReloadConfig.pollInterval = std::chrono::seconds(5);
+    hotReloadConfig.enabled = true;
+    hotReloadConfig.requireValidation = true;
+    hotReloadConfig.onReloadSuccess = [](const std::string& msg) {
+        std::clog << "[HotReload] Offsets reloaded: " << msg << "\n";
+    };
+    hotReloadConfig.onReloadFailure = [](const std::string& err) {
+        std::cerr << "[HotReload] Reload failed: " << err << "\n";
+    };
+    const bool hotReloadStarted = OmniGhost::HotReload::InitializeHotReload("src/project/data", hotReloadConfig);
+    if (hotReloadStarted) {
+        std::clog << "[HotReload] Offset hot-reload enabled for all games\n";
+    } else {
+        std::clog << "[HotReload] No offset JSON files found, hot-reload disabled\n";
+    }
+
     Overlay application;
 
 
@@ -553,6 +572,11 @@ int RunOmniGhost(int argc, wchar_t** argv) {
     (void)shutdownCoordinator.Register(
         OmniGhost::Platform::ShutdownComponent::Ui, 100,
         [&application] { application.Shutdown(); });
+
+    // Register hot-reload shutdown
+    (void)shutdownCoordinator.Register(
+        OmniGhost::Platform::ShutdownComponent::Core, 50,
+        [] { OmniGhost::HotReload::ShutdownHotReload(); });
 
 
     OmniGhost::CrashHandler::MarkStartupComplete();
@@ -1401,3 +1425,5 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         LocalFree(argv);
     return result;
 }
+
+
