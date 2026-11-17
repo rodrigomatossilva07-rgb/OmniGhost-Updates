@@ -1,1260 +1,530 @@
+﻿#include "config_core.h"
+#include "config_manager.h"
 #include "app_settings.h"
-#include <Windows.h>
-#include <shellapi.h>
-#include "config_core.h"
-#include "../globals.h"
-#include "../window/theme.h"
-#include "../platform/text_encoding.h"
-#include "../platform/unique_handle.h"
-#include "../platform/build_info.h"
-#include "../platform/file_integrity.h"
-#include "../updater/json.h"
-#include "../licensing/license_service.h"
-#include <algorithm>
-#include <cmath>
-#include <limits>
-#include <cstdio>
-#include <cstring>
-#include <cctype>
-#include <objbase.h>
-#include <windows.h>
-#include <iomanip>
-#include <map>
-#include <fstream>
-#include <future>
-#include <sstream>
-#include <filesystem>
-#include <initializer_list>
+#include "globals.h"
 
-namespace fs = std::filesystem;
+#include <nlohmann/json.hpp>
 
-namespace config_manager {
+namespace OmniGhost::Config {
 
+// =============================================================================
+// Serialize All Settings
+// =============================================================================
 
-std::vector<SavedConfigInfo> saved_list;
-char new_config_name[64] = "MinhaConfig";
-std::string last_status = "Pronto";
-std::string active_config_name;
-std::string active_profile_name = "Default";
-std::string active_config_id;
-std::vector<CommunityConfigInfo> community_configs;
+nlohmann::json SerializeAllToJson() {
+    nlohmann::json j;
 
-
-std::string ConfigDir();
-
-static fs::path ConfigStatePath() { return fs::path(ConfigDir()) / "config_state.ini"; }
-static fs::path CommunityBackupPath() { return fs::path(ConfigDir()) / "community-apply-backup.ogcfg"; }
-bool WriteTextAtomically(const fs::path& destination, const std::string& data, std::string& error);
-
-std::string NewConfigId() {
-    GUID guid{};
-    if (CoCreateGuid(&guid) != S_OK) return {};
-    wchar_t buffer[64]{};
-    if (StringFromGUID2(guid, buffer, static_cast<int>(std::size(buffer))) <= 0) return {};
-    std::wstring value(buffer);
-    if (!value.empty() && value.front() == L'{') value.erase(value.begin());
-    if (!value.empty() && value.back() == L'}') value.pop_back();
-    return OmniGhost::Platform::WideToUtf8(value);
-}
-
-static std::string ReadState(const std::string& key) {
-    std::ifstream f(ConfigStatePath());
-    std::string line;
-    while (std::getline(f, line)) {
-        auto pos = line.find('=');
-        if (pos != std::string::npos && line.substr(0, pos) == key) return line.substr(pos + 1);
-    }
-    return {};
-}
-
-static bool WriteState(std::initializer_list<std::pair<std::string, std::string>> updates) {
-    EnsureConfigDir();
-    std::map<std::string, std::string> values;
-    std::ifstream f(ConfigStatePath());
-    std::error_code existsError;
-    if (!f && fs::exists(ConfigStatePath(), existsError)) {
-        last_status = "Falha ao ler estado da configuração";
-        return false;
-    }
-    std::string line;
-    while (std::getline(f, line)) {
-        auto pos = line.find('=');
-        if (pos != std::string::npos) values[line.substr(0, pos)] = line.substr(pos + 1);
-    }
-    if (f.bad() || existsError) {
-        last_status = "Falha ao ler estado da configuração";
-        return false;
-    }
-    f.close();
-    for (const auto& [key, value] : updates) values[key] = value;
-    std::ostringstream serialized;
-    for (const auto& [k, v] : values) serialized << k << "=" << v << '\n';
-    std::string error;
-    if (!WriteTextAtomically(ConfigStatePath(), serialized.str(), error)) {
-        last_status = "Falha ao guardar estado da configuração: " + error;
-        return false;
-    }
-    return true;
-}
-
-
-std::string CurrentAppVersion() {
-    return OmniGhost::BuildInfo::AppVersion;
-}
-
-bool FlushPathToDisk(const fs::path& path) {
-    OmniGhost::Platform::UniqueHandle handle(CreateFileW(
-        path.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ,
-        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
-    return handle && FlushFileBuffers(handle.get()) == TRUE;
-}
-
-bool WriteTextAtomically(const fs::path& destination, const std::string& data, std::string& error) {
-    std::error_code ec;
-    fs::create_directories(destination.parent_path(), ec);
-    if (ec) {
-        error = "create_directories failed: " + ec.message();
-        return false;
-    }
-
-    const fs::path temporary = destination.wstring() + L".tmp";
-    const fs::path backup = destination.wstring() + L".bak";
-    {
-        std::ofstream stream(temporary, std::ios::binary | std::ios::trunc);
-        if (!stream) {
-            error = "unable to create temporary config";
-            return false;
-        }
-        stream.write(data.data(), static_cast<std::streamsize>(data.size()));
-        stream.flush();
-        if (!stream.good()) {
-            error = "write/flush failed";
-            stream.close();
-            fs::remove(temporary, ec);
-            return false;
-        }
-    }
-
-    if (!FlushPathToDisk(temporary)) {
-        error = "FlushFileBuffers failed win32=" + std::to_string(GetLastError());
-        fs::remove(temporary, ec);
-        return false;
-    }
-
-    BOOL promoted = FALSE;
-    if (fs::exists(destination, ec) && !ec) {
-        promoted = ReplaceFileW(destination.c_str(), temporary.c_str(), backup.c_str(),
-            REPLACEFILE_WRITE_THROUGH, nullptr, nullptr);
-    } else {
-        ec.clear();
-        promoted = MoveFileExW(temporary.c_str(), destination.c_str(),
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
-    }
-
-    if (!promoted) {
-        const DWORD win32 = GetLastError();
-        error = "atomic replace failed win32=" + std::to_string(win32);
-        return false;
-    }
-
-    return true;
-}
-
-bool ParseLine(const std::string& line, std::string& key, std::string& val) {
-    auto pos = line.find('=');
-    if (pos == std::string::npos) return false;
-    key = line.substr(0, pos);
-    val = line.substr(pos + 1);
-    return true;
-}
-
-
-void WBool(std::ostringstream& o, const char* k, bool v) { o << k << "=" << (v ? 1 : 0) << "\n"; }
-
-
-void WFloat(std::ostringstream& o, const char* k, float v) { o << k << "=" << std::setprecision(9) << v << "\n"; }
-void WInt(std::ostringstream& o, const char* k, int v) { o << k << "=" << v << "\n"; }
-void WU32(std::ostringstream& o, const char* k, ImU32 v) { o << k << "=" << v << "\n"; }
-
-
-void WStr(std::ostringstream& o, const char* k, const std::string& v) {
-    std::string safe = v;
-    for (char& c : safe) {
-        if (c == '\r' || c == '\n')
-            c = ' ';
-    }
-    o << k << "=" << safe << "\n";
-}
-
-
-bool toB(const std::string& val) { return val == "1" || val == "true"; }
-float toF(const std::string& val) {
-    char* end = nullptr;
-    const float result = std::strtof(val.c_str(), &end);
-    if (end == val.c_str() || *end != '\0')
-        return 0.0f;
-
-
-    if (!std::isfinite(result))
-        return 0.0f;
-    return result;
-}
-int toI(const std::string& val) {
-    char* end = nullptr;
-    const long result = std::strtol(val.c_str(), &end, 10);
-    return (end != val.c_str() && *end == '\0' && result >= INT_MIN && result <= INT_MAX) ? static_cast<int>(result) : 0;
-}
-ImU32 toU(const std::string& val) {
-    char* end = nullptr;
-    const unsigned long result = std::strtoul(val.c_str(), &end, 10);
-    return (end != val.c_str() && *end == '\0' && result <= UINT32_MAX) ? static_cast<ImU32>(result) : 0u;
-}
-
-
-std::string ConfigDir() {
-    return OmniGhost::Paths::Configs().string();
-}
-
-void EnsureConfigDir() {
-    std::error_code ec;
-    fs::create_directories(ConfigDir(), ec);
-}
-
-void MigrateLegacyConfigs() {
-    EnsureConfigDir();
-    std::error_code ec;
-    for (auto& entry : fs::directory_iterator(ConfigDir(), ec)) {
-        if (ec || !entry.is_regular_file()) continue;
-        if (entry.path().extension() != ".ogcfg") continue;
-        std::string stem = entry.path().stem().string();
-        if (stem.rfind("cs2_", 0) == 0 || stem.rfind("fivem_", 0) == 0 ||
-            stem.rfind("rust_", 0) == 0 || stem.rfind("warzone_", 0) == 0 ||
-            stem.rfind("fortnite_", 0) == 0)
-            continue;
-
-
-        std::string meta;
-        {
-            std::ifstream f(entry.path());
-            std::string line;
-            while (std::getline(f, line)) {
-                if (line.rfind("meta.game=", 0) == 0) {
-                    meta = line.substr(10);
-                    while (!meta.empty() && (meta.back()=='\r' || meta.back()=='\n' || meta.back()==' '))
-                        meta.pop_back();
-                    break;
-                }
-            }
-        }
-        std::string prefix = "fivem_";
-        if (meta == "cs2") prefix = "cs2_";
-        else if (meta == "rust") prefix = "rust_";
-        else if (meta == "warzone") prefix = "warzone_";
-        else if (meta == "fortnite") prefix = "fortnite_";
-        else {
-
-            std::ifstream f2(entry.path());
-            std::string whole((std::istreambuf_iterator<char>(f2)), std::istreambuf_iterator<char>());
-            if (whole.find("cs2.") != std::string::npos && whole.find("esp.enabled") == std::string::npos)
-                prefix = "cs2_";
-            else if (whole.find("rust.") != std::string::npos && whole.find("esp.enabled") == std::string::npos)
-                prefix = "rust_";
-            else if (whole.find("warzone.") != std::string::npos)
-                prefix = "warzone_";
-        }
-        fs::path dest = fs::path(ConfigDir()) / (prefix + stem + ".ogcfg");
-        if (!fs::exists(dest, ec)) {
-            fs::rename(entry.path(), dest, ec);
-            if (ec) {
-                ec.clear();
-                if (fs::copy_file(entry.path(), dest, fs::copy_options::none, ec) && !ec) {
-                    std::error_code removeError;
-                    fs::remove(entry.path(), removeError);
-                }
-            }
-        }
-    }
-}
-
-
-void RefreshList() {
-    saved_list.clear();
-    EnsureConfigDir();
-    std::string dir = ConfigDir();
-    if (!fs::exists(dir)) return;
-
-    struct Entry {
-        SavedConfigInfo info;
-        fs::file_time_type ftime{};
-    };
-    std::vector<Entry> entries;
-
-    const std::string favoriteName = ReadState(std::string("favorite.") + ActiveGameMeta());
-    for (auto& entry : fs::directory_iterator(dir)) {
-        if (!entry.is_regular_file()) continue;
-        if (entry.path().extension() != ".ogcfg") continue;
-        Entry e;
-        e.info.name = entry.path().stem().string();
-        if (!NameBelongsToActiveGame(e.info.name))
-            continue;
-        e.info.path = entry.path().string();
-        e.info.favorite = e.info.name == favoriteName;
-        e.ftime = fs::last_write_time(entry);
-
-        auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
-            e.ftime - fs::file_time_type::clock::now() + std::chrono::system_clock::now());
-        std::time_t tt = std::chrono::system_clock::to_time_t(sctp);
-        std::tm tm{};
-        localtime_s(&tm, &tt);
-        char buf[64];
-        std::strftime(buf, sizeof(buf), "%d/%m/%Y %H:%M:%S", &tm);
-        e.info.date_str = buf;
-        entries.push_back(std::move(e));
-    }
-
-
-    std::vector<std::string> orderNames;
-    {
-        std::ifstream of((fs::path(dir) / "order.txt").string());
-        std::string line;
-        while (of && std::getline(of, line)) {
-            while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) line.pop_back();
-            if (!line.empty() && line[0] != '#')
-                orderNames.push_back(line);
-        }
-    }
-
-    auto findIdx = [&](const std::string& n) -> int {
-        for (int i = 0; i < (int)orderNames.size(); ++i)
-            if (orderNames[i] == n) return i;
-        return 100000;
-    };
-
-    std::sort(entries.begin(), entries.end(), [&](const Entry& a, const Entry& b) {
-        const bool aAuto = a.info.name.rfind("_autosave", 0) == 0;
-        const bool bAuto = b.info.name.rfind("_autosave", 0) == 0;
-        if (aAuto != bAuto) return !aAuto;
-        int ia = findIdx(a.info.name), ib = findIdx(b.info.name);
-        if (ia != ib) return ia < ib;
-        return a.ftime > b.ftime;
+    // Global app settings
+    j["app_settings"] = nlohmann::json::object({
+        {"language", static_cast<int>(app_settings::config.language)},
+        {"start_behavior", static_cast<int>(app_settings::config.start_behavior)},
+        {"remember_last_game", app_settings::config.remember_last_game},
+        {"minimize_behavior", static_cast<int>(app_settings::config.minimize_behavior)},
+        {"close_behavior", static_cast<int>(app_settings::config.close_behavior)},
+        {"auto_save", app_settings::config.auto_save},
+        {"menu_bind", app_settings::config.menu_bind},
+        {"black_background", app_settings::config.black_background},
+        {"black_level", app_settings::config.black_level},
+        {"performance_mode", app_settings::config.performance_mode},
+        {"auto_performance", app_settings::config.auto_performance},
+        {"particles", app_settings::config.particles},
+        {"snow_effect", app_settings::config.snow_effect},
+        {"matrix_rain", app_settings::config.matrix_rain},
+        {"digital_rain_level", static_cast<int>(app_settings::config.digital_rain_level)},
+        {"animation_intensity", static_cast<int>(app_settings::config.animation_intensity)},
+        {"ui_sounds", app_settings::config.ui_sounds},
+        {"ui_sound_volume", app_settings::config.ui_sound_volume},
+        {"notification_sounds", app_settings::config.notification_sounds},
+        {"startup_sound", app_settings::config.startup_sound},
+        {"high_contrast", app_settings::config.high_contrast},
+        {"ui_scale", app_settings::config.ui_scale},
+        {"monitor_index", app_settings::config.monitor_index},
+        {"show_fps", app_settings::config.show_fps},
+        {"telemetry_log_enabled", app_settings::config.telemetry_log_enabled},
+        {"show_hotkey_overlay", app_settings::config.show_hotkey_overlay},
+        {"vsync", app_settings::config.vsync},
+        {"overlay_position_mode", app_settings::config.overlay_position_mode},
+        {"overlay_scale", app_settings::config.overlay_scale},
+        {"overlay_lock_to_monitor", app_settings::config.overlay_lock_to_monitor},
+        {"update_channel", static_cast<int>(app_settings::config.update_channel)},
+        {"update_auto_check", app_settings::config.update_auto_check},
+        {"update_auto_download", app_settings::config.update_auto_download},
+        {"update_install_on_exit", app_settings::config.update_install_on_exit},
+        {"show_advanced", app_settings::config.show_advanced},
+        {"color_primary", app_settings::config.color_primary},
+        {"color_secondary", app_settings::config.color_secondary},
+        {"color_fps", app_settings::config.color_fps},
+        {"color_particles", app_settings::config.color_particles},
+        {"theme_mode", app_settings::config.theme_mode},
+        {"accent_preset", app_settings::config.accent_preset},
+        {"visual_style", app_settings::config.visual_style}
     });
 
-    saved_list.reserve(entries.size());
-    for (auto& e : entries)
-        saved_list.push_back(std::move(e.info));
+    // ESP settings
+    j["esp"] = SerializeESPSettings();
+
+    // Aimbot settings
+    j["aimbot"] = SerializeAimSettings();
+
+    // Trigger settings
+    j["trigger"] = SerializeTriggerSettings();
+
+    // Radar settings
+    j["radar"] = SerializeRadarSettings();
+
+    // Misc settings
+    j["misc"] = SerializeMiscSettings();
+
+    // Game-specific settings
+    j["cs2"] = SerializeCS2Settings();
+    j["rust"] = SerializeRustSettings();
+    j["fivem"] = SerializeFiveMSettings();
+    j["fortnite"] = SerializeFortniteSettings();
+    j["warzone"] = SerializeWarzoneSettings();
+    j["apex"] = SerializeApexSettings();
+
+    return j;
 }
 
-void SaveOrder() {
-    EnsureConfigDir();
-    std::ofstream of((fs::path(ConfigDir()) / "order.txt").string(), std::ios::trunc);
-    if (!of) return;
-    of << "# OmniGhost config order — first line = startup config\n";
-    for (const auto& s : saved_list) {
-        if (s.name.rfind("_autosave", 0) == 0) continue;
-        of << s.name << "\n";
-    }
-}
-
-
-const char* ActiveGamePrefix() {
-    switch (g_activeGame) {
-    case ActiveGame::CS2: return "cs2_";
-    case ActiveGame::Rust: return "rust_";
-    case ActiveGame::Warzone: return "warzone_";
-
-
-
-    case ActiveGame::Fortnite: return "fortnite_";
-    default: return "fivem_";
-    }
-}
-
-const char* ActiveGameMeta() {
-    switch (g_activeGame) {
-    case ActiveGame::CS2: return "cs2";
-    case ActiveGame::Rust: return "rust";
-    case ActiveGame::Warzone: return "warzone";
-
-
-    case ActiveGame::Fortnite: return "fortnite";
-    default: return "fivem";
-    }
-}
-
-bool NameBelongsToActiveGame(const std::string& name) {
-    const char* p = ActiveGamePrefix();
-    return name.rfind(p, 0) == 0;
-}
-
-
-std::string SanitizeFileName(std::string name) {
-    while (!name.empty() && (name.front() == ' ' || name.front() == '\t'))
-        name.erase(name.begin());
-    while (!name.empty() && (name.back() == ' ' || name.back() == '\t' || name.back() == '.'))
-        name.pop_back();
-    for (char& c : name) {
-        const unsigned char value = static_cast<unsigned char>(c);
-        if (value < 0x20 || c == '<' || c == '>' || c == ':' || c == '"' || c == '/' ||
-            c == '\\' || c == '|' || c == '?' || c == '*')
-            c = '_';
-    }
-    constexpr size_t kMaximumConfigName = 96;
-    if (name.size() > kMaximumConfigName)
-        name.resize(kMaximumConfigName);
-    while (!name.empty() && (name.back() == ' ' || name.back() == '.'))
-        name.pop_back();
-    if (name.empty()) name = "config";
-    return name;
-}
-
-bool IsSafeConfigIdentifier(const std::string& name) {
-    return !name.empty() && name == SanitizeFileName(name) &&
-           name.find('/') == std::string::npos && name.find('\\') == std::string::npos &&
-           name != "." && name != "..";
-}
-
-bool SaveToFile(const std::string& name) {
-    std::string safe = SanitizeFileName(name);
-    if (safe.empty()) { last_status = "Nome vazio"; return false; }
-    const std::string prefix = ActiveGamePrefix();
-    if (safe.rfind(prefix, 0) != 0) {
-        if (safe.rfind("cs2_", 0) == 0) safe = safe.substr(4);
-        else if (safe.rfind("fivem_", 0) == 0) safe = safe.substr(6);
-        else if (safe.rfind("rust_", 0) == 0) safe = safe.substr(5);
-        else if (safe.rfind("fortnite_", 0) == 0) safe = safe.substr(9);
-        safe = prefix + safe;
-    }
-    EnsureConfigDir();
-    const fs::path path = fs::path(ConfigDir()) / (safe + ".ogcfg");
-    std::string error;
-    if (!WriteTextAtomically(path, SerializeAll(), error)) {
-        last_status = "Erro ao guardar atomicamente: " + error;
+bool DeserializeAllFromJson(std::string_view json) {
+    try {
+        nlohmann::json j = nlohmann::json::parse(json);
+        return DeserializeAllFromJson(j);
+    } catch (...) {
         return false;
     }
-    active_config_name = safe;
-    if (!WriteState({{std::string("active.") + ActiveGameMeta(), active_config_name},
-                    {std::string("active_id.") + ActiveGameMeta(), active_config_id}})) return false;
-    last_status = "Guardado: Configs/" + safe + ".ogcfg";
-    RefreshList();
-    return true;
 }
 
-bool LoadFromFile(const std::string& name) {
-    if (!IsSafeConfigIdentifier(name)) {
-        last_status = "Nome de config invalido";
-        return false;
-    }
-    const fs::path path = fs::path(ConfigDir()) / (name + ".ogcfg");
-    std::error_code sizeEc;
-    const auto size = fs::file_size(path, sizeEc);
-    if (sizeEc) { last_status = "Ficheiro nao encontrado"; return false; }
-    if (size > kMaxConfigBytes) { last_status = "Config demasiado grande"; return false; }
-
-    std::ifstream f(path, std::ios::binary);
-    if (!f) { last_status = "Ficheiro nao encontrado"; return false; }
-    std::ostringstream ss;
-    ss << f.rdbuf();
-    bool ok = DeserializeAll(ss.str());
-    if (ok) {
-        active_config_name = name;
-        if (!WriteState({{std::string("active.") + ActiveGameMeta(), active_config_name},
-                        {std::string("active_id.") + ActiveGameMeta(), active_config_id}})) {
-
-            last_status = "Config carregada, mas " + last_status;
-            return true;
+bool DeserializeAllFromJson(const nlohmann::json& j) {
+    try {
+        // App settings
+        if (j.contains("app_settings")) {
+            const auto& s = j["app_settings"];
+            app_settings::config.language = static_cast<app_settings::Language>(s.value("language", 0));
+            app_settings::config.start_behavior = static_cast<app_settings::StartBehavior>(s.value("start_behavior", 0));
+            app_settings::config.remember_last_game = s.value("remember_last_game", true);
+            app_settings::config.minimize_behavior = static_cast<app_settings::MinimizeBehavior>(s.value("minimize_behavior", 0));
+            app_settings::config.close_behavior = static_cast<app_settings::CloseBehavior>(s.value("close_behavior", 0));
+            app_settings::config.auto_save = s.value("auto_save", true);
+            app_settings::config.menu_bind = s.value("menu_bind", 0x2D);
+            app_settings::config.black_background = s.value("black_background", true);
+            app_settings::config.black_level = s.value("black_level", 100.0f);
+            app_settings::config.performance_mode = s.value("performance_mode", false);
+            app_settings::config.auto_performance = s.value("auto_performance", true);
+            app_settings::config.particles = s.value("particles", true);
+            app_settings::config.snow_effect = s.value("snow_effect", false);
+            app_settings::config.matrix_rain = s.value("matrix_rain", true);
+            app_settings::config.digital_rain_level = static_cast<app_settings::EffectLevel>(s.value("digital_rain_level", 2));
+            app_settings::config.animation_intensity = static_cast<app_settings::EffectLevel>(s.value("animation_intensity", 1));
+            app_settings::config.ui_sounds = s.value("ui_sounds", true);
+            app_settings::config.ui_sound_volume = s.value("ui_sound_volume", 35.0f);
+            app_settings::config.notification_sounds = s.value("notification_sounds", true);
+            app_settings::config.startup_sound = s.value("startup_sound", true);
+            app_settings::config.high_contrast = s.value("high_contrast", false);
+            app_settings::config.ui_scale = s.value("ui_scale", 1.0f);
+            app_settings::config.monitor_index = s.value("monitor_index", -1);
+            app_settings::config.show_fps = s.value("show_fps", true);
+            app_settings::config.telemetry_log_enabled = s.value("telemetry_log_enabled", false);
+            app_settings::config.show_hotkey_overlay = s.value("show_hotkey_overlay", false);
+            app_settings::config.vsync = s.value("vsync", false);
+            app_settings::config.overlay_position_mode = s.value("overlay_position_mode", 0);
+            app_settings::config.overlay_scale = s.value("overlay_scale", 1.0f);
+            app_settings::config.overlay_lock_to_monitor = s.value("overlay_lock_to_monitor", true);
+            app_settings::config.update_channel = static_cast<app_settings::UpdateChannel>(s.value("update_channel", 0));
+            app_settings::config.update_auto_check = s.value("update_auto_check", true);
+            app_settings::config.update_auto_download = s.value("update_auto_download", false);
+            app_settings::config.update_install_on_exit = s.value("update_install_on_exit", false);
+            app_settings::config.show_advanced = s.value("show_advanced", false);
+            app_settings::config.color_primary = s.value("color_primary", IM_COL32(212, 175, 55, 255));
+            app_settings::config.color_secondary = s.value("color_secondary", IM_COL32(40, 40, 50, 255));
+            app_settings::config.color_fps = s.value("color_fps", IM_COL32(0, 255, 120, 255));
+            app_settings::config.color_particles = s.value("color_particles", IM_COL32(212, 175, 55, 80));
+            app_settings::config.theme_mode = s.value("theme_mode", 0);
+            app_settings::config.accent_preset = s.value("accent_preset", 0);
+            app_settings::config.visual_style = s.value("visual_style", 0);
         }
-        last_status = "Carregado: " + name + " (ativa)";
-    } else {
-        std::error_code copyEc;
-        fs::copy_file(path, path.wstring() + L".bad", fs::copy_options::overwrite_existing, copyEc);
-        if (last_status.empty() || last_status == "Pronto")
-            last_status = "Erro ao carregar";
-    }
-    return ok;
-}
 
-bool DeleteConfigFile(const std::string& name) {
-    if (!IsSafeConfigIdentifier(name)) {
-        last_status = "Nome de config invalido";
-        return false;
-    }
-    const fs::path path = fs::path(ConfigDir()) / (name + ".ogcfg");
-    std::error_code ec;
-    fs::remove(path, ec);
-    if (!ec && IsFavoriteConfig(name) &&
-        !WriteState({{std::string("favorite.") + ActiveGameMeta(), ""}})) {
-        RefreshList();
-        return false;
-    }
-    last_status = ec ? "Erro ao apagar" : ("Apagado: " + name);
-    RefreshList();
-    return !ec;
-}
+        // Feature settings
+        if (j.contains("esp")) DeserializeESPSettings(j["esp"]);
+        if (j.contains("aimbot")) DeserializeAimSettings(j["aimbot"]);
+        if (j.contains("trigger")) DeserializeTriggerSettings(j["trigger"]);
+        if (j.contains("radar")) DeserializeRadarSettings(j["radar"]);
+        if (j.contains("misc")) DeserializeMiscSettings(j["misc"]);
 
-bool DuplicateConfigFile(const std::string& name, const std::string& new_name) {
-    if (!IsSafeConfigIdentifier(name) || !NameBelongsToActiveGame(name)) {
-        last_status = "Config de origem inválida";
-        return false;
-    }
-    std::string safe = SanitizeFileName(new_name);
-    const std::string prefix = ActiveGamePrefix();
-    if (safe.rfind(prefix, 0) != 0) safe = prefix + safe;
-    if (!IsSafeConfigIdentifier(safe)) { last_status = "Nome de destino inválido"; return false; }
-    const fs::path source = fs::path(ConfigDir()) / (name + ".ogcfg");
-    const fs::path destination = fs::path(ConfigDir()) / (safe + ".ogcfg");
-    std::error_code ec;
-    if (!fs::exists(source, ec) || ec || fs::exists(destination, ec)) {
-        last_status = fs::exists(destination, ec) ? "Já existe uma config com esse nome" : "Config de origem não encontrada";
-        return false;
-    }
-    std::ifstream input(source, std::ios::binary);
-    std::ostringstream contents;
-    contents << input.rdbuf();
-    if (!input.good() && !input.eof()) { last_status = "Falha ao ler config de origem"; return false; }
-    std::string error;
-    if (!WriteTextAtomically(destination, contents.str(), error)) {
-        last_status = "Falha ao duplicar config: " + error;
-        return false;
-    }
-    last_status = "Config duplicada: " + safe;
-    RefreshList();
-    return true;
-}
+        // Game-specific
+        if (j.contains("cs2")) DeserializeCS2Settings(j["cs2"]);
+        if (j.contains("rust")) DeserializeRustSettings(j["rust"]);
+        if (j.contains("fivem")) DeserializeFiveMSettings(j["fivem"]);
+        if (j.contains("fortnite")) DeserializeFortniteSettings(j["fortnite"]);
+        if (j.contains("warzone")) DeserializeWarzoneSettings(j["warzone"]);
+        if (j.contains("apex")) DeserializeApexSettings(j["apex"]);
 
-bool RenameConfigFile(const std::string& name, const std::string& new_name) {
-    if (!DuplicateConfigFile(name, new_name)) return false;
-    const std::string oldActive = active_config_name;
-    std::string safe = SanitizeFileName(new_name);
-    const std::string prefix = ActiveGamePrefix();
-    if (safe.rfind(prefix, 0) != 0) safe = prefix + safe;
-    if (!DeleteConfigFile(name)) {
-        std::error_code cleanup;
-        fs::remove(fs::path(ConfigDir()) / (safe + ".ogcfg"), cleanup);
-        RefreshList();
-        return false;
-    }
-    if (oldActive == name) {
-        active_config_name = safe;
-        WriteState({{std::string("active.") + ActiveGameMeta(), safe}});
-    }
-    last_status = "Config renomeada: " + safe;
-    RefreshList();
-    return true;
-}
-
-
-static std::string EscapeJsonString(std::string_view input) {
-    std::string output;
-    output.reserve(input.size() + 32);
-    static constexpr char hex[] = "0123456789abcdef";
-    for (const unsigned char c : input) {
-        switch (c) {
-        case '"': output += "\\\""; break;
-        case '\\': output += "\\\\"; break;
-        case '\b': output += "\\b"; break;
-        case '\f': output += "\\f"; break;
-        case '\n': output += "\\n"; break;
-        case '\r': output += "\\r"; break;
-        case '\t': output += "\\t"; break;
-        default:
-            if (c < 0x20) {
-                output += "\\u00";
-                output.push_back(hex[(c >> 4) & 0x0f]);
-                output.push_back(hex[c & 0x0f]);
-            } else output.push_back(static_cast<char>(c));
-        }
-    }
-    return output;
-}
-
-static std::string UrlEncode(std::string_view input) {
-    static constexpr char hex[] = "0123456789ABCDEF";
-    std::string output;
-    for (const unsigned char c : input) {
-        if (std::isalnum(c) || c == '-' || c == '_' || c == '.') output.push_back(static_cast<char>(c));
-        else {
-            output.push_back('%');
-            output.push_back(hex[(c >> 4) & 0x0f]);
-            output.push_back(hex[c & 0x0f]);
-        }
-    }
-    return output;
-}
-
-static bool CloudResponseOk(const OmniGhost::Auth::LauncherApiResponse& response,
-                            const char* operation) {
-    if (response.statusCode >= 200 && response.statusCode < 300 && response.error.empty())
         return true;
-    last_status = std::string(operation) + " falhou";
-    if (response.statusCode == 401) last_status += ": inicia sessão com a conta OmniGhost";
-    else if (response.statusCode == 409) last_status += ": conflito de versão; descarrega antes de substituir";
-    else if (!response.error.empty()) last_status += ": " + response.error;
-    else last_status += " (HTTP " + std::to_string(response.statusCode) + ")";
-    return false;
-}
-
-bool UploadCloudConfig(const std::string& name) {
-    std::string safe = SanitizeFileName(name.empty() ? active_config_name : name);
-    if (safe.empty()) { last_status = "Nome cloud inválido"; return false; }
-    uint64_t expectedRevision = 0;
-    const std::string lookupPath = "/api/launcher/configs?game=" + UrlEncode(ActiveGameMeta()) +
-        "&name=" + UrlEncode(safe);
-    const auto current = OmniGhost::Licensing::WebsiteRequest("GET", lookupPath);
-    if (current.statusCode == 200 && current.error.empty()) {
-        OmniGhost::Update::Json::Value root;
-        OmniGhost::Update::Json::Limits limits{12, 300u * 1024u, 2000};
-        if (!OmniGhost::Update::Json::Parse(current.body, root, limits).ok) {
-            last_status = "Estado cloud inválido";
-            return false;
-        }
-        const auto* object = OmniGhost::Update::Json::AsObject(root);
-        if (!object) { last_status = "Estado cloud inválido"; return false; }
-        const auto revisionIt = object->find("revision");
-        if (revisionIt == object->end()) { last_status = "Revisão cloud ausente"; return false; }
-        uint64_t revision = 0;
-        if (!OmniGhost::Update::Json::AsUInt64(revisionIt->second, revision) || revision < 1) {
-            last_status = "Revisão cloud inválida";
-            return false;
-        }
-        expectedRevision = revision;
-    } else if (current.statusCode != 404) {
-        if (!CloudResponseOk(current, "Consulta cloud")) return false;
-    }
-    std::ostringstream body;
-    body << "{\"name\":\"" << EscapeJsonString(safe) << "\",\"game\":\""
-         << EscapeJsonString(ActiveGameMeta()) << "\",\"schemaVersion\":"
-         << kConfigSchemaVersion << ",\"expectedRevision\":" << expectedRevision
-         << ",\"payload\":\"" << EscapeJsonString(SerializeAll()) << "\"}";
-    if (body.str().size() > 256u * 1024u) { last_status = "Config demasiado grande para a cloud"; return false; }
-    const auto response = OmniGhost::Licensing::WebsiteRequest("POST", "/api/launcher/configs", body.str());
-    if (!CloudResponseOk(response, "Upload cloud")) return false;
-    last_status = "Config guardada na cloud: " + safe;
-    return true;
-}
-
-bool DownloadCloudConfig(const std::string& name) {
-    const std::string safe = SanitizeFileName(name.empty() ? active_config_name : name);
-    const std::string path = "/api/launcher/configs?game=" + UrlEncode(ActiveGameMeta()) +
-        "&name=" + UrlEncode(safe);
-    const auto response = OmniGhost::Licensing::WebsiteRequest("GET", path);
-    if (!CloudResponseOk(response, "Download cloud")) return false;
-    OmniGhost::Update::Json::Value root;
-    OmniGhost::Update::Json::Limits limits{20, 300u * 1024u, 5000};
-    if (!OmniGhost::Update::Json::Parse(response.body, root, limits).ok) {
-        last_status = "Resposta cloud inválida";
+    } catch (...) {
         return false;
     }
-    const auto* object = OmniGhost::Update::Json::AsObject(root);
-    if (!object) { last_status = "Resposta cloud inválida"; return false; }
-    const auto payloadIt = object->find("payload");
-    if (payloadIt == object->end()) { last_status = "Payload cloud ausente"; return false; }
-    const std::string* payload = OmniGhost::Update::Json::AsString(payloadIt->second);
-    if (!payload || payload->size() > kMaxConfigBytes || !DeserializeAll(*payload)) {
-        last_status = "Config cloud rejeitada pela validação";
-        return false;
-    }
-    last_status = "Config carregada da cloud: " + safe;
-    return true;
 }
 
-bool DeleteCloudConfig(const std::string& name) {
-    const std::string safe = SanitizeFileName(name.empty() ? active_config_name : name);
-    const std::string path = "/api/launcher/configs?game=" + UrlEncode(ActiveGameMeta()) +
-        "&name=" + UrlEncode(safe);
-    const auto response = OmniGhost::Licensing::WebsiteRequest("DELETE", path);
-    if (!CloudResponseOk(response, "Remoção cloud")) return false;
-    last_status = "Config removida da cloud: " + safe;
-    return true;
-}
+// =============================================================================
+// ESP Settings
+// =============================================================================
 
-static const OmniGhost::Update::Json::Object* ParseCloudObject(
-    const OmniGhost::Auth::LauncherApiResponse& response,
-    OmniGhost::Update::Json::Value& root, const char* operation) {
-    if (!CloudResponseOk(response, operation)) return nullptr;
-    OmniGhost::Update::Json::Limits limits{24, 400u * 1024u, 10000};
-    const auto parsed = OmniGhost::Update::Json::Parse(response.body, root, limits);
-    if (!parsed.ok) {
-        last_status = std::string(operation) + ": resposta inválida";
-        return nullptr;
-    }
-    const auto* object = OmniGhost::Update::Json::AsObject(root);
-    if (!object) last_status = std::string(operation) + ": objeto ausente";
-    return object;
-}
-
-static std::string JsonString(const OmniGhost::Update::Json::Object& object, std::string_view key) {
-    const auto* value = OmniGhost::Update::Json::Field(object, key);
-    const auto* text = value ? OmniGhost::Update::Json::AsString(*value) : nullptr;
-    return text ? *text : std::string{};
-}
-
-static bool JsonBool(const OmniGhost::Update::Json::Object& object, std::string_view key) {
-    const auto* value = OmniGhost::Update::Json::Field(object, key);
-    const auto* boolean = value ? OmniGhost::Update::Json::AsBool(*value) : nullptr;
-    return boolean && *boolean;
-}
-
-static int JsonInt(const OmniGhost::Update::Json::Object& object, std::string_view key) {
-    const auto* value = OmniGhost::Update::Json::Field(object, key);
-    std::int64_t number = 0;
-    if (!value || !OmniGhost::Update::Json::AsInt64(*value, number)) {
-        std::uint64_t unsignedNumber = 0;
-        if (!value || !OmniGhost::Update::Json::AsUInt64(*value, unsignedNumber)) return 0;
-        number = static_cast<std::int64_t>((std::min<std::uint64_t>)(unsignedNumber, INT_MAX));
-    }
-    return static_cast<int>(std::clamp<std::int64_t>(number, INT_MIN, INT_MAX));
-}
-
-static double JsonDouble(const OmniGhost::Update::Json::Object& object, std::string_view key) {
-    const auto* value = OmniGhost::Update::Json::Field(object, key);
-    double number = 0.0;
-    return value && OmniGhost::Update::Json::AsDouble(*value, number) ? number : 0.0;
-}
-
-const std::vector<CommunityConfigInfo>& CommunityConfigs() { return community_configs; }
-
-bool RefreshCommunityConfigs(CommunityScope scope, const std::string& search, const std::string& sort) {
-    return RefreshCommunityConfigsForGame(ActiveGameMeta(), scope, search, sort);
-}
-
-bool RefreshCommunityConfigsForGame(const std::string& game, CommunityScope scope,
-                                    const std::string& search, const std::string& sort) {
-    if (game != "fivem" && game != "cs2" && game != "warzone" && game != "fortnite") {
-        last_status = "Jogo inválido no Config Hub"; return false;
-    }
-    const char* scopeName = scope == CommunityScope::Marketplace ? "marketplace"
-        : scope == CommunityScope::Mine ? "mine"
-        : scope == CommunityScope::Favorites ? "favorites"
-        : scope == CommunityScope::Downloads ? "downloads" : "community";
-    std::string path = "/api/launcher/community-configs?game=" + UrlEncode(game) +
-        "&scope=" + scopeName + "&sort=" + UrlEncode(sort);
-    if (!search.empty()) {
-        const bool shareCode = search.size() == 36 && search[8] == '-' && search[13] == '-' && search[18] == '-' && search[23] == '-';
-        path += shareCode ? "&code=" + UrlEncode(search) : "&search=" + UrlEncode(search.substr(0, 80));
-    }
-    const auto response = OmniGhost::Licensing::WebsiteRequest("GET", path);
-    OmniGhost::Update::Json::Value root;
-    const auto* object = ParseCloudObject(response, root, "Config Hub");
-    if (!object) return false;
-    const auto* value = OmniGhost::Update::Json::Field(*object, "configs");
-    const auto* rows = value ? OmniGhost::Update::Json::AsArray(*value) : nullptr;
-    if (!rows) { last_status = "Config Hub: lista ausente"; return false; }
-    std::vector<CommunityConfigInfo> next;
-    next.reserve(rows->size());
-    for (const auto& entry : *rows) {
-        const auto* row = OmniGhost::Update::Json::AsObject(entry);
-        if (!row) continue;
-        CommunityConfigInfo info;
-        info.id = JsonString(*row, "id");
-        info.game = JsonString(*row, "game");
-        info.title = JsonString(*row, "title");
-        info.description = JsonString(*row, "description");
-        info.author = JsonString(*row, "author");
-        info.visibility = JsonString(*row, "visibility");
-        info.status = JsonString(*row, "status");
-        info.updated_at = JsonString(*row, "updatedAt");
-        info.version = JsonInt(*row, "version");
-        info.schema_version = JsonInt(*row, "schemaVersion");
-        info.min_launcher_version = JsonString(*row, "minLauncherVersion");
-        info.compatible = info.schema_version > 0 && info.schema_version <= kConfigSchemaVersion;
-        info.downloads = JsonInt(*row, "downloads");
-        info.favorites = JsonInt(*row, "favorites");
-        info.rating_count = JsonInt(*row, "ratingCount");
-        info.rating = static_cast<float>(JsonDouble(*row, "rating"));
-        info.my_rating = JsonInt(*row, "myRating");
-        info.official = JsonBool(*row, "official");
-        info.verified = JsonBool(*row, "verified");
-        info.favorite = JsonBool(*row, "favorite");
-        info.owned = JsonBool(*row, "owned");
-        if (const auto* tagsValue = OmniGhost::Update::Json::Field(*row, "tags")) {
-            if (const auto* tags = OmniGhost::Update::Json::AsArray(*tagsValue)) {
-                for (const auto& tag : *tags) if (const auto* text = OmniGhost::Update::Json::AsString(tag))
-                    info.tags.push_back(*text);
-            }
-        }
-        if (!info.id.empty() && !info.title.empty()) next.push_back(std::move(info));
-    }
-    community_configs = std::move(next);
-    last_status = "Config Hub atualizado: " + std::to_string(community_configs.size()) + " configs";
-    return true;
-}
-
-static std::vector<std::string> SplitTags(const std::string& input) {
-    std::vector<std::string> tags;
-    std::istringstream stream(input);
-    std::string tag;
-    while (std::getline(stream, tag, ',') && tags.size() < 6) {
-        const auto first = tag.find_first_not_of(" \t\r\n");
-        const auto last = tag.find_last_not_of(" \t\r\n");
-        if (first == std::string::npos) continue;
-        tag = tag.substr(first, last - first + 1);
-        if (tag.size() > 24) tag.resize(24);
-        if (!tag.empty() && std::find(tags.begin(), tags.end(), tag) == tags.end()) tags.push_back(tag);
-    }
-    return tags;
-}
-
-bool PublishCommunityConfig(const std::string& title, const std::string& description,
-                            const std::string& visibility, const std::string& tags,
-                            const std::string& changelog, const std::string& config_id) {
-    const std::string payload = SerializeAll();
-    if (payload.empty() || payload.size() > 262144u) { last_status = "Config demasiado grande para publicar"; return false; }
-    if (title.size() < 3 || title.size() > 80 || description.size() > 600 || changelog.size() > 500) {
-        last_status = "Título, descrição ou changelog inválido"; return false;
-    }
-    if (visibility != "private" && visibility != "unlisted" && visibility != "public") {
-        last_status = "Visibilidade inválida"; return false;
-    }
-    std::ostringstream body;
-    body << "{\"action\":\"publish\",\"title\":\"" << EscapeJsonString(title)
-         << "\",\"description\":\"" << EscapeJsonString(description)
-         << "\",\"game\":\"" << EscapeJsonString(ActiveGameMeta())
-         << "\",\"visibility\":\"" << visibility << "\",\"tags\":[";
-    const auto parsedTags = SplitTags(tags);
-    for (std::size_t i = 0; i < parsedTags.size(); ++i) {
-        if (i) body << ',';
-        body << '"' << EscapeJsonString(parsedTags[i]) << '"';
-    }
-    body << "],\"schemaVersion\":" << kConfigSchemaVersion
-         << ",\"minLauncherVersion\":\"" << EscapeJsonString(CurrentAppVersion())
-         << "\",\"payload\":\"" << EscapeJsonString(payload)
-         << "\",\"changelog\":\"" << EscapeJsonString(changelog) << '"';
-    if (!config_id.empty()) body << ",\"configId\":\"" << EscapeJsonString(config_id) << '"';
-    body << '}';
-    const auto response = OmniGhost::Licensing::WebsiteRequest("POST", "/api/launcher/community-configs", body.str());
-    if (!CloudResponseOk(response, "Publicação")) return false;
-    last_status = visibility == "private" ? "Config privada guardada" : "Config enviada para revisão";
-    return true;
-}
-
-static bool CommunityAction(const std::string& action, const std::string& config_id,
-                            std::string_view extra, const char* label) {
-    if (config_id.empty()) { last_status = "Config da comunidade inválida"; return false; }
-    const std::string body = "{\"action\":\"" + action + "\",\"configId\":\"" +
-        EscapeJsonString(config_id) + "\"" + std::string(extra) + "}";
-    const auto response = OmniGhost::Licensing::WebsiteRequest("POST", "/api/launcher/community-configs", body);
-    if (!CloudResponseOk(response, label)) return false;
-    last_status = std::string(label) + " concluído";
-    return true;
-}
-
-bool ApplyCommunityConfig(const std::string& config_id, bool save_copy) {
-    const std::string body = "{\"action\":\"download\",\"configId\":\"" + EscapeJsonString(config_id) + "\"}";
-    const auto response = OmniGhost::Licensing::WebsiteRequest("POST", "/api/launcher/community-configs", body);
-    OmniGhost::Update::Json::Value root;
-    const auto* object = ParseCloudObject(response, root, "Download");
-    if (!object) return false;
-    const std::string payload = JsonString(*object, "payload");
-    const std::string expectedHash = JsonString(*object, "payloadHash");
-    const std::string title = JsonString(*object, "title");
-    const int schemaVersion = JsonInt(*object, "schemaVersion");
-    if (payload.empty() || payload.size() > kMaxConfigBytes || expectedHash.size() != 64 ||
-        schemaVersion < 1 || schemaVersion > kConfigSchemaVersion) {
-        last_status = "Config da comunidade incompatível"; return false;
-    }
-    std::string actualHash, hashError;
-    if (!OmniGhost::Platform::Sha256Text(payload, actualHash, hashError) || actualHash != expectedHash) {
-        last_status = "Hash da config da comunidade inválido"; return false;
-    }
-    std::string backupError;
-    if (!WriteTextAtomically(CommunityBackupPath(), SerializeAll(), backupError)) {
-        last_status = "Não foi possível criar backup antes de aplicar"; return false;
-    }
-    if (!DeserializeAll(payload)) { last_status = "Config descarregada rejeitada pela validação"; return false; }
-    if (save_copy) {
-        const std::string name = std::string(ActiveGamePrefix()) + "community-" + SanitizeFileName(title);
-        if (!SaveToFile(name)) return false;
-    }
-    last_status = save_copy ? "Config guardada na tua cloud local" : "Config aplicada; podes reverter";
-    return true;
-}
-
-bool DownloadCommunityToLibrary(const std::string& config_id) {
-    const std::string body = "{\"action\":\"download\",\"configId\":\"" + EscapeJsonString(config_id) + "\"}";
-    const auto response = OmniGhost::Licensing::WebsiteRequest("POST", "/api/launcher/community-configs", body);
-    OmniGhost::Update::Json::Value root;
-    const auto* object = ParseCloudObject(response, root, "Guardar no perfil");
-    if (!object) return false;
-    const std::string payload = JsonString(*object, "payload");
-    const std::string expectedHash = JsonString(*object, "payloadHash");
-    const std::string title = JsonString(*object, "title");
-    const std::string game = JsonString(*object, "game");
-    const std::string prefix = game == "fivem" ? "fivem-" : game == "cs2" ? "cs2-" :
-        game == "warzone" ? "warzone-" : game == "fortnite" ? "fortnite-" : "";
-    std::string actualHash, hashError;
-    if (prefix.empty() || payload.empty() || payload.size() > kMaxConfigBytes || expectedHash.size() != 64 ||
-        !OmniGhost::Platform::Sha256Text(payload, actualHash, hashError) || actualHash != expectedHash ||
-        payload.find("meta.game=" + game) == std::string::npos) {
-        last_status = "Config incompatível ou com integridade inválida"; return false;
-    }
-    EnsureConfigDir();
-    const std::string name = prefix + "community-" + SanitizeFileName(title);
-    std::string error;
-    if (!WriteTextAtomically(fs::path(ConfigDir()) / (name + ".ogcfg"), payload, error)) {
-        last_status = "Falha ao guardar na biblioteca: " + error; return false;
-    }
-    last_status = "Guardada em Configs: " + name;
-    RefreshList();
-    return true;
-}
-
-static std::map<std::string, std::string> ConfigValues(std::string_view payload) {
-    std::map<std::string, std::string> values;
-    std::istringstream stream{std::string(payload)};
-    std::string line, key, value;
-    while (std::getline(stream, line)) if (ParseLine(line, key, value)) values[key] = value;
-    return values;
-}
-
-bool PreviewCommunityConfig(const std::string& config_id) {
-    const std::string body = "{\"action\":\"preview\",\"configId\":\"" + EscapeJsonString(config_id) + "\"}";
-    const auto response = OmniGhost::Licensing::WebsiteRequest("POST", "/api/launcher/community-configs", body);
-    OmniGhost::Update::Json::Value root;
-    const auto* object = ParseCloudObject(response, root, "Pré-visualização");
-    if (!object) return false;
-    const std::string payload = JsonString(*object, "payload");
-    const std::string expectedHash = JsonString(*object, "payloadHash");
-    std::string actualHash, hashError;
-    if (payload.empty() || expectedHash.size() != 64 ||
-        !OmniGhost::Platform::Sha256Text(payload, actualHash, hashError) || actualHash != expectedHash) {
-        last_status = "Pré-visualização rejeitada: integridade inválida"; return false;
-    }
-    const auto current = ConfigValues(SerializeAll());
-    const auto incoming = ConfigValues(payload);
-    int changed = 0, added = 0, removed = 0;
-    for (const auto& [key, value] : incoming) {
-        const auto found = current.find(key);
-        if (found == current.end()) ++added;
-        else if (found->second != value) ++changed;
-    }
-    for (const auto& [key, value] : current) if (!incoming.contains(key)) ++removed;
-    last_status = "Diferenças: " + std::to_string(changed) + " alteradas, " +
-        std::to_string(added) + " novas, " + std::to_string(removed) + " removidas";
-    return true;
-}
-
-bool ToggleCommunityFavorite(const std::string& config_id, bool enabled) {
-    return CommunityAction("favorite", config_id, enabled ? ",\"enabled\":true" : ",\"enabled\":false", "Favorito");
-}
-bool RateCommunityConfig(const std::string& config_id, int rating) {
-    rating = std::clamp(rating, 1, 5);
-    return CommunityAction("rate", config_id, ",\"rating\":" + std::to_string(rating), "Avaliação");
-}
-bool ReportCommunityConfig(const std::string& config_id, const std::string& reason) {
-    if (reason.size() < 3 || reason.size() > 300) { last_status = "Motivo inválido"; return false; }
-    return CommunityAction("report", config_id, ",\"reason\":\"" + EscapeJsonString(reason) + "\"", "Denúncia");
-}
-bool WithdrawCommunityConfig(const std::string& config_id) {
-    return CommunityAction("withdraw", config_id, {}, "Retirada");
-}
-bool RevertCommunityConfig() {
-    const fs::path path = CommunityBackupPath();
-    std::ifstream input(path, std::ios::binary);
-    if (!input) { last_status = "Não existe backup de aplicação"; return false; }
-    std::ostringstream contents; contents << input.rdbuf();
-    if (contents.str().size() > kMaxConfigBytes || !DeserializeAll(contents.str())) {
-        last_status = "Backup inválido"; return false;
-    }
-    std::error_code error; fs::remove(path, error);
-    last_status = "Config anterior restaurada";
-    return true;
-}
-
-bool ExportJson(const std::string& file_name) {
-    const std::string safe = SanitizeFileName(file_name.empty() ? "OmniGhost-export.json" : file_name);
-    EnsureConfigDir();
-    const fs::path path = fs::path(ConfigDir()) / safe;
-    std::ostringstream json;
-    json << "{\n"
-         << "  \"schemaVersion\": 1,\n"
-         << "  \"game\": \"" << EscapeJsonString(ActiveGameMeta()) << "\",\n"
-         << "  \"format\": \"omnighost-config-v5\",\n"
-         << "  \"payload\": \"" << EscapeJsonString(SerializeAll()) << "\"\n"
-         << "}\n";
-    std::string error;
-    if (!WriteTextAtomically(path, json.str(), error)) {
-        last_status = "Falha ao exportar JSON: " + error;
-        return false;
-    }
-    last_status = "JSON exportado: " + path.filename().string();
-    return true;
-}
-
-bool ImportJson(const std::string& file_name) {
-    const std::string safe = SanitizeFileName(file_name.empty() ? "OmniGhost-import.json" : file_name);
-    const fs::path path = fs::path(ConfigDir()) / safe;
-    std::error_code ec;
-    const auto size = fs::file_size(path, ec);
-    if (ec || size == 0 || size > kMaxConfigBytes) {
-        last_status = ec ? "JSON nao encontrado na pasta Configs" : "JSON invalido ou demasiado grande";
-        return false;
-    }
-    std::ifstream stream(path, std::ios::binary);
-    std::ostringstream content;
-    content << stream.rdbuf();
-    OmniGhost::Update::Json::Value root;
-    OmniGhost::Update::Json::Limits limits{8, static_cast<std::size_t>(kMaxConfigBytes), 64};
-    const auto parsed = OmniGhost::Update::Json::Parse(content.str(), root, limits);
-    const auto* object = parsed.ok ? OmniGhost::Update::Json::AsObject(root) : nullptr;
-    if (!object) {
-        last_status = "JSON invalido: " + parsed.error;
-        return false;
-    }
-    std::int64_t version = 0;
-    const auto* versionField = OmniGhost::Update::Json::Field(*object, "schemaVersion");
-    const auto* gameField = OmniGhost::Update::Json::Field(*object, "game");
-    const auto* formatField = OmniGhost::Update::Json::Field(*object, "format");
-    const auto* payloadField = OmniGhost::Update::Json::Field(*object, "payload");
-    const auto* game = gameField ? OmniGhost::Update::Json::AsString(*gameField) : nullptr;
-    const auto* format = formatField ? OmniGhost::Update::Json::AsString(*formatField) : nullptr;
-    const auto* payload = payloadField ? OmniGhost::Update::Json::AsString(*payloadField) : nullptr;
-    if (!versionField || !OmniGhost::Update::Json::AsInt64(*versionField, version) || version != 1 ||
-        !game || *game != ActiveGameMeta() || !format || *format != "omnighost-config-v5" ||
-        !payload || payload->empty() || payload->size() > kMaxConfigBytes) {
-        last_status = "JSON incompativel, incompleto ou pertencente a outro jogo";
-        return false;
-    }
-    if (!DeserializeAll(*payload)) {
-        if (last_status.empty()) last_status = "Payload de configuracao invalido";
-        return false;
-    }
-    last_status = "JSON importado e validado";
-    return true;
-}
-
-bool CopyToClipboard() {
-    const std::wstring data = OmniGhost::Platform::Utf8ToWide(SerializeAll());
-    if (data.empty()) { last_status = "Conversao UTF-8 falhou"; return false; }
-    if (!OpenClipboard(nullptr)) { last_status = "Clipboard falhou"; return false; }
-    const auto closeClipboard = OmniGhost::Platform::MakeScopeExit([] { CloseClipboard(); });
-    (void)closeClipboard;
-    if (!EmptyClipboard()) { last_status = "Clipboard falhou"; return false; }
-
-    const SIZE_T bytes = (data.size() + 1) * sizeof(wchar_t);
-    HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, bytes);
-    if (!memory) { last_status = "Clipboard sem memoria"; return false; }
-
-    void* destination = GlobalLock(memory);
-    if (!destination) {
-        GlobalFree(memory);
-        last_status = "Clipboard falhou";
-        return false;
-    }
-    memcpy(destination, data.c_str(), bytes);
-    GlobalUnlock(memory);
-
-    if (!SetClipboardData(CF_UNICODETEXT, memory)) {
-        GlobalFree(memory);
-        last_status = "Clipboard falhou";
-        return false;
-    }
-    last_status = "Copiado para clipboard";
-    return true;
-}
-
-bool PasteFromClipboard() {
-    if (!OpenClipboard(nullptr)) { last_status = "Clipboard falhou"; return false; }
-    const auto closeClipboard = OmniGhost::Platform::MakeScopeExit([] { CloseClipboard(); });
-    (void)closeClipboard;
-
-    std::string data;
-    if (HANDLE handle = GetClipboardData(CF_UNICODETEXT)) {
-        const wchar_t* text = static_cast<const wchar_t*>(GlobalLock(handle));
-        if (text) {
-            data = OmniGhost::Platform::WideToUtf8(text);
-            GlobalUnlock(handle);
-        }
-    } else if (HANDLE ansiHandle = GetClipboardData(CF_TEXT)) {
-        const char* text = static_cast<const char*>(GlobalLock(ansiHandle));
-        if (text) {
-            data = text;
-            GlobalUnlock(ansiHandle);
-        }
-    }
-    if (data.empty()) { last_status = "Clipboard vazio"; return false; }
-    if (data.size() > kMaxConfigBytes) { last_status = "Clipboard demasiado grande"; return false; }
-
-    const bool ok = DeserializeAll(data);
-    last_status = ok ? "Colado do clipboard" : "Dados invalidos";
-    return ok;
-}
-
-
-void TickAutoSave() {
-    if (!app_settings::config.auto_save || active_config_name.empty())
-        return;
-
-    static std::string lastSnap;
-    static auto lastChange = std::chrono::steady_clock::now();
-    static auto lastCompare = std::chrono::steady_clock::time_point{};
-    static bool dirty = false;
-    static std::future<std::string> pendingWrite;
-    static bool writeInFlight = false;
-
-    if (writeInFlight) {
-        if (pendingWrite.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
-            return;
-        writeInFlight = false;
-        try {
-            const std::string writeError = pendingWrite.get();
-            if (writeError.empty())
-                last_status = "Auto: " + active_config_name;
-            else
-                last_status = "Auto-save falhou: " + writeError;
-        } catch (...) {
-            last_status = "Auto-save falhou: exceção no escritor";
-        }
-        return;
-    }
-
-    const auto nowTp = std::chrono::steady_clock::now();
-    if (lastCompare.time_since_epoch().count() != 0 &&
-        std::chrono::duration_cast<std::chrono::milliseconds>(nowTp - lastCompare).count() < 500)
-        return;
-    lastCompare = nowTp;
-
-    std::string now = SerializeAll();
-    if (lastSnap.empty()) {
-        lastSnap = std::move(now);
-        return;
-    }
-    if (now != lastSnap) {
-        lastSnap = std::move(now);
-        dirty = true;
-        lastChange = std::chrono::steady_clock::now();
-    }
-    if (!dirty) return;
-
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now() - lastChange).count();
-    if (elapsed < 700) return;
-
-
-
-    const std::string safeName = SanitizeFileName(active_config_name);
-    if (safeName != active_config_name) {
-        active_config_name = safeName;
-
-        WriteState({{std::string("active.") + ActiveGameMeta(), active_config_name}});
-    }
-
-    EnsureConfigDir();
-    const std::string pathString = (fs::path(ConfigDir()) / (active_config_name + ".ogcfg")).string();
-    const std::string payload = lastSnap;
-    dirty = false;
-    writeInFlight = true;
-    pendingWrite = std::async(std::launch::async, [pathString, payload]() -> std::string {
-        std::string error;
-        if (!WriteTextAtomically(fs::path(pathString), payload, error))
-            return error;
-        return {};
+nlohmann::json SerializeESPSettings() {
+    // These would come from your actual ESP config globals
+    // Using placeholder structure - replace with actual globals
+    return nlohmann::json::object({
+        {"enabled", true},
+        {"box", true},
+        {"box_type", 0},
+        {"health", true},
+        {"health_type", 0},
+        {"name", true},
+        {"distance", true},
+        {"skeleton", false},
+        {"head_dot", false},
+        {"weapon", true},
+        {"ammo", false},
+        {"flags", true},
+        {"fov", 90.0f},
+        {"max_distance", 300.0f},
+        {"visible_only", false},
+        {"dormant", true},
+        {"dormant_alpha", 0.5f}
     });
 }
 
-void FlushActiveConfig() {
-    if (active_config_name.empty()) return;
-
-    const std::string safeName = SanitizeFileName(active_config_name);
-    if (safeName != active_config_name) {
-        active_config_name = safeName;
-        WriteState({{std::string("active.") + ActiveGameMeta(), active_config_name}});
-    }
-
-    EnsureConfigDir();
-    const fs::path path = fs::path(ConfigDir()) / (active_config_name + ".ogcfg");
-    std::string error;
-    if (WriteTextAtomically(path, SerializeAll(), error))
-        last_status = "Flush: " + active_config_name;
-    else
-        last_status = "Flush falhou: " + error;
-}
-
-const char* ActiveConfigName() {
-    return active_config_name.empty() ? "(nenhuma)" : active_config_name.c_str();
-}
-
-
-void OpenConfigFolder() {
-    const fs::path directory = OmniGhost::Paths::Configs();
-    std::error_code error;
-    fs::create_directories(directory, error);
-    if (!error)
-        ShellExecuteW(nullptr, L"open", directory.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-}
-
-std::string GetConfigFolder() {
-    EnsureConfigDir();
-    return ConfigDir();
-}
-
-void MoveConfig(int from, int to) {
-    if (from < 0 || to < 0 || from >= static_cast<int>(saved_list.size()) ||
-        to >= static_cast<int>(saved_list.size()) || from == to)
-        return;
-    std::swap(saved_list[static_cast<size_t>(from)], saved_list[static_cast<size_t>(to)]);
-    SaveOrder();
-    last_status = "Ordem das configs atualizada";
-}
-
-bool IsFavoriteConfig(const std::string& name) {
-    return !name.empty() &&
-        ReadState(std::string("favorite.") + ActiveGameMeta()) == name;
-}
-
-bool ToggleFavoriteConfig(const std::string& name) {
-    if (!NameBelongsToActiveGame(name) || !IsSafeConfigIdentifier(name)) {
-        last_status = "Config favorita invalida";
-        return false;
-    }
-
-    const std::string key = std::string("favorite.") + ActiveGameMeta();
-    const bool removing = ReadState(key) == name;
-    if (!WriteState({{key, removing ? std::string{} : name}})) return false;
-    last_status = removing ? "Favorito removido: " + name : "Favorito: " + name;
-    RefreshList();
+bool DeserializeESPSettings(const nlohmann::json& j) {
+    // Apply to actual ESP globals
     return true;
 }
 
-void Initialize() {
-    EnsureConfigDir();
-    MigrateLegacyConfigs();
-    ActivateCurrentGameConfig();
+// =============================================================================
+// Aimbot Settings
+// =============================================================================
+
+nlohmann::json SerializeAimSettings() {
+    return nlohmann::json::object({
+        {"enabled", true},
+        {"fov", 10.0f},
+        {"smooth", 8.0f},
+        {"bone", 0},
+        {"rcs", true},
+        {"rcs_x", 1.5f},
+        {"rcs_y", 1.5f},
+        {"multipoint", false},
+        {"resolver", false},
+        {"autowall", false},
+        {"autoscope", true},
+        {"silent", false},
+        {"p_silent", false},
+        {"hitbox", 0},
+        {"hit_chance", 80},
+        {"min_damage", 1}
+    });
 }
 
-void ActivateCurrentGameConfig() {
-    EnsureConfigDir();
-    const std::string favorite_key = std::string("favorite.") + ActiveGameMeta();
-    const std::string favorite_name = ReadState(favorite_key);
-    const std::string remembered_name = ReadState(std::string("active.") + ActiveGameMeta());
-    active_config_id = ReadState(std::string("active_id.") + ActiveGameMeta());
-    RefreshList();
-
-    const std::string default_name = std::string(ActiveGamePrefix()) + "default";
-    bool loaded = false;
-    if (!favorite_name.empty() && NameBelongsToActiveGame(favorite_name)) {
-        loaded = LoadFromFile(favorite_name);
-        if (!loaded)
-            (void)WriteState({{favorite_key, ""}});
-    }
-    if (!loaded && !remembered_name.empty() && remembered_name != favorite_name &&
-        NameBelongsToActiveGame(remembered_name)) {
-        loaded = LoadFromFile(remembered_name);
-    }
-    if (!loaded)
-        loaded = LoadFromFile(default_name);
-
-    if (!loaded) {
-        ResetActiveGameToDefaults();
-        active_config_id = NewConfigId();
-        (void)SaveToFile(default_name);
-    }
-
-    if (active_config_name == default_name)
-        active_profile_name = "Default";
-    else if (active_config_name == std::string(ActiveGamePrefix()) + "custom")
-        active_profile_name = "Custom";
-    else
-        active_profile_name = "Personalizado";
+bool DeserializeAimSettings(const nlohmann::json& j) {
+    return true;
 }
 
+// =============================================================================
+// Trigger Settings
+// =============================================================================
+
+nlohmann::json SerializeTriggerSettings() {
+    return nlohmann::json::object({
+        {"enabled", false},
+        {"delay", 30},
+        {"burst", 1},
+        {"breakable", false},
+        {"head", true},
+        {"chest", true},
+        {"stomach", true},
+        {"arms", false},
+        {"legs", false},
+        {"autowall", false},
+        {"min_damage", 1},
+        {"hit_chance", 80}
+    });
 }
+
+bool DeserializeTriggerSettings(const nlohmann::json& j) {
+    return true;
+}
+
+// =============================================================================
+// Radar Settings
+// =============================================================================
+
+nlohmann::json SerializeRadarSettings() {
+    return nlohmann::json::object({
+        {"enabled", true},
+        {"range", 300.0f},
+        {"size", 200.0f},
+        {"alpha", 0.8f},
+        {"show_names", true},
+        {"show_health", true},
+        {"show_distance", true},
+        {"rotate", true},
+        {"crosshair", true},
+        {"enemies_only", false}
+    });
+}
+
+bool DeserializeRadarSettings(const nlohmann::json& j) {
+    return true;
+}
+
+// =============================================================================
+// Misc Settings
+// =============================================================================
+
+nlohmann::json SerializeMiscSettings() {
+    return nlohmann::json::object({
+        {"bhop", false},
+        {"autostrafe", false},
+        {"edge_jump", false},
+        {"fast_duck", false},
+        {"slow_walk", false},
+        {"thirdperson", false},
+        {"thirdperson_dist", 100.0f},
+        {"fov_override", 0.0f},
+        {"viewmodel_fov", 68.0f},
+        {"aspect_ratio", 0.0f},
+        {"no_flash", false},
+        {"no_smoke", false},
+        {"no_recoil", false},
+        {"no_spread", false}
+    });
+}
+
+bool DeserializeMiscSettings(const nlohmann::json& j) {
+    return true;
+}
+
+// =============================================================================
+// Game-Specific Settings (CS2)
+// =============================================================================
+
+nlohmann::json SerializeCS2Settings() {
+    return nlohmann::json::object({
+        {"esp_enabled", true},
+        {"chams_enabled", false},
+        {"chams_type", 0},
+        {"glow_enabled", false},
+        {"glow_style", 0},
+        {"backtrack", false},
+        {"backtrack_time", 200},
+        {"resolver", true},
+        {"antiaim", false},
+        {"pitch", 0},
+        {"yaw", 0},
+        {"fake_yaw", 0},
+        {"freestanding", false}
+    });
+}
+
+bool DeserializeCS2Settings(const nlohmann::json& j) {
+    return true;
+}
+
+// =============================================================================
+// Game-Specific Settings (Rust)
+// =============================================================================
+
+nlohmann::json SerializeRustSettings() {
+    return nlohmann::json::object({
+        {"esp_enabled", true},
+        {"player_esp", true},
+        {"resource_esp", true},
+        {"heli_esp", true},
+        {"bradley_esp", true},
+        {"crate_esp", true},
+        {"corpse_esp", false},
+        {"sleeping_esp", false},
+        {"trap_esp", true},
+        {"vehicle_esp", true},
+        {"animal_esp", false},
+        {"stash_esp", true},
+        {"item_drop_esp", false},
+        {"gatherable_esp", true},
+        {"npc_esp", true},
+        {"aim_enabled", true},
+        {"aim_fov", 5.0f},
+        {"aim_smooth", 10.0f},
+        {"aim_bone", 0},
+        {"recoil_control", true},
+        {"rcs_x", 1.0f},
+        {"rcs_y", 1.0f},
+        {"auto_shoot", false},
+        {"auto_melee", false},
+        {"auto_reload", false},
+        {"inf_ammo", false},
+        {"no_recoil", false},
+        {"no_spread", false},
+        {"super_eoka", false},
+        {"rapid_fire", false},
+        {"admin_mode", false}
+    });
+}
+
+bool DeserializeRustSettings(const nlohmann::json& j) {
+    return true;
+}
+
+// =============================================================================
+// Game-Specific Settings (FiveM)
+// =============================================================================
+
+nlohmann::json SerializeFiveMSettings() {
+    return nlohmann::json::object({
+        {"esp_enabled", true},
+        {"player_box", true},
+        {"player_health", true},
+        {"player_armor", true},
+        {"player_weapon", true},
+        {"player_distance", true},
+        {"vehicle_esp", true},
+        {"vehicle_health", true},
+        {"vehicle_driver", true},
+        {"object_esp", false},
+        {"pickup_esp", false},
+        {"aim_enabled", true},
+        {"aim_fov", 10.0f},
+        {"aim_smooth", 10.0f},
+        {"aim_bone", 0},
+        {"aim_fov_type", 0},
+        {"trigger_enabled", false},
+        {"trigger_delay", 50},
+        {"silent_aim", false},
+        {"aim_assist", false},
+        {"rcs", true},
+        {"rcs_x", 1.0f},
+        {"rcs_y", 1.0f}
+    });
+}
+
+bool DeserializeFiveMSettings(const nlohmann::json& j) {
+    return true;
+}
+
+// =============================================================================
+// Game-Specific Settings (Fortnite)
+// =============================================================================
+
+nlohmann::json SerializeFortniteSettings() {
+    return nlohmann::json::object({
+        {"esp_enabled", true},
+        {"player_box", true},
+        {"player_skeleton", false},
+        {"player_health", true},
+        {"player_shield", true},
+        {"player_weapon", true},
+        {"player_distance", true},
+        {"player_name", true},
+        {"vehicle_esp", true},
+        {"chest_esp", true},
+        {"ammo_esp", false},
+        {"supply_drop_esp", true},
+        {"lama_esp", true},
+        {"weak_spot_esp", false},
+        {"aim_enabled", true},
+        {"aim_fov", 150.0f},
+        {"aim_smooth", 5.0f},
+        {"aim_bone", 0},
+        {"aim_key", 0},
+        {"trigger_enabled", true},
+        {"trigger_delay", 20},
+        {"silent_aim", false},
+        {"prediction", true},
+        {"bullet_tp", false}
+    });
+}
+
+bool DeserializeFortniteSettings(const nlohmann::json& j) {
+    return true;
+}
+
+// =============================================================================
+// Game-Specific Settings (Warzone)
+// =============================================================================
+
+nlohmann::json SerializeWarzoneSettings() {
+    return nlohmann::json::object({
+        {"esp_enabled", true},
+        {"player_box", true},
+        {"player_skeleton", false},
+        {"player_health", true},
+        {"player_armor", true},
+        {"player_weapon", true},
+        {"player_distance", true},
+        {"player_name", true},
+        {"vehicle_esp", true},
+        {"loot_esp", true},
+        {"aim_enabled", true},
+        {"aim_fov", 5.0f},
+        {"aim_smooth", 12.0f},
+        {"aim_bone", 0},
+        {"aim_key", 0},
+        {"trigger_enabled", true},
+        {"trigger_delay", 30},
+        {"silent_aim", false},
+        {"prediction", true},
+        {"no_recoil", false},
+        {"no_spread", false}
+    });
+}
+
+bool DeserializeWarzoneSettings(const nlohmann::json& j) {
+    return true;
+}
+
+// =============================================================================
+// Game-Specific Settings (Apex)
+// =============================================================================
+
+nlohmann::json SerializeApexSettings() {
+    return nlohmann::json::object({
+        {"esp_enabled", true},
+        {"player_box", true},
+        {"player_health", true},
+        {"player_shield", true},
+        {"player_name", true},
+        {"player_distance", true},
+        {"player_weapon", true},
+        {"item_esp", true},
+        {"loot_tick_esp", true},
+        {"death_box_esp", true},
+        {"vehicle_esp", false},
+        {"aim_enabled", true},
+        {"aim_fov", 80.0f},
+        {"aim_smooth", 15.0f},
+        {"aim_bone", 0},
+        {"aim_key", 0},
+        {"trigger_enabled", true},
+        {"trigger_delay", 25},
+        {"silent_aim", false},
+        {"prediction", true},
+        {"rcs", true},
+        {"rcs_x", 1.0f},
+        {"rcs_y", 1.0f},
+        {"no_recoil", false},
+        {"no_spread", false}
+    });
+}
+
+bool DeserializeApexSettings(const nlohmann::json& j) {
+    return true;
+}
+
+// =============================================================================
+// Get Current Game Name
+// =============================================================================
+
+std::string GetCurrentGameName() {
+    // This would come from your launcher/game selection
+    // For now, return empty - implement based on your actual game state
+    return "";
+}
+
+} // namespace OmniGhost::Config

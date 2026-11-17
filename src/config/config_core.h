@@ -1,81 +1,51 @@
 #pragma once
 
-#include "config_manager.h"
-#include "../platform/app_paths.h"
-#include "../platform/text_encoding.h"
-#include "../platform/scope_exit.h"
-#include "../platform/session_log.h"
-#include <filesystem>
-#include <fstream>
-#include <mutex>
 #include <string>
 #include <string_view>
-#include <vector>
-#include <chrono>
+#include <nlohmann/json.hpp>
 
-namespace fs = std::filesystem;
+namespace OmniGhost::Config {
 
-namespace config_manager {
+// =============================================================================
+// Core Config Serialization Functions
+// =============================================================================
 
+// Serialize all current settings to JSON
+nlohmann::json SerializeAllToJson();
 
-inline constexpr int kConfigSchemaVersion = 5;
-constexpr std::uintmax_t kMaxConfigBytes = 2u * 1024u * 1024u;
+// Deserialize all settings from JSON string
+bool DeserializeAllFromJson(std::string_view json);
 
+// Serialize specific sections
+nlohmann::json SerializeESPSettings();
+nlohmann::json SerializeAimSettings();
+nlohmann::json SerializeTriggerSettings();
+nlohmann::json SerializeRadarSettings();
+nlohmann::json SerializeMiscSettings();
 
-std::string CurrentAppVersion();
-std::string NewConfigId();
-bool FlushPathToDisk(const fs::path& path);
-bool WriteTextAtomically(const fs::path& destination, const std::string& data, std::string& error);
-bool ParseLine(const std::string& line, std::string& key, std::string& val);
+// Deserialize specific sections
+bool DeserializeESPSettings(const nlohmann::json& j);
+bool DeserializeAimSettings(const nlohmann::json& j);
+bool DeserializeTriggerSettings(const nlohmann::json& j);
+bool DeserializeRadarSettings(const nlohmann::json& j);
+bool DeserializeMiscSettings(const nlohmann::json& j);
 
+// Game-specific serialization
+nlohmann::json SerializeCS2Settings();
+nlohmann::json SerializeRustSettings();
+nlohmann::json SerializeFiveMSettings();
+nlohmann::json SerializeFortniteSettings();
+nlohmann::json SerializeWarzoneSettings();
+nlohmann::json SerializeApexSettings();
 
-void WBool(std::ostringstream& o, const char* k, bool v);
-void WFloat(std::ostringstream& o, const char* k, float v);
-void WInt(std::ostringstream& o, const char* k, int v);
-void WU32(std::ostringstream& o, const char* k, ImU32 v);
-void WStr(std::ostringstream& o, const char* k, const std::string& v);
+bool DeserializeCS2Settings(const nlohmann::json& j);
+bool DeserializeRustSettings(const nlohmann::json& j);
+bool DeserializeFiveMSettings(const nlohmann::json& j);
+bool DeserializeFortniteSettings(const nlohmann::json& j);
+bool DeserializeWarzoneSettings(const nlohmann::json& j);
+bool DeserializeApexSettings(const nlohmann::json& j);
 
+// Get current game name
+std::string GetCurrentGameName();
 
-bool toB(const std::string& val);
-float toF(const std::string& val);
-int toI(const std::string& val);
-ImU32 toU(const std::string& val);
-
-
-std::string ConfigDir();
-void EnsureConfigDir();
-void MigrateLegacyConfigs();
-void RefreshList();
-void SaveOrder();
-
-
-bool SaveToFile(const std::string& name);
-bool LoadFromFile(const std::string& name);
-bool DeleteConfigFile(const std::string& name);
-bool ExportJson(const std::string& file_name);
-bool ImportJson(const std::string& file_name);
-std::string SanitizeFileName(std::string name);
-bool IsSafeConfigIdentifier(const std::string& name);
-
-
-extern std::string last_status;
-extern std::string active_config_name;
-extern std::string active_profile_name;
-extern std::vector<SavedConfigInfo> saved_list;
-extern char new_config_name[64];
-
-
-const char* ActiveGamePrefix();
-const char* ActiveGameMeta();
-bool NameBelongsToActiveGame(const std::string& name);
-
-
-bool CopyToClipboard();
-bool PasteFromClipboard();
-
-
-void TickAutoSave();
-void FlushActiveConfig();
-const char* ActiveConfigName();
-
-}
+} // namespace OmniGhost::Config
