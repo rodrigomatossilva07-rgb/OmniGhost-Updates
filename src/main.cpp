@@ -47,8 +47,15 @@
 #include "platform/logging.h"
 #include "security/security_manager.h"
 #include "security/anti_tamper.h"
+#include "security/security_manager_factory.h"
 #include "platform/service_container.h"
 #include "games/igame_module.h"
+#include "platform/ioffset_manager.h"
+#include "platform/offset_manager_factory.h"
+#include "config/iconfig_manager.h"
+#include "config/config_manager_impl.h"
+#include "platform/ihardware_manager.h"
+#include "platform/hardware_manager_factory.h"
 #include "window/performance_mode.h"
 #include "window/widgets.h"
 #include "window/ui_feedback.h"
@@ -550,10 +557,50 @@ int RunOmniGhost(int argc, wchar_t** argv) {
     auto& diContainer = OmniGhost::Platform::Services::Instance();
     OmniGhost::Platform::ServiceBuilder builder = OmniGhost::Platform::Services::Builder();
 
-    // Register core services (using concrete types for now)
-    builder.AddSingleton<config_manager::ConfigManager>(config_manager::ConfigManager{});
-    builder.AddSingleton<OmniGhost::Security::SecurityManager>(OmniGhost::Security::SecurityManager{});
-    builder.AddSingleton<OmniGhost::Hardware::Manager>(OmniGhost::Hardware::Manager{});
+    // Register core services using interfaces
+    // ConfigManager
+    {
+        auto factory = OmniGhost::Config::ConfigManagerFactory{};
+        auto configResult = factory.Create();
+        if (!configResult) {
+            OGS_LOG_ERROR("[DI] Failed to create ConfigManager: {}", configResult.error().message);
+            return 1;
+        }
+        builder.AddInstance<OmniGhost::Config::IConfigManager>(std::move(configResult.value()));
+    }
+
+    // SecurityManager
+    {
+        auto factory = OmniGhost::Security::SecurityManagerFactory{};
+        auto securityResult = factory.Create();
+        if (!securityResult) {
+            OGS_LOG_ERROR("[DI] Failed to create SecurityManager: {}", securityResult.error().message);
+            return 1;
+        }
+        builder.AddInstance<OmniGhost::Security::ISecurityManager>(std::move(securityResult.value()));
+    }
+
+    // HardwareManager
+    {
+        auto factory = OmniGhost::Platform::HardwareManagerFactory{};
+        auto hardwareResult = factory.Create();
+        if (!hardwareResult) {
+            OGS_LOG_ERROR("[DI] Failed to create HardwareManager: {}", hardwareResult.error().message);
+            return 1;
+        }
+        builder.AddInstance<OmniGhost::Platform::IHardwareManager>(std::move(hardwareResult.value()));
+    }
+
+    // OffsetManager
+    {
+        auto factory = OmniGhost::Platform::OffsetManagerFactory{};
+        auto offsetResult = factory.Create();
+        if (!offsetResult) {
+            OGS_LOG_ERROR("[DI] Failed to create OffsetManager: {}", offsetResult.error().message);
+            return 1;
+        }
+        builder.AddInstance<OmniGhost::Platform::IOffsetManager>(std::move(offsetResult.value()));
+    }
 
     // Build the container
     auto& container = builder.Build();
