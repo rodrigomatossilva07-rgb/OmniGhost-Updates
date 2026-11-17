@@ -1,4 +1,4 @@
-﻿#include <Windows.h>
+#include <Windows.h>
 #include <TlHelp32.h>
 #include <Shellapi.h>
 
@@ -47,6 +47,8 @@
 #include "platform/logging.h"
 #include "security/security_manager.h"
 #include "security/anti_tamper.h"
+#include "platform/service_container.h"
+#include "games/igame_module.h"
 #include "window/performance_mode.h"
 #include "window/widgets.h"
 #include "window/ui_feedback.h"
@@ -510,8 +512,7 @@ int RunOmniGhost(int argc, wchar_t** argv) {
                 {"executable", OmniGhost::Platform::WideToUtf8(
                     OmniGhost::Paths::Executable().wstring()), false}
             });
-        std::cerr << "[ERRO] Nao foi possivel criar o controlo de instancia unica. win32="
-                  << singleInstanceError << "\n";
+        OGS_LOG_ERROR("[ERRO] Nao foi possivel criar o controlo de instancia unica. win32={}", singleInstanceError);
         return 2;
     }
     if (singleInstanceError == ERROR_ALREADY_EXISTS) {
@@ -523,7 +524,7 @@ int RunOmniGhost(int argc, wchar_t** argv) {
             {
                 {"install_directory", OmniGhost::Platform::WideToUtf8(installDirectory), false}
             });
-        std::cerr << "[ERRO] O OmniGhost ja esta em execucao. A janela existente sera reutilizada.\n";
+        OGS_LOG_ERROR("[ERRO] O OmniGhost ja esta em execucao. A janela existente sera reutilizada.");
 
 
 
@@ -544,6 +545,22 @@ int RunOmniGhost(int argc, wchar_t** argv) {
 
     app_settings::Initialize();
     config_manager::Initialize();
+
+    // Initialize Dependency Injection container
+    auto& diContainer = OmniGhost::Platform::Services::Instance();
+    OmniGhost::Platform::ServiceBuilder builder = OmniGhost::Platform::Services::Builder();
+
+    // Register core services (using concrete types for now)
+    builder.AddSingleton<config_manager::ConfigManager>(config_manager::ConfigManager{});
+    builder.AddSingleton<OmniGhost::Security::SecurityManager>(OmniGhost::Security::SecurityManager{});
+    builder.AddSingleton<OmniGhost::Hardware::Manager>(OmniGhost::Hardware::Manager{});
+
+    // Build the container
+    auto& container = builder.Build();
+
+    // Initialize game module registry (auto-registers modules via static init)
+    OGS_LOG_INFO("[DI] Registered game modules: {}",
+                 OmniGhost::Games::GameModuleRegistry::Instance().GetRegisteredGameIds().size());
 
     // Offsets são carregados do EXE (embedded resources) via OmniGhost::EmbeddedOffsets::Load()
     // O build gera os resources via src/project/tools/Build-EmbeddedOffsets.ps1
@@ -644,7 +661,7 @@ while (application.shouldRun && !authenticated) {
     application.SetCompactMode(false);
     WritePostAuthStage("launcher-resize-requested");
     if (application.overlay != startupHwnd) {
-        std::cerr << "[WINDOW][Invariant] FAIL: startup HWND changed during compact->launcher transition.\n";
+        OGS_UI_LOG_ERROR("[WINDOW][Invariant] FAIL: startup HWND changed during compact->launcher transition.");
         application.RequestClose();
         (void)shutdownCoordinator.ShutdownAll("window-invariant-failed");
         return 4;
@@ -653,9 +670,7 @@ while (application.shouldRun && !authenticated) {
     const OmniGhost::Platform::WindowAudit transitionAudit =
         OmniGhost::Platform::AuditOmniGhostWindows();
     if (transitionAudit.foreignProcessWindows != 0) {
-        std::cerr << "[WINDOW][Invariant] FAIL: another OmniGhost process owns a top-level window during launcher transition. "
-                  << "current=" << transitionAudit.currentProcessWindows
-                  << " foreign=" << transitionAudit.foreignProcessWindows << "\n";
+        OGS_UI_LOG_ERROR("[WINDOW][Invariant] FAIL: another OmniGhost process owns a top-level window during launcher transition. current={} foreign={}", transitionAudit.currentProcessWindows, transitionAudit.foreignProcessWindows);
         if (transitionAudit.firstForeign) {
             if (IsIconic(transitionAudit.firstForeign))
                 ShowWindow(transitionAudit.firstForeign, SW_RESTORE);
@@ -867,7 +882,7 @@ while (application.shouldRun && !authenticated) {
     if (!startupState.Transition(OmniGhost::Startup::State::Ready,
                                  OmniGhost::Startup::State::StartingGame)) {
         startupState.Fail();
-        std::cerr << "[STARTUP] Invalid Ready -> StartingGame transition; launch refused.\n";
+        OGS_LOG_ERROR("[STARTUP] Invalid Ready -> StartingGame transition; launch refused.");
         break;
     }
 
@@ -935,8 +950,7 @@ while (application.shouldRun && !authenticated) {
             if (warg.result != OmniGhost::OffsetAuto::Result::Ok &&
                 !OmniGhost::OffsetAuto::HasCriticalOffsets(pending_game)) {
 
-                std::cout << "[Offsets] Refresh incomplete (non-blocking): "
-                          << std::string(OmniGhost::OffsetAuto::g_status) << std::endl;
+                OGS_LOG_INFO("[Offsets] Refresh incomplete (non-blocking): {}", OmniGhost::OffsetAuto::g_status);
             }
         }
     }
@@ -1109,7 +1123,7 @@ while (application.shouldRun && !authenticated) {
     if (!startupState.Transition(OmniGhost::Startup::State::StartingGame,
                                  OmniGhost::Startup::State::Running)) {
         startupState.Fail();
-        std::cerr << "[STARTUP] Invalid StartingGame -> Running transition; session refused.\n";
+        OGS_LOG_ERROR("[STARTUP] Invalid StartingGame -> Running transition; session refused.");
         break;
     }
 
@@ -1123,8 +1137,7 @@ while (application.shouldRun && !authenticated) {
         if (probe_ok) {
             OmniGhost::OffsetAuto::MarkLiveValid(pending_game, "soft-probe lobby OK");
         } else {
-            std::cout << "[Offsets] SoftProbe FAIL (non-blocking): "
-                      << OmniGhost::OffsetAuto::SoftProbeFailReason(pending_game) << std::endl;
+            OGS_LOG_INFO("[Offsets] SoftProbe FAIL (non-blocking): {}", OmniGhost::OffsetAuto::SoftProbeFailReason(pending_game));
         }
     }
 
@@ -1140,7 +1153,7 @@ while (application.shouldRun && !authenticated) {
 
     if (pending_game == ActiveGame::CS2) {
         if (!OmniGhost::OffsetAuto::ValidateLive(pending_game)) {
-            std::cout << "[CS2] Self-test soft-fail — menu opens anyway; use Reload offsets se preciso." << std::endl;
+            OGS_LOG_INFO("[CS2] Self-test soft-fail — menu opens anyway; use Reload offsets se preciso.");
             CS2::LoadOffsetsFromJson(nullptr);
         }
     }
@@ -1283,7 +1296,7 @@ while (application.shouldRun && !authenticated) {
                 } else if (++offset_probe_failures >= 3) {
 
                     const std::string reason = "Os offsets falharam três validações consecutivas no jogo em execução.";
-                    std::cerr << "[Offsets] " << reason << " (non-blocking; menu stays open)" << std::endl;
+                    OGS_LOG_WARN("[Offsets] {} (non-blocking; menu stays open)", reason);
                     offset_probe_failures = 0;
                 }
             }
@@ -1373,7 +1386,7 @@ while (application.shouldRun && !authenticated) {
                     : "Sessão terminada — o jogo foi fechado",
                 CyberWidgets::ToastType::Info);
             nextLauncherEntry = Launcher::EntryReason::SessionEnded;
-            std::cout << "[OmniGhost] A regressar ao launcher..." << std::endl;
+            OGS_LOG_INFO("[OmniGhost] A regressar ao launcher...");
             continue;
         }
         break;
