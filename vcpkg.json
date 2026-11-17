@@ -10,6 +10,10 @@
       "version>=": "3.11.2"
     },
     {
+      "name": "nlohmann-json-schema",
+      "version>=": "3.11.2"
+    },
+    {
       "name": "fmt",
       "version>=": "10.2.1"
     },

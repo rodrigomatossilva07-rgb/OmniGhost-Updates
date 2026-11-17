@@ -54,6 +54,8 @@
 #include "platform/offset_manager_factory.h"
 #include "config/iconfig_manager.h"
 #include "config/config_manager_impl.h"
+#include "config/config_manager_factory.h"
+#include "config/config_schema_validator.h"
 #include "platform/ihardware_manager.h"
 #include "platform/hardware_manager_factory.h"
 #include "window/performance_mode.h"
@@ -600,6 +602,16 @@ int RunOmniGhost(int argc, wchar_t** argv) {
             return 1;
         }
         builder.AddInstance<OmniGhost::Platform::IOffsetManager>(std::move(offsetResult.value()));
+    }
+
+    // ConfigSchemaValidator
+    {
+        auto validator = std::make_unique<OmniGhost::Config::ConfigSchemaValidator>();
+        auto initResult = validator->Initialize(OmniGhost::Paths::ConfigDirectory() / "schemas");
+        if (!initResult) {
+            OGS_LOG_WARN("[DI] Failed to initialize ConfigSchemaValidator: {}", initResult.error().message);
+        }
+        builder.AddInstance<OmniGhost::Config::ConfigSchemaValidator>(std::move(validator));
     }
 
     // Build the container

@@ -73,6 +73,13 @@ if (OMNIGHOST_USE_FETCHCONTENT)
         GIT_TAG v3.11.2
     )
 
+    # nlohmann_json_schema (depends on nlohmann_json)
+    FetchContent_Declare(
+        nlohmann_json_schema
+        GIT_REPOSITORY https://github.com/nlohmann/json-schema-validator.git
+        GIT_TAG v3.11.2
+    )
+
     # fmt
     FetchContent_Declare(
         fmt
@@ -111,6 +118,7 @@ if (OMNIGHOST_USE_FETCHCONTENT)
     # Make FetchContent available
     FetchContent_MakeAvailable(
         nlohmann_json
+        nlohmann_json_schema
         fmt
         spdlog
         tl_expected
@@ -137,6 +145,13 @@ if (OMNIGHOST_USE_FETCHCONTENT)
         add_library(spdlog::spdlog INTERFACE IMPORTED)
         set_target_properties(spdlog::spdlog PROPERTIES
             INTERFACE_INCLUDE_DIRECTORIES "${spdlog_SOURCE_DIR}/include"
+        )
+    endif()
+
+    if (NOT TARGET nlohmann_json_schema::nlohmann_json_schema)
+        add_library(nlohmann_json_schema::nlohmann_json_schema INTERFACE IMPORTED)
+        set_target_properties(nlohmann_json_schema::nlohmann_json_schema PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES "${nlohmann_json_schema_SOURCE_DIR}/include"
         )
     endif()
 
