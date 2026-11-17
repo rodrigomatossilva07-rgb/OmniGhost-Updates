@@ -47,6 +47,7 @@
 #include "platform/hot_reload_offsets.h"
 #include "platform/logging.h"
 #include "security/security_manager.h"
+#include "security/anti_tamper.h"
 #include "window/performance_mode.h"
 #include "window/widgets.h"
 #include "window/ui_feedback.h"
@@ -413,6 +414,15 @@ int RunOmniGhost(int argc, wchar_t** argv) {
 
     // Initialize logging system
     OmniGhost::Logging::InitializeDefaultLogging();
+
+    // Initialize security/anti-tamper
+    if (!OmniGhost::Security::RunStartupIntegrityChecks()) {
+        OGS_SEC_LOG_ERROR("Startup integrity checks failed - aborting");
+        MessageBoxW(nullptr, L"Verificação de integridade falhou. A aplicação será encerrada.",
+                    L"OmniGhost - Segurança", MB_OK | MB_ICONERROR);
+        return 1;
+    }
+    OGS_SEC_LOG_INFO("Startup integrity checks passed");
 
     DisableProcessWindowsGhosting();
     OmniGhost::CrashHandler::Install();
@@ -1206,6 +1216,13 @@ while (application.shouldRun && !authenticated) {
             next_security_check = security_now + 1000;
             if (!OmniGhost::Security::SecurityManager::Instance().CanUseProtectedFeatures() ||
                 !OmniGhost::Licensing::HasGameAccess(selectedDefinition->id)) {
+                return_to_launcher = true;
+                continue;
+            }
+
+            // Periodic integrity checks
+            if (!OmniGhost::Security::RunPeriodicIntegrityChecks()) {
+                OGS_SEC_LOG_ERROR("Periodic integrity check failed - returning to launcher");
                 return_to_launcher = true;
                 continue;
             }
