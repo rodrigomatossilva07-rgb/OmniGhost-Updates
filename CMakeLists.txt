@@ -87,6 +87,13 @@ if (OMNIGHOST_USE_FETCHCONTENT)
         GIT_TAG v1.12.0
     )
 
+    # tl::expected
+    FetchContent_Declare(
+        tl_expected
+        GIT_REPOSITORY https://github.com/TartanLlama/expected.git
+        GIT_TAG v1.1.0
+    )
+
     # ImGui (docking branch)
     FetchContent_Declare(
         imgui
@@ -106,6 +113,7 @@ if (OMNIGHOST_USE_FETCHCONTENT)
         nlohmann_json
         fmt
         spdlog
+        tl_expected
         imgui
         glfw
     )
@@ -159,6 +167,7 @@ else()
     find_package(nlohmann_json 3.11 REQUIRED CONFIG)
     find_package(fmt 10.0 REQUIRED CONFIG)
     find_package(spdlog 1.12 REQUIRED CONFIG)
+    find_package(tl_expected 1.1 REQUIRED CONFIG)
     find_package(ImGui REQUIRED CONFIG)  # Custom vcpkg port
     find_package(glfw3 3.3 REQUIRED CONFIG)
     message(STATUS "Using vcpkg for dependencies")
@@ -247,6 +256,7 @@ if (OMNIGHOST_USE_FETCHCONTENT)
         ${nlohmann_json_SOURCE_DIR}/include
         ${fmt_SOURCE_DIR}/include
         ${spdlog_SOURCE_DIR}/include
+        ${tl_expected_SOURCE_DIR}/include
         ${imgui_SOURCE_DIR}
         ${glfw_SOURCE_DIR}/include
     )

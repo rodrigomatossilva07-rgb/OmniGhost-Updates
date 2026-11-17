@@ -1,0 +1,62 @@
+{
+  "name": "omnighost",
+  "version": "1.3.4",
+  "description": "OmniGhost DMA Overlay - Premium External Cheat Framework",
+  "homepage": "https://omnighost.dev",
+  "license": "MIT",
+  "dependencies": [
+    {
+      "name": "nlohmann-json",
+      "version>=": "3.11.2"
+    },
+    {
+      "name": "fmt",
+      "version>=": "10.2.1"
+    },
+    {
+      "name": "spdlog",
+      "version>=": "1.12.0"
+    },
+    {
+      "name": "imgui",
+      "version>=": "1.90.4"
+    },
+    {
+      "name": "glfw3",
+      "version>=": "3.3.8"
+    },
+    {
+      "name": "tl-expected",
+      "version>=": "1.1.0"
+    },
+    {
+      "name": "vcpkg-cmake",
+      "version>=": "2023-01-12"
+    },
+    {
+      "name": "vcpkg-cmake-config",
+      "version>=": "2023-01-12"
+    }
+  ],
+  "builtin-baseline": "7d783a4f8a7b4c9d2e1f3a5b6c7d8e9f0a1b2c3d",
+  "overrides": [
+    {
+      "name": "imgui",
+      "version": "1.90.4"
+    }
+  ],
+  "features": {
+    "docking": {
+      "description": "Enable ImGui docking branch",
+      "dependencies": [
+        "imgui[docking]"
+      ]
+    },
+    "opengl3": {
+      "description": "Enable OpenGL3 backend for ImGui",
+      "dependencies": [
+        "imgui[opengl3]"
+      ]
+    }
+  }
+}
