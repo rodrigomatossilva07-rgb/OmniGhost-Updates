@@ -1,76 +1,302 @@
-name: Build
+name: Build & Validate
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, develop]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - '.github/workflows/**'
   pull_request:
-    branches: [main, master]
+    branches: [main, develop]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+    inputs:
+      config:
+        description: 'Build configuration'
+        required: true
+        default: 'Release'
+        type: choice
+        options:
+          - Release
+          - Publish
+      arch:
+        description: 'Architecture'
+        required: true
+        default: 'x64'
+        type: choice
+        options:
+          - x64
+          - arm64
+      use-fetchcontent:
+        description: 'Use FetchContent instead of vcpkg'
+        required: false
+        default: 'false'
+        type: boolean
 
 env:
-  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
-  VCPKG_DEFAULT_TRIPLET: x64-windows
+  VCPKG_ROOT: ${{ runner.temp }}/vcpkg
+  VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
+  VCPKG_FEATURE_FLAGS: "manifests,binarycaching"
+  VCPKG_BINARY_SOURCES: "clear;nuget,https://api.nuget.org/v3/index.json,readwrite"
+  CMAKE_GENERATOR: "Visual Studio 17 2022"
+  # Reproducible build: set SOURCE_DATE_EPOCH to commit timestamp
+  SOURCE_DATE_EPOCH: ${{ github.event.repository.pushed_at }}
 
 jobs:
-  build:
+  build-and-validate:
+    name: Build & Validate (${{ matrix.config }}/${{ matrix.arch }})
     runs-on: windows-latest
     timeout-minutes: 60
-    permissions:
-      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [Release, Publish]
+        arch: [x64]
+        include:
+          - config: Release
+            arch: x64
+            preset: release-x64
+          - config: Publish
+            arch: x64
+            preset: publish-x64
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           submodules: recursive
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
+      - name: Setup vcpkg
+        if: ${{ !inputs.use-fetchcontent }}
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: '${{ env.VCPKG_ROOT }}'
+          vcpkgGitCommitId: 'b2e8f5c8a3f1d7e9c4f8a2b6d0e5f3a7c9b1d4e6'
+          vcpkgArguments: '--triplet=${{ env.VCPKG_DEFAULT_TRIPLET }}'
+          appendedCacheArgs: '--binarysource=clear;nuget,https://api.nuget.org/v3/index.json,readwrite'
+          runVcpkgInstall: false
+
+      - name: Cache vcpkg packages
+        if: ${{ !inputs.use-fetchcontent }}
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}/installed
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}-${{ matrix.arch }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-${{ matrix.arch }}-
+
+      - name: Install vcpkg dependencies
+        if: ${{ !inputs.use-fetchcontent }}
+        run: |
+          .\vcpkg\vcpkg.exe install --triplet=${{ env.VCPKG_DEFAULT_TRIPLET }} --feature-flags=manifests,binarycaching
+
+      - name: Cache FetchContent sources
+        if: ${{ inputs.use-fetchcontent }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cmake/packages
+            build/_deps
+          key: fetchcontent-${{ runner.os }}-${{ hashFiles('CMakeLists.txt') }}-${{ matrix.arch }}
+          restore-keys: |
+            fetchcontent-${{ runner.os }}-${{ matrix.arch }}-
+
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/${{ matrix.preset }}
+            .cache
+          key: cmake-${{ runner.os }}-${{ matrix.config }}-${{ matrix.arch }}-${{ hashFiles('CMakeLists.txt', 'CMakePresets.json', 'src/**/*.cpp', 'src/**/*.h') }}
+          restore-keys: |
+            cmake-${{ runner.os }}-${{ matrix.config }}-${{ matrix.arch }}-
+
+      - name: Configure CMake
+        run: |
+          cmake --preset=${{ matrix.preset }} -DOMNIGHOST_USE_FETCHCONTENT=${{ inputs.use-fetchcontent }}
+        shell: cmd
+
+      - name: Build
+        run: |
+          cmake --build --preset=${{ matrix.preset }} --parallel 16
+        shell: cmd
+
+      - name: Run Unit Tests
+        if: matrix.config == 'Release'
+        run: |
+          ctest --preset=release-x64-tests --output-on-failure --parallel 4
+        shell: cmd
+        working-directory: ${{ github.workspace }}
+
+      - name: Validate Offset JSONs
+        run: |
+          cmake --build --preset=validate-offsets
+        shell: cmd
+
+      - name: Sync Localization
+        run: |
+          cmake --build --preset=sync-localization
+        shell: cmd
+
+      - name: Static Analysis (MSVC /analyze)
+        if: matrix.config == 'Publish'
+        run: |
+          cmake --build --preset=${{ matrix.preset }} --target OmniGhost -- /p:RunCodeAnalysis=true /p:CodeAnalysisRuleSet=Microsoft.AllRules.ruleset
+        shell: cmd
+
+      - name: Verify Reproducible Build (Publish only)
+        if: matrix.config == 'Publish' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          ./src/project/tools/Verify-ReproducibleBuild.ps1 -ProjectDir "." -PrimaryExecutable "build/Publish/OmniGhost.exe"
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmniGhost-${{ matrix.config }}-${{ matrix.arch }}
+          path: |
+            build/${{ matrix.preset }}/OmniGhost.exe
+            build/${{ matrix.preset }}/data/*.json
+            build/${{ matrix.preset }}/libs/*.dll
+            .cache/symbols/${{ matrix.config }}/*.pdb
+          retention-days: 30
+
+      - name: Upload Build Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ matrix.config }}-${{ matrix.arch }}
+          path: |
+            build/${{ matrix.preset }}/CMakeFiles/*.log
+            build/${{ matrix.preset }}/*.log
+          retention-days: 7
+
+  clang-tidy:
+    name: Clang-Tidy Analysis
+    runs-on: windows-latest
+    timeout-minutes: 45
+    needs: build-and-validate
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgDirectory: '${{ env.VCPKG_ROOT }}'
-          vcpkgTriplet: '${{ env.VCPKG_DEFAULT_TRIPLET }}'
-          vcpkgArguments: 'leechcore vmm'  # DMA dependencies
+          vcpkgGitCommitId: 'b2e8f5c8a3f1d7e9c4f8a2b6d0e5f3a7c9b1d4e6'
+          vcpkgArguments: '--triplet=x64-windows-static-md'
+          runVcpkgInstall: false
 
-      - name: Cache vcpkg
+      - name: Cache vcpkg packages
         uses: actions/cache@v4
         with:
           path: ${{ env.VCPKG_ROOT }}/installed
-          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
-          restore-keys: vcpkg-${{ runner.os }}-
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}-x64
+          restore-keys: |
+            vcpkg-${{ runner.os }}-x64-
 
-      - name: Build Release x64
+      - name: Install vcpkg dependencies
         run: |
-          msbuild OmiGhost.vcxproj /p:Configuration=Release /p:Platform=x64 /v:m /m
+          .\vcpkg\vcpkg.exe install --triplet=x64-windows-static-md --feature-flags=manifests,binarycaching
 
-      - name: Upload build artifacts
+      - name: Install clang-tidy
+        run: |
+          choco install llvm --version=17.0.6 -y
+          echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Configure with compile_commands.json
+        run: |
+          cmake --preset=release-x64 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        shell: cmd
+
+      - name: Run clang-tidy
+        run: |
+          python -m clang_tidy --quiet --config-file=.clang-tidy --checks="*" --warnings-as-errors="*" --header-filter="src/.*" --p=build/release-x64 src/**/*.cpp
+        continue-on-error: true
+
+      - name: Upload clang-tidy results
         uses: actions/upload-artifact@v4
         with:
-          name: OmniGhost-Release-x64
-          path: |
-            build/OmniGhost.exe
-            .cache/symbols/Release/OmniGhost.pdb
-          retention-days: 7
+          name: clang-tidy-report
+          path: clang-tidy-report.txt
+          retention-days: 14
 
-  cleanup:
-    needs: build
-    if: always()
+  cppcheck:
+    name: Cppcheck Analysis
     runs-on: windows-latest
+    timeout-minutes: 30
+    needs: build-and-validate
+    if: github.event_name == 'pull_request'
     steps:
-      - name: Cleanup build directories
-        run: |
-          Remove-Item -Recurse -Force .cache -ErrorAction SilentlyContinue
-          Remove-Item -Recurse -Force artifacts -ErrorAction SilentlyContinue
-          Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
-          Remove-Item -Recurse -Force x64 -ErrorAction SilentlyContinue
-          git clean -fd
-        shell: pwsh
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Verify workspace clean
+      - name: Install cppcheck
         run: |
-          git status --porcelain
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Workspace not clean after cleanup"
-          }
-        shell: pwsh
+          choco install cppcheck -y
+          echo "C:\Program Files\Cppcheck" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Run cppcheck
+        run: |
+          cppcheck --enable=all --std=c++20 --platform=windows --suppress=missingIncludeSystem --suppress=unmatchedSuppression --inline-suppr --force -j 16 --xml --xml-version=2 src/ 2> cppcheck-results.xml
+        continue-on-error: true
+
+      - name: Convert to SARIF
+        run: |
+          pip install cppcheck-sarif
+          cppcheck-sarif cppcheck-results.xml > cppcheck-results.sarif
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: cppcheck-results.sarif
+          category: cppcheck
+
+  iwyu:
+    name: Include-What-You-Use
+    runs-on: windows-latest
+    timeout-minutes: 30
+    needs: build-and-validate
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install IWYU
+        run: |
+          choco install include-what-you-use -y --version=17.0.6
+          echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Configure with compile_commands.json
+        run: |
+          cmake --preset=release-x64 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        shell: cmd
+
+      - name: Run IWYU
+        run: |
+          python -m include_what_you_use --check_also=src --p=build/release-x64 src/**/*.cpp 2> iwyu-report.txt || true
+        continue-on-error: true
+
+      - name: Upload IWYU report
+        uses: actions/upload-artifact@v4
+        with:
+          name: iwyu-report
+          path: iwyu-report.txt
+          retention-days: 14
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true

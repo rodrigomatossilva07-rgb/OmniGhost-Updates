@@ -1,0 +1,397 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/**'
+  pull_request:
+    branches: [main, develop]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/**'
+
+env:
+  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+  VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
+  VCPKG_FEATURE_FLAGS: "manifests,binarycaching"
+  VCPKG_BINARY_SOURCES: "clear;nuget,https://api.nuget.org/v3/index.json,readwrite"
+  CMAKE_GENERATOR: "Visual Studio 17 2022"
+  # Reproducible build timestamp
+  SOURCE_DATE_EPOCH: ${{ github.event.repository.pushed_at }}
+
+jobs:
+  validate:
+    name: Validate Project Structure
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ env.VCPKG_ROOT }}
+          vcpkgTriplet: ${{ env.VCPKG_DEFAULT_TRIPLET }}
+          vcpkgArguments: nlohmann-json fmt spdlog imgui glfw3
+          runVcpkgInstall: false
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}/installed
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}-x64
+          restore-keys: |
+            vcpkg-${{ runner.os }}-x64-
+
+      - name: Install vcpkg dependencies
+        run: |
+          .\vcpkg\vcpkg.exe install --triplet=${{ env.VCPKG_DEFAULT_TRIPLET }} --feature-flags=manifests,binarycaching
+
+      - name: Run Structure Validation
+        shell: pwsh
+        run: |
+          ./src/project/tools/Validate-Structure.ps1 -Verbose
+
+      - name: Run Offset Validation
+        shell: pwsh
+        run: |
+          ./src/project/tools/Validate-Offsets.ps1 -Path "src/project/data" -Verbose
+
+  build-debug:
+    name: Build Debug
+    runs-on: windows-latest
+    timeout-minutes: 30
+    needs: validate
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ env.VCPKG_ROOT }}
+          vcpkgTriplet: ${{ env.VCPKG_DEFAULT_TRIPLET }}
+          vcpkgArguments: nlohmann-json fmt spdlog imgui glfw3
+          runVcpkgInstall: false
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}/installed
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}-x64
+          restore-keys: |
+            vcpkg-${{ runner.os }}-x64-
+
+      - name: Install vcpkg dependencies
+        run: |
+          .\vcpkg\vcpkg.exe install --triplet=${{ env.VCPKG_DEFAULT_TRIPLET }} --feature-flags=manifests,binarycaching
+
+      - name: Cache CMake build (Debug)
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/windows-debug
+            .cache
+          key: cmake-${{ runner.os }}-Debug-x64-${{ hashFiles('CMakeLists.txt', 'CMakePresets.json', 'src/**/*.cpp', 'src/**/*.h') }}
+          restore-keys: |
+            cmake-${{ runner.os }}-Debug-x64-
+
+      - name: Configure CMake (Debug)
+        run: |
+          cmake --preset windows-debug
+        shell: cmd
+
+      - name: Build Debug
+        run: |
+          cmake --build --preset build-debug --parallel 16
+        shell: cmd
+
+      - name: Run Tests (Debug)
+        run: |
+          ctest --preset test-debug --output-on-failure --parallel 4
+        shell: cmd
+
+  build-release:
+    name: Build Release
+    runs-on: windows-latest
+    timeout-minutes: 45
+    needs: validate
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ env.VCPKG_ROOT }}
+          vcpkgTriplet: ${{ env.VCPKG_DEFAULT_TRIPLET }}
+          vcpkgArguments: nlohmann-json fmt spdlog imgui glfw3
+          runVcpkgInstall: false
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}/installed
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}-x64
+          restore-keys: |
+            vcpkg-${{ runner.os }}-x64-
+
+      - name: Install vcpkg dependencies
+        run: |
+          .\vcpkg\vcpkg.exe install --triplet=${{ env.VCPKG_DEFAULT_TRIPLET }} --feature-flags=manifests,binarycaching
+
+      - name: Cache CMake build (Release)
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/windows-release
+            .cache
+          key: cmake-${{ runner.os }}-Release-x64-${{ hashFiles('CMakeLists.txt', 'CMakePresets.json', 'src/**/*.cpp', 'src/**/*.h') }}
+          restore-keys: |
+            cmake-${{ runner.os }}-Release-x64-
+
+      - name: Configure CMake (Release)
+        run: |
+          cmake --preset windows-release
+        shell: cmd
+
+      - name: Build Release
+        run: |
+          cmake --build --preset build-release --parallel 16
+        shell: cmd
+
+      - name: Run Tests (Release)
+        run: |
+          ctest --preset test-release --output-on-failure --parallel 4
+        shell: cmd
+
+      - name: Validate Offset JSONs
+        shell: pwsh
+        run: |
+          ./src/project/tools/Validate-Offsets.ps1 -Path "src/project/data" -Strict -Verbose
+
+      - name: Upload Release Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmniGhost-Release
+          path: build/Release/OmniGhost.exe
+          retention-days: 7
+
+  build-publish:
+    name: Build Publish
+    runs-on: windows-latest
+    timeout-minutes: 60
+    needs: [validate, build-release]
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ env.VCPKG_ROOT }}
+          vcpkgTriplet: ${{ env.VCPKG_DEFAULT_TRIPLET }}
+          vcpkgArguments: nlohmann-json fmt spdlog imgui glfw3
+          runVcpkgInstall: false
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}/installed
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}-x64
+          restore-keys: |
+            vcpkg-${{ runner.os }}-x64-
+
+      - name: Install vcpkg dependencies
+        run: |
+          .\vcpkg\vcpkg.exe install --triplet=${{ env.VCPKG_DEFAULT_TRIPLET }} --feature-flags=manifests,binarycaching
+
+      - name: Cache CMake build (Publish)
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/windows-publish
+            .cache
+          key: cmake-${{ runner.os }}-Publish-x64-${{ hashFiles('CMakeLists.txt', 'CMakePresets.json', 'src/**/*.cpp', 'src/**/*.h') }}
+          restore-keys: |
+            cmake-${{ runner.os }}-Publish-x64-
+
+      - name: Configure CMake (Publish)
+        run: |
+          cmake --preset windows-publish
+        shell: cmd
+
+      - name: Build Publish
+        run: |
+          cmake --build --preset build-publish --parallel 16
+        shell: cmd
+
+      - name: Validate Publish Binary
+        run: |
+          ctest --preset test-release --output-on-failure
+        shell: cmd
+
+      - name: Verify Reproducible Build
+        shell: pwsh
+        run: |
+          ./src/project/tools/Verify-ReproducibleBuild.ps1 -ProjectDir "." -PrimaryExecutable "build/Publish/OmniGhost.exe"
+
+      - name: Upload Publish Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmniGhost-Publish
+          path: build/Publish/OmniGhost.exe
+          retention-days: 30
+
+  validate-offsets:
+    name: Validate Offsets Schema
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ env.VCPKG_ROOT }}
+          vcpkgTriplet: ${{ env.VCPKG_DEFAULT_TRIPLET }}
+          vcpkgArguments: nlohmann-json fmt spdlog imgui glfw3
+          runVcpkgInstall: false
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}/installed
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}-x64
+          restore-keys: |
+            vcpkg-${{ runner.os }}-x64-
+
+      - name: Install vcpkg dependencies
+        run: |
+          .\vcpkg\vcpkg.exe install --triplet=${{ env.VCPKG_DEFAULT_TRIPLET }} --feature-flags=manifests,binarycaching
+
+      - name: Validate All Offset JSONs
+        shell: pwsh
+        run: |
+          ./src/project/tools/Validate-Offsets.ps1 -Path "src/project/data" -Strict -Verbose
+
+      - name: Check for Unmigrated Legacy Files
+        shell: pwsh
+        run: |
+          $legacyFiles = Get-ChildItem -Recurse -Filter "*offsets*.json" | Where-Object {
+            $content = gc $_.FullName -Raw -Enc UTF8
+            if ($content.StartsWith([char]0xFEFF)) { $content = $content.Substring(1) }
+            $json = $content | ConvertFrom-Json -ErrorAction SilentlyContinue
+            $json -and ($null -eq $json.schema_version -or [int]$json.schema_version -lt 7)
+          }
+          if ($legacyFiles) {
+            Write-Error "Legacy offset files found (schema_version < 7):"
+            $legacyFiles | ForEach-Object { Write-Error "  $($_.FullName) - version: $($json.schema_version)" }
+            exit 1
+          }
+          Write-Host "All offset files use schema v7+"
+
+  lint:
+    name: Code Linting
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install clang-format
+        run: |
+          choco install clang-format -y
+
+      - name: Check Code Format
+        shell: pwsh
+        run: |
+          $files = git ls-files '*.cpp' '*.h' '*.hpp' '*.inl'
+          $failed = @()
+          foreach ($f in $files) {
+            $result = clang-format --dry-run --Werror $f 2>&1
+            if ($LASTEXITCODE -ne 0) {
+              $failed += $f
+            }
+          }
+          if ($failed) {
+            Write-Error "Formatting issues in:"
+            $failed | ForEach-Object { Write-Error "  $_" }
+            exit 1
+          }
+          Write-Host "All files properly formatted"
+
+  dependency-check:
+    name: Dependency Security Scan
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ env.VCPKG_ROOT }}
+          vcpkgTriplet: ${{ env.VCPKG_DEFAULT_TRIPLET }}
+          runVcpkgInstall: false
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}/installed
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}-x64
+          restore-keys: |
+            vcpkg-${{ runner.os }}-x64-
+
+      - name: Install vcpkg dependencies
+        run: |
+          .\vcpkg\vcpkg.exe install --triplet=${{ env.VCPKG_DEFAULT_TRIPLET }} --feature-flags=manifests,binarycaching
+
+      - name: Audit vcpkg Dependencies
+        run: |
+          vcpkg audit --format json > vcpkg-audit.json || true
+          cat vcpkg-audit.json
+
+      - name: Check for Critical Vulnerabilities
+        shell: pwsh
+        run: |
+          if (Test-Path "vcpkg-audit.json") {
+            $audit = Get-Content "vcpkg-audit.json" -Raw | ConvertFrom-Json
+            $critical = $audit | Where-Object { $_.severity -eq 'critical' -or $_.severity -eq 'high' }
+            if ($critical) {
+              Write-Error "Critical/High vulnerabilities found:"
+              $critical | ForEach-Object { Write-Error "  $($_.id): $($_.title)" }
+              exit 1
+            }
+            Write-Host "No critical/high vulnerabilities found"
+          }
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
