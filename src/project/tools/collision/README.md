@@ -1,4 +1,4 @@
-# Pipeline de colisão do OmniGhost
+﻿# Pipeline de colisão do OmniGhost
 
 O lançador único [`Atualizar-Colisao.bat`](../../Atualizar-Colisao.bat) atualiza os dados geométricos usados
 pelos raycasts de visibilidade. Os ficheiros temporários ficam em `.cache/collision-build`; nada é espalhado
@@ -45,3 +45,4 @@ Dados de colisão não devem crescer indefinidamente dentro do executável:
 Nem todos os jogos precisam de mapas. Se o próprio jogo fornecer um estado de visibilidade fiável, ele deve
 ser preferido. A geometria offline é necessária quando a decisão depende de raycast e não existe uma fonte
 validada equivalente; mesmo assim, objetos dinâmicos exigem dados adicionais.
+

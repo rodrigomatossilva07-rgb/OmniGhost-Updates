@@ -74,3 +74,4 @@ if ($UpdatedManifest -ceq $Manifest -and $Manifest -notmatch ('\bversion="' + [r
 Write-IfChanged -Path $ManifestFile -Content $UpdatedManifest
 
 Write-Host "[OmniGhost] Versão preparada: $Version"
+

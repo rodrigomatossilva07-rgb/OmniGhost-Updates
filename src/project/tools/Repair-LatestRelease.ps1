@@ -141,3 +141,4 @@ for ($Attempt = 1; $Attempt -le 10; $Attempt++) {
 }
 
 throw "A API Latest devolveu '$Observed' em vez de '$Tag'."
+

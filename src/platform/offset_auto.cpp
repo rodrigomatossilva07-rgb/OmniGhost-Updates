@@ -1,4 +1,4 @@
-#include "offset_auto.h"
+﻿#include "offset_auto.h"
 
 #include "src/games/Cs2/cs2_game.h"
 #include "src/games/Fivem/game/offsets.h"
@@ -207,3 +207,4 @@ int RefreshAllSupported(bool force) {
 }
 
 }
+

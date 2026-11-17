@@ -1,4 +1,4 @@
-#include "../../widgets.h"
+﻿#include "../../widgets.h"
 #include "../../theme.h"
 #include "../../localization.h"
 #include "config/cs2_config.h"
@@ -247,3 +247,4 @@ void DrawCs2Aim() {
     }
     CyberWidgets::EndCard();
 }
+

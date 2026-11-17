@@ -1,4 +1,4 @@
-#include "runtime_bootstrap.h"
+﻿#include "runtime_bootstrap.h"
 #include "text_encoding.h"
 #include "session_log.h"
 #include "app_paths.h"
@@ -928,3 +928,4 @@ void VerifyNoPrivateExeCopy() noexcept {
 
 
 }
+

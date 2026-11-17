@@ -24,3 +24,4 @@ if (Test-Path -LiteralPath $StatePath -PathType Leaf) {
     Remove-Item -LiteralPath $StatePath -Force -ErrorAction SilentlyContinue
 }
 Write-Host "[Compile] Concluído em $(Format-OmniDuration $elapsed)."
+

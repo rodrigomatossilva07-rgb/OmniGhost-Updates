@@ -482,3 +482,4 @@ Write-Host "[BuildMetadata] header=$OutputPath"
 Write-Host "[BuildMetadata] metadata=$MetadataPath"
 $reproducibilityLabel = if ($Configuration -ceq 'Publish' -and -not $Reproducible) { 'pending' } elseif ($Reproducible) { 'verified' } else { 'not-requested' }
 Write-Host "[BuildMetadata] build_id=$BuildId commit=$CommitShort provenance=$SourceProvenance reproducibility=$reproducibilityLabel config=$Configuration arch=$Architecture channel=$ReleaseChannel vc=$ToolchainVersion compiler=$CompilerVersion sdk=$WindowsSdkVersion"
+

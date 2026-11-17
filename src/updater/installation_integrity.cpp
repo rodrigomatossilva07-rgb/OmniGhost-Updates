@@ -1,4 +1,4 @@
-#include "installation_integrity.h"
+﻿#include "installation_integrity.h"
 #include "../platform/runtime_bootstrap.h"
 #include "../platform/text_encoding.h"
 #include "crypto.h"
@@ -170,3 +170,4 @@ IntegrityReport VerifyInstallationFiles(const fs::path& installDirectory, std::s
     return report;
 }
 }
+

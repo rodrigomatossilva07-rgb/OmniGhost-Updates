@@ -61,8 +61,8 @@ void DrawFriends()
         friends::AddClosestAsFriend();
         CyberWidgets::Notify(Loc::Tr("status.friend_added"), CyberWidgets::ToastType::Success);
     }
-    if (ImGui::CollapsingHeader("DADOS E MANUTENÃ‡ÃƒO", ImGuiTreeNodeFlags_None)) {
-        if (CyberWidgets::CyberButton("Remover mais prÃ³ximo", ImVec2(180, 34)))
+    if (ImGui::CollapsingHeader("DADOS E MANUTENÇÃO", ImGuiTreeNodeFlags_None)) {
+        if (CyberWidgets::CyberButton("Remover mais próximo", ImVec2(180, 34)))
             friends::KickClosestFromFriends();
         if (CyberWidgets::CyberButton("Exportar", ImVec2(110, 34))) {
             if (friends::ExportFriendsClipboard())
@@ -217,3 +217,4 @@ void DrawFriends()
     ImGui::EndGroup();
 
 }
+

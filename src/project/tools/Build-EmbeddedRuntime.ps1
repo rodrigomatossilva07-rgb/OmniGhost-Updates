@@ -206,3 +206,4 @@ if ($env:OMNIGHOST_VERBOSE_BUILD -eq '1') {
     Write-Host "[EmbeddedRuntime] Manifesto: $HeaderOutput"
 }
 $generatorLock.Dispose()
+

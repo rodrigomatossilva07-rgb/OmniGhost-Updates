@@ -143,3 +143,4 @@ New-Item -ItemType Directory -Force -Path $workRoot | Out-Null
 if ($Game -in @('CS2', 'All')) { Update-CS2Collision }
 if ($Game -in @('FiveM', 'All')) { Update-FiveMCollision }
 Write-Host "`n  Atualização concluída." -ForegroundColor Green
+

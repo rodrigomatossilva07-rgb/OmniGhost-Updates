@@ -1,4 +1,4 @@
-#include "update_log.h"
+﻿#include "update_log.h"
 
 #include <Windows.h>
 
@@ -295,3 +295,4 @@ void RotateLogs(const fs::path& directory, int maximumFiles, int maximumAgeDays)
 }
 
 }
+

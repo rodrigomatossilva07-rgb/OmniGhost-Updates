@@ -1,4 +1,4 @@
-#include <ragekit/ragekit.h>
+﻿#include <ragekit/ragekit.h>
 
 #include <algorithm>
 #include <array>
@@ -86,7 +86,7 @@ struct RegionResult {
     std::cerr
         << "Uso:\n  " << exe << " --output <pasta> [opções]\n\n"
         << "Opções:\n"
-        << "  --game <pasta>          Instalação GTA V (deteção automática por omissão)\n"
+        << "  --game <pasta>          Instalação GTA V (detecção automática por omissão)\n"
         << "  --region-size <metros>  Tamanho das regiões, 128..2048 (padrão 512)\n"
         << "  --bounds x0 y0 x1 y1    Exportar apenas uma área de teste\n"
         << "  --segments <n>          Segmentos de primitivas, 6..24 (padrão 8)\n"
@@ -523,4 +523,5 @@ int main(int argc, char** argv) {
         return 1;
     }
 }
+
 

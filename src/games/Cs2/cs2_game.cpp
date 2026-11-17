@@ -1,4 +1,4 @@
-#include "cs2_game.h"
+﻿#include "cs2_game.h"
 #include "platform/session_log.h"
 #include "../src/platform/offset_auto.h"
 #include "../src/platform/app_paths.h"
@@ -760,3 +760,4 @@ static bool ShouldYieldToCameraQuick() noexcept {
 #include "session/cs2_lifecycle.inl"
 #include "offsets/cs2_offset_validation.inl"
 }
+

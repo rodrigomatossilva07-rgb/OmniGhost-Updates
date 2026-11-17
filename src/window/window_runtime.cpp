@@ -1,4 +1,4 @@
-#include "window.hpp"
+﻿#include "window.hpp"
 
 #include "../config/app_settings.h"
 #include "../platform/monitor_utils.h"
@@ -987,3 +987,4 @@ LRESULT CALLBACK Overlay::WindowProc(
         lparam
     );
 }
+

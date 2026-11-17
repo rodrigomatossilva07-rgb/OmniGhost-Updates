@@ -58,7 +58,7 @@ void DrawFiveMStatus()
     BeginCard("SISTEMA", half);
     HealthRow("DMA", worldOk ? "Ligado" : "A ligar",
               worldOk ? HealthStatus::Ok : HealthStatus::Warning);
-    HealthRow("FiveM", viewOk ? "Detetado" : "NÃ£o detetado",
+    HealthRow("FiveM", viewOk ? "Detetado" : "Não detetado",
               viewOk ? HealthStatus::Ok : HealthStatus::Warning);
     HealthRow("Jogador local", localOk ? "Detetado" : "A aguardar",
               localOk ? HealthStatus::Ok : HealthStatus::Warning);
@@ -84,23 +84,23 @@ void DrawFiveMStatus()
     CardGap();
     BeginCardRow();
     BeginCard("CORE WORLD", half);
-    HealthRow("AquisiÃ§Ã£o", coreWorldOk ? "Dados recentes" : (worldOk ? "A aguardar entidades" : "World indisponÃ­vel"),
+    HealthRow("Aquisição", coreWorldOk ? "Dados recentes" : (worldOk ? "A aguardar entidades" : "World indisponível"),
               coreWorldOk ? HealthStatus::Ok : HealthStatus::Warning);
-    TextLineF(TextTone::Secondary, "Pool: %d lidos | %d vÃ¡lidos | %d filtrados",
+    TextLineF(TextTone::Secondary, "Pool: %d lidos | %d válidos | %d filtrados",
               rawPedCount, pedCount, filteredPedCount);
-    TextLineF(TextTone::Secondary, "VeÃ­culos vÃ¡lidos: %d", cachedVehicleCount);
+    TextLineF(TextTone::Secondary, "Veículos válidos: %d", cachedVehicleCount);
     TextLineF(TextTone::Secondary, "Snapshot: %.1f Hz | idade %.1f ms", snapshotHz, worldAge);
     TextLineF(pressure > 1 ? TextTone::Warning : TextTone::Secondary,
-              "PressÃ£o DMA: %d | falhas: %llu", pressure,
+              "Pressão DMA: %d | falhas: %llu", pressure,
               static_cast<unsigned long long>(readFails));
-    HealthRow("Raycast do mapa", collision.initialized ? "DisponÃ­vel" : "IndisponÃ­vel",
+    HealthRow("Raycast do mapa", collision.initialized ? "Disponível" : "Indisponível",
               collision.initialized ? HealthStatus::Ok : HealthStatus::Warning);
-    TextLineF(TextTone::Secondary, "ColisÃ£o: %u regiÃµes em RAM | %u em fila | %.1f / %.0f MiB",
+    TextLineF(TextTone::Secondary, "Colisão: %u regiões em RAM | %u em fila | %.1f / %.0f MiB",
               collision.cachedRegions, collision.pendingRegions,
               static_cast<double>(collision.cacheBytes) / (1024.0 * 1024.0),
               static_cast<double>(collision.cacheLimitBytes) / (1024.0 * 1024.0));
     TextLineF(collision.failedLoads ? TextTone::Warning : TextTone::Secondary,
-              "RegiÃµes: %llu carregadas | %llu falharam | %llu consultas pendentes",
+              "Regiões: %llu carregadas | %llu falharam | %llu consultas pendentes",
               static_cast<unsigned long long>(collision.successfulLoads),
               static_cast<unsigned long long>(collision.failedLoads),
               static_cast<unsigned long long>(collision.missingQueries));
@@ -116,24 +116,24 @@ void DrawFiveMStatus()
               radar.sourceFresh ? HealthStatus::Ok : HealthStatus::Warning);
     HealthRow("Cloudflare", FiveM::WebRadar::CloudflareRunning() ? "Ligado" : "Desligado",
               FiveM::WebRadar::CloudflareRunning() ? HealthStatus::Ok : HealthStatus::Warning);
-    TextLineF(TextTone::Secondary, "%u jogadores | %u veÃ­culos | %u clientes",
+    TextLineF(TextTone::Secondary, "%u jogadores | %u veículos | %u clientes",
               radar.players, radar.vehicles, radar.clients);
     TextLineF(TextTone::Secondary, "Envio: %.1f / %.0f Hz | idade %llu ms",
               radar.updateHz, radar.configuredHz,
               static_cast<unsigned long long>(radar.lastSampleAgeMs));
     if (!radar.running)
-        TextLine("Motivo: Web Radar desativado nas definiÃ§Ãµes do Radar.", TextTone::Secondary);
+        TextLine("Motivo: Web Radar desativado nas definições do Radar.", TextTone::Secondary);
     else if (!worldOk)
-        TextLine("Motivo: ponteiro World do FiveM indisponÃ­vel.", TextTone::Warning);
+        TextLine("Motivo: ponteiro World do FiveM indisponível.", TextTone::Warning);
     else if (!localOk)
-        TextLine("Motivo: jogador local ainda nÃ£o identificado.", TextTone::Warning);
+        TextLine("Motivo: jogador local ainda não identificado.", TextTone::Warning);
     else if (!radar.sourceFresh)
         TextLine("Motivo: cache do Core World vazia ou com mais de 1,5 s.", TextTone::Warning);
     EndCard();
     EndCardRow();
 #else
     BeginCard("SYS // 06   SISTEMA", 0.f);
-    TextLine("PÃ¡gina de estado disponÃ­vel no runtime Windows com DMA.", TextTone::Secondary);
+    TextLine("Página de estado disponível no runtime Windows com DMA.", TextTone::Secondary);
     EndCard();
 #endif
 
@@ -148,3 +148,4 @@ void DrawFiveMStatus()
 
     ImGui::PopID();
 }
+

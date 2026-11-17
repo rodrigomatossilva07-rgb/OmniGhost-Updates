@@ -1,4 +1,4 @@
-#include "diagnostics_package.h"
+﻿#include "diagnostics_package.h"
 
 #include "app_paths.h"
 #include "session_log.h"
@@ -202,3 +202,4 @@ bool CreatePackage(std::string_view summary,
 }
 
 }
+

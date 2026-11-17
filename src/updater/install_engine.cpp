@@ -1,4 +1,4 @@
-#include "install_engine.h"
+﻿#include "install_engine.h"
 #include "crypto.h"
 #include "../platform/app_paths.h"
 #include "../platform/unique_handle.h"
@@ -475,3 +475,4 @@ InstallResult InstallSingleExecutable(const InstallOptions& options) {
 }
 
 }
+

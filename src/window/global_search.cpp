@@ -1,4 +1,4 @@
-#include "global_search.h"
+﻿#include "global_search.h"
 #include "theme.h"
 #include "src/project/third_party/ImGui/imgui.h"
 #include <algorithm>
@@ -181,3 +181,4 @@ void DrawCommandPalette(bool* open) {
 }
 void ClearSearch() { g_query.clear(); g_selected = 0; }
 }
+

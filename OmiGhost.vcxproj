@@ -174,6 +174,11 @@
     <Copy SourceFiles="@(OmniGhostProjectData)" DestinationFiles="@(OmniGhostProjectData->'$(OutDir)data\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostProjectData)'!=''" />
     <Copy SourceFiles="@(OmniGhostCs2Data)" DestinationFiles="@(OmniGhostCs2Data->'$(OutDir)data\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostCs2Data)'!=''" />
     <Copy SourceFiles="$(ProjectDir)src\project\data\rust_offsets.json" DestinationFiles="$(OutDir)data\rust_offsets.json" SkipUnchangedFiles="true" Condition="'$(Configuration)'=='PrivateStatic'" />
+    <Copy SourceFiles="$(ProjectDir)src\project\data\cs2_offsets.json" DestinationFiles="$(OutDir)data\cs2_offsets.json" SkipUnchangedFiles="true" Condition="'$(Configuration)'=='PrivateStatic'" />
+    <Copy SourceFiles="$(ProjectDir)src\project\data\fivem_offsets.json" DestinationFiles="$(OutDir)data\fivem_offsets.json" SkipUnchangedFiles="true" Condition="'$(Configuration)'=='PrivateStatic'" />
+    <Copy SourceFiles="$(ProjectDir)src\project\data\fortnite_offsets.json" DestinationFiles="$(OutDir)data\fortnite_offsets.json" SkipUnchangedFiles="true" Condition="'$(Configuration)'=='PrivateStatic'" />
+    <Copy SourceFiles="$(ProjectDir)src\project\data\warzone_offsets.json" DestinationFiles="$(OutDir)data\warzone_offsets.json" SkipUnchangedFiles="true" Condition="'$(Configuration)'=='PrivateStatic'" />
+    <Copy SourceFiles="$(ProjectDir)src\project\data\apex_offsets.json" DestinationFiles="$(OutDir)data\apex_offsets.json" SkipUnchangedFiles="true" Condition="'$(Configuration)'=='PrivateStatic'" />
     <ItemGroup>
       <OmniGhostRuntimeDestination Include="@(OmniGhostLibRuntimeLibrary->'$(OutDir)%(Filename)%(Extension)')" />
       <OmniGhostRuntimeDestination Include="@(OmniGhostDmaRuntimeLibrary->'$(OutDir)%(Filename)%(Extension)')" />
@@ -414,6 +419,9 @@
     <ClCompile Include="src\games\Fortnite\fortnite_game.cpp" />
     <ClCompile Include="src\games\Rust\rust_game.cpp" />
     <ClCompile Include="src\games\Rust\rust_esp.cpp" />
+    <ClCompile Include="src\games\Fivem\fivem_game.cpp" />
+    <ClCompile Include="src\games\Warzone\warzone_game.cpp" />
+    <ClCompile Include="src\games\Apex\apex_game.cpp" />
     <ClCompile Include="src\window\pages\fortnite\FortniteVisualsPage.cpp" />
     <ClCompile Include="src\window\pages\fortnite\FortniteStatusPage.cpp" />
     <ClCompile Include="src\window\pages\fortnite\FortniteAimPage.cpp" />
@@ -438,6 +446,7 @@
     <ClCompile Include="src\platform\secret_store.cpp" />
     <ClCompile Include="src\platform\embedded_offsets.cpp" />
     <ClCompile Include="src\platform\offset_source.cpp" />
+    <ClCompile Include="src\platform\hot_reload_offsets.cpp" />
     <ClCompile Include="src\platform\embedded_resources.cpp" />
     <ClCompile Include="src\platform\runtime_bootstrap.cpp" />
   </ItemGroup>
@@ -504,6 +513,7 @@
     <ClInclude Include="src\platform\secret_store.h" />
     <ClInclude Include="src\platform\embedded_offsets.h" />
     <ClInclude Include="src\platform\offset_source.h" />
+    <ClInclude Include="src\platform\hot_reload_offsets.h" />
     <ClInclude Include="src\platform\embedded_resources.h" />
     <ClInclude Include="src\platform\runtime_bootstrap.h" />
     <ClInclude Include="src\platform\path_security.h" />
@@ -512,6 +522,9 @@
     <ClInclude Include="src\games\Rust\rust_config.h" />
     <ClInclude Include="src\games\Rust\rust_game.h" />
     <ClInclude Include="src\games\Rust\rust_esp.h" />
+    <ClInclude Include="src\games\Fivem\fivem_game.h" />
+    <ClInclude Include="src\games\Warzone\warzone_game.h" />
+    <ClInclude Include="src\games\Apex\apex_game.h" />
     
     <ClInclude Include="src\games\Cs2\radar\cs2_web_radar.h" />
     <ClInclude Include="src\games\Cs2\rcs\local_player_resolver.h" />

@@ -56,3 +56,4 @@ foreach ($region in $regions) {
     } finally { $stream.Dispose() }
 }
 Write-Host '[FiveM Collision] Verificação pós-otimização concluída.'
+

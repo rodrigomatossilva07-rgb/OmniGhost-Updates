@@ -49,3 +49,4 @@ foreach ($invalid in $invalidCollisionFiles) {
     Write-Warning "Collision map incompleto será excluído dos recursos embedded: $($invalid.Name)"
 }
 Write-Host "[PASS] Release readiness: versão $version, licença local ausente, $(@($offsets.builds.PSObject.Properties).Count) builds FiveM e $($validCollisionFiles.Count) mapas CS2 válidos verificados."
+

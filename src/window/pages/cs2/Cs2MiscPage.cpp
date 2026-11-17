@@ -25,8 +25,8 @@ void DrawCs2Misc()
 
     BeginCard("TELEMETRIA", 0.f);
     TextLine(
-        "Grava no logs.txt leituras DMA, tempos de aquisicao, spikes e cada nova amostra do RCS "
-        "com precisÃ£o de milissegundos. Usa isto durante a partida e envia o ficheiro para diagnÃ³stico.",
+        "Grava no logs.txt leituras DMA, tempos de aquisição, spikes e cada nova amostra do RCS "
+        "com precisão de milissegundos. Usa isto durante a partida e envia o ficheiro para diagnóstico.",
         TextTone::Secondary);
     const bool prev = CS2::config.telemetry_enabled;
     ToggleSwitch("Telemetria", &CS2::config.telemetry_enabled);
@@ -50,7 +50,7 @@ void DrawCs2Misc()
         OmniGhost::SessionLog::Write(
             OmniGhost::SessionLog::Severity::Info,
             OmniGhost::SessionLog::Subsystem::Adapter,
-            "[CS2] Telemetria ativada â€” PERF/SPIKE vao para logs.txt");
+            "[CS2] Telemetria ativada — PERF/SPIKE vao para logs.txt");
     }
     if (CS2::config.telemetry_enabled) {
         TextLine("Estado: a gravar (PERF ~1/s, SPIKE >= 50 ms e RCS por amostra real).", TextTone::Secondary);
@@ -69,3 +69,4 @@ void DrawCs2Misc()
 
     ImGui::PopID();
 }
+

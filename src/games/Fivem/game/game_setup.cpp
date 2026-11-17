@@ -1,4 +1,4 @@
-#include "game_setup.h"
+﻿#include "game_setup.h"
 #include "esp_manager.h"
 #include "offsets.h"
 #include "src/project/third_party/DMALibrary/Memory/Memory.h"
@@ -181,3 +181,4 @@ bool ReinitDma() {
 }
 
 }
+

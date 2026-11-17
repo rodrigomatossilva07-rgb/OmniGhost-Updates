@@ -1,4 +1,4 @@
-#include "application_transitions.h"
+﻿#include "application_transitions.h"
 
 #include "../config/app_settings.h"
 #include "../platform/shutdown_coordinator.h"
@@ -163,3 +163,4 @@ void EndGameSessionWithTransition(Overlay& application,
 }
 
 }
+

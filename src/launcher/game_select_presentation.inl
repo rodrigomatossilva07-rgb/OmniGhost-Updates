@@ -1,4 +1,4 @@
-
+﻿
 
 
 void DrawCornerBracket(
@@ -1017,8 +1017,8 @@ void DrawLibrary(ImDrawList* draw, ImVec2 display, float delta) {
                               updSnap.status == US::Downloading ||
                               updSnap.status == US::Installing;
         const char* checkLabel = checking
-            ? app_settings::T("A procurar…", "Checking…")
-            : app_settings::T("Procurar atualizações", "Check for updates");
+            ? app_settings::T("A procurar…", "Checking…", "Suche…", "Buscando…", "Recherche…", "Ricerca…", "Поиск…")
+            : app_settings::T("Procurar atualizações", "Check for updates", "Nach Updates suchen", "Buscar actualizaciones", "Rechercher des mises à jour", "Cerca aggiornamenti", "Проверить обновления");
 
         ImGui::SetCursorScreenPos(ImVec2(check_x, row_y));
         ImGui::PushStyleColor(ImGuiCol_Button, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.22f));
@@ -1033,7 +1033,7 @@ void DrawLibrary(ImDrawList* draw, ImVec2 display, float delta) {
         ImGui::PopStyleVar(2);
         if (clicked && !checking) {
             OmniGhost::Update::UpdateService::Instance().CheckAsync(true);
-            PushToast(app_settings::T("A procurar atualizações…", "Checking for updates…"),
+            PushToast(app_settings::T("A procurar atualizações…", "Checking for updates…", "Suche nach Updates…", "Buscando actualizaciones…", "Recherche de mises à jour…", "Ricerca aggiornamenti…", "Поиск обновлений…"),
                       C_GOLD(), ToastAction::None, nullptr);
         }
     }
@@ -1155,3 +1155,4 @@ void DrawLibrary(ImDrawList* draw, ImVec2 display, float delta) {
     ImGui::EndChild();
     ImGui::PopStyleColor(5);
 }
+

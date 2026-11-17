@@ -106,19 +106,19 @@ namespace LauncherUpdates {
                 return OGS_CSTR("Compatibilidade");
 
             case Launcher::ChangeType::Security:
-                return OGS_CSTR("SeguranÃ§a");
+                return OGS_CSTR("Segurança");
 
             case Launcher::ChangeType::Removed:
                 return OGS_CSTR("Removido");
 
             case Launcher::ChangeType::Breaking:
-                return OGS_CSTR("AlteraÃ§Ã£o importante");
+                return OGS_CSTR("Alteração importante");
 
             case Launcher::ChangeType::Maintenance:
-                return OGS_CSTR("ManutenÃ§Ã£o");
+                return OGS_CSTR("Manutenção");
 
             default:
-                return OGS_CSTR("AlteraÃ§Ã£o");
+                return OGS_CSTR("Alteração");
             }
         }
 
@@ -194,7 +194,7 @@ namespace LauncherUpdates {
                 "",
                 OGS_CSTR("JANEIRO"),
                 OGS_CSTR("FEVEREIRO"),
-                OGS_CSTR("MARÃ‡O"),
+                OGS_CSTR("MARÇO"),
                 OGS_CSTR("ABRIL"),
                 OGS_CSTR("MAIO"),
                 OGS_CSTR("JUNHO"),
@@ -704,7 +704,7 @@ namespace LauncherUpdates {
             const std::string authorLine =
                 "@" +
                 author +
-                OGS_LIT(" publicou esta versÃ£o ") +
+                OGS_LIT(" publicou esta versão ") +
                 UpdateTime::RelativePublishedTime(
                     release.publishedAt);
 
@@ -758,7 +758,7 @@ namespace LauncherUpdates {
                 ImGuiTableFlags_RowBg |
                 ImGuiTableFlags_SizingStretchSame)) {
                 ImGui::TableSetupColumn(
-                    OGS_CSTR("VersÃ£o"));
+                    OGS_CSTR("Versão"));
 
                 ImGui::TableSetupColumn(
                     OGS_CSTR("Canal"));
@@ -780,7 +780,7 @@ namespace LauncherUpdates {
                 ImGui::TableSetColumnIndex(1);
 
                 const char* displayChannel =
-                    channel.empty() || channel == OGS_CSTR("stable") ? OGS_CSTR("EstÃ¡vel") :
+                    channel.empty() || channel == OGS_CSTR("stable") ? OGS_CSTR("Estável") :
                     channel == OGS_CSTR("beta") ? OGS_CSTR("Beta") : channel.c_str();
                 ImGui::TextColored(
                     ToVec4(C_GOLD_LT),
@@ -891,11 +891,11 @@ namespace LauncherUpdates {
             ImGui::TextColored(
                 ToVec4(C_MUTED2),
                 "%s",
-                OGS_CSTR("O conteÃºdo acima Ã© gerado a partir "
-                "dos mesmos dados usados na versÃ£o publicada no GitHub."));
+                OGS_CSTR("O conteúdo acima é gerado a partir "
+                "dos mesmos dados usados na versão publicada no GitHub."));
 
             if (CyberWidgets::Button(
-                OGS_CSTR("Abrir versÃ£o no GitHub"), CyberWidgets::ButtonStyle::Secondary)) {
+                OGS_CSTR("Abrir versão no GitHub"), CyberWidgets::ButtonStyle::Secondary)) {
                 const std::string url =
                     PublicReleaseUrl(release);
 
@@ -1225,7 +1225,7 @@ namespace LauncherUpdates {
                         cardMaximum.y - 29.0f));
 
                 if (CyberWidgets::Button(
-                    OGS_CSTR("Ver alteraÃ§Ãµes"), CyberWidgets::ButtonStyle::Ghost, ImVec2(128.0f, 26.0f))) {
+                    OGS_CSTR("Ver alterações"), CyberWidgets::ButtonStyle::Ghost, ImVec2(128.0f, 26.0f))) {
                     g_expanded.insert(
                         card.id);
 
@@ -1243,7 +1243,7 @@ namespace LauncherUpdates {
                 ImGui::TextColored(
                     ToVec4(C_GOLD),
                     "%s",
-                    OGS_CSTR("Ocultar alteraÃ§Ãµes"));
+                    OGS_CSTR("Ocultar alterações"));
             }
 
             ImGui::SetCursorScreenPos(
@@ -1494,7 +1494,7 @@ namespace LauncherUpdates {
         ImGui::TextColored(
             ToVec4(C_TEXT),
             "%s",
-            OGS_CSTR("AtualizaÃ§Ãµes"));
+            OGS_CSTR("Atualizações"));
 
         if (title != nullptr) {
             ImGui::PopFont();
@@ -1503,12 +1503,12 @@ namespace LauncherUpdates {
         ImGui::TextColored(
             ToVec4(C_MUTED),
             "%s",
-            OGS_CSTR("HistÃ³rico publicado, organizado por produto e componente. "
-            "Apenas alteraÃ§Ãµes verificadas sÃ£o apresentadas aqui."));
+            OGS_CSTR("Histórico publicado, organizado por produto e componente. "
+            "Apenas alterações verificadas são apresentadas aqui."));
 
         const std::string lastDate =
             snapshot.releases.empty()
-            ? "â€”"
+            ? "—"
             : UpdateTime::DateDisplay(
                 snapshot.releases.front().publishedAt);
 
@@ -1524,14 +1524,14 @@ namespace LauncherUpdates {
         ImGui::TextColored(
             ToVec4(C_MUTED),
             "%s",
-            OGS_CSTR("atualizaÃ§Ãµes"));
+            OGS_CSTR("atualizações"));
 
         ImGui::SameLine(170.0f);
 
         ImGui::TextColored(
             ToVec4(C_MUTED2),
             "%s",
-            OGS_CSTR("Ãšltima atualizaÃ§Ã£o:"));
+            OGS_CSTR("Última atualização:"));
 
         ImGui::SameLine();
 
@@ -1561,7 +1561,7 @@ namespace LauncherUpdates {
                     0.0f));
 
             if (CyberWidgets::LoadingButton(
-                    OGS_CSTR("Procurar atualizaÃ§Ãµes"), OGS_CSTR("A procurarâ€¦"),
+                    OGS_CSTR("Procurar atualizações"), OGS_CSTR("A procurar…"),
                     checkingExecutable || checkingChangelog,
                     CyberWidgets::ButtonStyle::Secondary,
                     ImVec2(CyberTheme::Px(180.0f), CyberTheme::Px(34.0f)))) {
@@ -1619,7 +1619,7 @@ namespace LauncherUpdates {
             OGS_CSTR("##update_search"),
             g_search,
             sizeof(g_search),
-            OGS_CSTR("Pesquisar atualizaÃ§Ãµes..."),
+            OGS_CSTR("Pesquisar atualizações..."),
             0,
             fieldWidth);
 
@@ -1747,7 +1747,7 @@ namespace LauncherUpdates {
         const char* sortLabels[] = {
             OGS_CSTR("Mais recentes"),
             OGS_CSTR("Mais antigas"),
-            OGS_CSTR("Apenas nÃ£o lidas")
+            OGS_CSTR("Apenas não lidas")
         };
 
         if (g_sort < 0 ||
@@ -1921,7 +1921,7 @@ namespace LauncherUpdates {
         if (snapshot.status ==
             Launcher::ChangelogStatus::Loading &&
             allCards.empty()) {
-            CyberWidgets::TextLine(OGS_CSTR("A carregar atualizaÃ§Ãµesâ€¦"), CyberWidgets::TextTone::Secondary);
+            CyberWidgets::TextLine(OGS_CSTR("A carregar atualizações…"), CyberWidgets::TextTone::Secondary);
             ImGui::Spacing();
             for (int skeleton = 0; skeleton < 3; ++skeleton) {
                 CyberWidgets::SkeletonLine(CyberTheme::Px(190.0f), CyberTheme::Px(16.0f));
@@ -1939,26 +1939,26 @@ namespace LauncherUpdates {
                 ) &&
             allCards.empty()) {
             DrawEmptyState(
-                OGS_CSTR("Ainda nÃ£o existem atualizaÃ§Ãµes publicadas"),
-                OGS_CSTR("As alteraÃ§Ãµes do launcher e dos mÃ³dulos "
-                "dos jogos serÃ£o apresentadas aqui quando "
-                "existir uma nova versÃ£o."));
+                OGS_CSTR("Ainda não existem atualizações publicadas"),
+                OGS_CSTR("As alterações do launcher e dos módulos "
+                "dos jogos serão apresentadas aqui quando "
+                "existir uma nova versão."));
         }
         else if (
             snapshot.status ==
             Launcher::ChangelogStatus::Error &&
             allCards.empty()) {
             DrawEmptyState(
-                OGS_CSTR("NÃ£o foi possÃ­vel carregar o histÃ³rico de atualizaÃ§Ãµes"),
-                OGS_CSTR("Verifica a ligaÃ§Ã£o e utiliza o botÃ£o "
-                "Procurar atualizaÃ§Ãµes para tentar novamente."));
+                OGS_CSTR("Não foi possível carregar o histórico de atualizações"),
+                OGS_CSTR("Verifica a ligação e utiliza o botão "
+                "Procurar atualizações para tentar novamente."));
         }
         else {
             if (latestPanelVisible) {
                 ImGui::TextColored(
                     ToVec4(C_GOLD),
                     "%s",
-                    OGS_CSTR("VERSÃƒO MAIS RECENTE"));
+                    OGS_CSTR("VERSÃO MAIS RECENTE"));
 
                 ImGui::Spacing();
 
@@ -1972,7 +1972,7 @@ namespace LauncherUpdates {
             if (filtered.empty()) {
                 if (!latestPanelVisible) {
                     DrawEmptyState(
-                        OGS_CSTR("Nenhuma atualizaÃ§Ã£o encontrada"),
+                        OGS_CSTR("Nenhuma atualização encontrada"),
                         OGS_CSTR("Experimenta alterar os filtros "
                         "ou a pesquisa."));
                 }
@@ -1982,7 +1982,7 @@ namespace LauncherUpdates {
                     ImGui::TextColored(
                         ToVec4(C_GOLD),
                         "%s",
-                        OGS_CSTR("HISTÃ“RICO POR JOGO E COMPONENTE"));
+                        OGS_CSTR("HISTÓRICO POR JOGO E COMPONENTE"));
 
                     ImGui::Spacing();
                 }
@@ -2076,3 +2076,4 @@ namespace LauncherUpdates {
     }
 
 }
+

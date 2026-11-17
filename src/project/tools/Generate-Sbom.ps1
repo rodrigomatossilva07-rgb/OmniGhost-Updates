@@ -79,7 +79,7 @@ $bom = [ordered]@{
         tools = @([ordered]@{
             vendor = 'OmniGhost'
             name = 'Generate-Sbom.ps1'
-            version = '1.0.0'
+            version = '1.3.3'
         })
         component = [ordered]@{
             type = 'application'
@@ -110,3 +110,4 @@ $json = ($bom | ConvertTo-Json -Depth 12) + [Environment]::NewLine
 $null = $json | ConvertFrom-Json
 [IO.File]::WriteAllText($OutputPath, $json, $utf8NoBom)
 Write-Host "[OmniGhost SBOM] $($components.Count) binários inventariados em $OutputPath"
+

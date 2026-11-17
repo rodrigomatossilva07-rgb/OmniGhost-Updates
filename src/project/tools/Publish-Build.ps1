@@ -250,3 +250,4 @@ finally {
         & (Join-Path $ProjectDir 'src\project\tools\Cleanup-PrePublish.ps1') -ProjectDir $ProjectDir
     }
 }
+

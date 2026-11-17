@@ -1,4 +1,4 @@
-#include "radar_access.h"
+﻿#include "radar_access.h"
 
 #include <Windows.h>
 #include <bcrypt.h>
@@ -144,3 +144,4 @@ bool HasSafeSameOrigin(std::string_view request)
 }
 
 }
+

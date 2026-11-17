@@ -1,4 +1,4 @@
-#include "steam_game_update_check.h"
+﻿#include "steam_game_update_check.h"
 
 #include "../platform/app_paths.h"
 #include "../updater/http_client.h"
@@ -197,3 +197,4 @@ Status Get(GameId game) {
     return result;
 }
 }
+

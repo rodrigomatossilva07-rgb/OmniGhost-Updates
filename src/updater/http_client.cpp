@@ -1,4 +1,4 @@
-#include "http_client.h"
+﻿#include "http_client.h"
 #include "http_policy.h"
 #include "update_log.h"
 #include "wininet_fallback.h"
@@ -912,3 +912,4 @@ HttpResult WinHttpClient::Download(
 }
 
 }
+

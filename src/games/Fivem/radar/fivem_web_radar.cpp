@@ -1,4 +1,4 @@
-#include "fivem_web_radar.h"
+﻿#include "fivem_web_radar.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -250,3 +250,4 @@ void StopCloudflare(){g_cloudStop=true;{std::scoped_lock l(g_cloudMutex);if(g_cl
 bool CloudflareRunning() noexcept{std::scoped_lock l(g_cloudMutex);return g_cloudProcess.hProcess!=nullptr;}std::string CloudflareStatus(){std::scoped_lock l(g_cloudMutex);return g_cloudStatus;}
 Diagnostics GetDiagnostics() noexcept{Diagnostics d;d.running=g_running;d.clients=g_clientCount;d.updateHz=g_measuredHz.load(std::memory_order_relaxed);d.configuredHz=g_updateHz.load(std::memory_order_relaxed);d.maxDistance=g_maxDistance.load(std::memory_order_relaxed);d.maxPlayers=g_maxPlayers.load(std::memory_order_relaxed);d.maxVehicles=g_maxVehicles.load(std::memory_order_relaxed);std::scoped_lock l(g_stateMutex);d.players=g_players;d.vehicles=g_vehicles;d.sourceFresh=g_sourceConnected&&g_sampleTime.time_since_epoch().count()!=0&&Clock::now()-g_sampleTime<kStaleAfter;d.lastSampleAgeMs=g_sampleTime.time_since_epoch().count()?std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now()-g_sampleTime).count():0;return d;}
 }
+

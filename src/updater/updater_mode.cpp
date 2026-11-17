@@ -1,4 +1,4 @@
-#include "updater_mode.h"
+﻿#include "updater_mode.h"
 #include "../app_version.h"
 #include "../platform/app_paths.h"
 #include "../platform/scope_exit.h"
@@ -562,3 +562,4 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
     return 0;
 }
 }
+

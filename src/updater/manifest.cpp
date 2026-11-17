@@ -73,63 +73,63 @@ ManifestResult ParseAndValidateManifest(const std::string& json, const Configura
     limits.maximumNodes = 10000;
     const Json::ParseResult parsed = Json::Parse(json, root, limits);
     if (!parsed.ok)
-        return fail(OGS_CSTR("JSON do manifesto invÃ¡lido (offset ") + std::to_string(parsed.errorOffset) + "): " + parsed.error + ".");
+        return fail(OGS_CSTR("JSON do manifesto inválido (offset ") + std::to_string(parsed.errorOffset) + "): " + parsed.error + ".");
 
     const Json::Object* object = Json::AsObject(root);
-    if (!object) return fail(OGS_CSTR("A raiz do manifesto nÃ£o Ã© um objeto."));
+    if (!object) return fail(OGS_CSTR("A raiz do manifesto não é um objeto."));
 
     Manifest manifest{};
     std::uint64_t schema{};
     if (!UInt(*object, OGS_CSTR("schemaVersion"), schema) || schema != 1)
-        return fail(OGS_CSTR("VersÃ£o de schema nÃ£o suportada."));
+        return fail(OGS_CSTR("Versão de schema não suportada."));
     manifest.schemaVersion = 1;
 
     std::string channel, version, minimum;
     if (!Text(*object, OGS_CSTR("appId"), manifest.appId) || manifest.appId != config.expectedAppId)
-        return fail(OGS_CSTR("appId invÃ¡lido."));
+        return fail(OGS_CSTR("appId inválido."));
     if (!Text(*object, OGS_CSTR("channel"), channel)) return fail(OGS_CSTR("Canal em falta."));
     const auto parsedChannel = ParseChannel(channel);
     if (!parsedChannel || *parsedChannel != config.channel)
-        return fail(OGS_CSTR("Canal de atualizaÃ§Ã£o invÃ¡lido."));
+        return fail(OGS_CSTR("Canal de atualização inválido."));
     manifest.channel = *parsedChannel;
 
     const auto parsedVersion = [&]() -> std::optional<SemVersion> {
         if (!Text(*object, OGS_CSTR("version"), version)) return std::nullopt;
         return SemVersion::Parse(version);
     }();
-    if (!parsedVersion) return fail(OGS_CSTR("VersÃ£o invÃ¡lida."));
+    if (!parsedVersion) return fail(OGS_CSTR("Versão inválida."));
     manifest.version = *parsedVersion;
 
     const auto parsedMinimum = [&]() -> std::optional<SemVersion> {
         if (!Text(*object, OGS_CSTR("minimumSupportedVersion"), minimum)) return std::nullopt;
         return SemVersion::Parse(minimum);
     }();
-    if (!parsedMinimum) return fail(OGS_CSTR("VersÃ£o mÃ­nima invÃ¡lida."));
+    if (!parsedMinimum) return fail(OGS_CSTR("Versão mínima inválida."));
     manifest.minimumSupportedVersion = *parsedMinimum;
 
     if (manifest.channel == Channel::Stable && manifest.version.IsPrerelease())
         return fail(OGS_CSTR("O canal stable rejeita prereleases."));
     if (manifest.minimumSupportedVersion.Compare(manifest.version) > 0)
-        return fail(OGS_CSTR("A versÃ£o mÃ­nima Ã© superior Ã  versÃ£o publicada."));
+        return fail(OGS_CSTR("A versão mínima é superior à versão publicada."));
 
     if (!Boolean(*object, OGS_CSTR("mandatory"), manifest.mandatory))
-        return fail(OGS_CSTR("Campo mandatory invÃ¡lido."));
+        return fail(OGS_CSTR("Campo mandatory inválido."));
     if (const Json::Value* reasonValue = Field(*object, OGS_CSTR("mandatoryReason"))) {
         const std::string* reason = Json::AsString(*reasonValue);
         if (!reason || reason->size() > 512)
-            return fail(OGS_CSTR("Motivo de atualizaÃ§Ã£o obrigatÃ³ria invÃ¡lido."));
+            return fail(OGS_CSTR("Motivo de atualização obrigatória inválido."));
         manifest.mandatoryReason = *reason;
     }
 
     if (!Text(*object, OGS_CSTR("publishedAt"), manifest.publishedAt) || manifest.publishedAt.size() < 20)
-        return fail(OGS_CSTR("Data de publicaÃ§Ã£o invÃ¡lida."));
+        return fail(OGS_CSTR("Data de publicação inválida."));
     if (!Text(*object, OGS_CSTR("releaseNotesUrl"), manifest.releaseNotesUrl) || !Https(manifest.releaseNotesUrl))
-        return fail(OGS_CSTR("URL das notas invÃ¡lida."));
+        return fail(OGS_CSTR("URL das notas inválida."));
 
     const Json::Value* packagesValue = Field(*object, OGS_CSTR("packages"));
     const Json::Array* packages = packagesValue ? Json::AsArray(*packagesValue) : nullptr;
     if (!packages || packages->empty() || packages->size() > 16)
-        return fail(OGS_CSTR("Lista de pacotes invÃ¡lida."));
+        return fail(OGS_CSTR("Lista de pacotes inválida."));
 
     const std::regex hash("^[0-9a-fA-F]{64}$");
     std::unordered_set<std::string> packageTargets;
@@ -138,7 +138,7 @@ ManifestResult ParseAndValidateManifest(const std::string& json, const Configura
 
     for (const Json::Value& item : *packages) {
         const Json::Object* packageObject = Json::AsObject(item);
-        if (!packageObject) return fail(OGS_CSTR("Pacote invÃ¡lido."));
+        if (!packageObject) return fail(OGS_CSTR("Pacote inválido."));
 
         Package package{};
         if (!Text(*packageObject, OGS_CSTR("platform"), package.platform) || package.platform != OGS_CSTR("windows") ||
@@ -150,14 +150,14 @@ ManifestResult ParseAndValidateManifest(const std::string& json, const Configura
             !UInt(*packageObject, OGS_CSTR("size"), package.size) || package.size == 0 ||
             package.size > config.maximumPackageBytes ||
             !Text(*packageObject, OGS_CSTR("sha256"), package.sha256) || !std::regex_match(package.sha256, hash)) {
-            return fail(OGS_CSTR("Metadados de pacote invÃ¡lidos."));
+            return fail(OGS_CSTR("Metadados de pacote inválidos."));
         }
 
         const std::string targetKey = package.platform + "\n" + package.architecture;
         if (!packageTargets.insert(targetKey).second ||
             !packageNames.insert(package.fileName).second ||
             !packageUrls.insert(package.url).second) {
-            return fail(OGS_CSTR("O manifesto contÃ©m pacotes duplicados ou ambÃ­guos."));
+            return fail(OGS_CSTR("O manifesto contém pacotes duplicados ou ambíguos."));
         }
 
         std::transform(package.sha256.begin(), package.sha256.end(), package.sha256.begin(),
@@ -166,7 +166,7 @@ ManifestResult ParseAndValidateManifest(const std::string& json, const Configura
     }
 
     if (!SelectPackage(manifest, architecture))
-        return fail(OGS_CSTR("NÃ£o existe pacote para Windows/") + architecture + ".");
+        return fail(OGS_CSTR("Não existe pacote para Windows/") + architecture + ".");
     return {std::move(manifest), {}};
 }
 
@@ -179,3 +179,4 @@ const Package* SelectPackage(const Manifest& manifest, const std::string& archit
 }
 
 }
+

@@ -174,3 +174,4 @@ finally {
     Write-Host ''
     Write-Host ('Diagnóstico guardado em: {0}' -f $OutputPath)
 }
+

@@ -1025,8 +1025,6 @@ inline constexpr std::uint64_t kNonceSaltB = 0x$($saltB.ToString('x16'))ull;
     if ($changed) {
         [System.IO.File]::WriteAllText($keyPath, $header, $Utf8NoBom)
         Write-Log "Chave de protecao gerada: $keyPath"
-    } else {
-        Write-Log 'Chave de protecao inalterada (incremental).'
     }
     return @{ Path = $keyPath; Changed = $changed }
 }

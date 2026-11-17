@@ -1,4 +1,4 @@
-#include "cs2_collision_mesh.h"
+﻿#include "cs2_collision_mesh.h"
 #include <cmath>
 #include <fstream>
 #include <algorithm>
@@ -117,3 +117,4 @@ RayHit CollisionBvh::TraceRay(Vec3 from, Vec3 to, const std::atomic_bool* cancel
     return out;
 }
 }
+

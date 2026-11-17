@@ -58,3 +58,4 @@ if ($failed) {
 } else {
     Write-Host '[OmniGhost Build] Limpeza de workspace concluída.'
 }
+

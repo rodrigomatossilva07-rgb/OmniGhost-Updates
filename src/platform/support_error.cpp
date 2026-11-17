@@ -1,4 +1,4 @@
-#include "support_error.h"
+﻿#include "support_error.h"
 
 namespace OmniGhost::Support {
 
@@ -53,3 +53,4 @@ std::string_view Message(ErrorCode error) noexcept
 }
 
 }
+

@@ -1,4 +1,4 @@
-
+﻿
 
 
 void StartRemoteLicenseUpgrade(std::string key) {
@@ -643,3 +643,4 @@ void DrainBackgroundDmaWork() {
         PollOffsetRefresh();
     }
 }
+

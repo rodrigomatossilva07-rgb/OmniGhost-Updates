@@ -44,3 +44,4 @@ Forbid-Match $admin 'ImGuiWindowFlags_NoScrollbar\s*\|\s*ImGuiWindowFlags_NoScro
     'A navegação Admin voltou a impedir scroll quando as secções não cabem.'
 
 Write-Host '[PASS] Launcher authentication and presentation regression invariants.' -ForegroundColor Green
+

@@ -1,4 +1,4 @@
-#include "app_settings.h"
+﻿#include "app_settings.h"
 #include "../platform/app_paths.h"
 #include "../window/theme.h"
 #include "../platform/session_log.h"
@@ -568,10 +568,19 @@ namespace app_settings {
         }
     }
 
-    const char* T(const char* pt, const char* en) {
-        if (config.language == Language::EN) return en;
-        if (config.language == Language::PT) return pt;
-        return en;
+    const char* T(const char* pt, const char* en, const char* de, const char* es, const char* fr, const char* it, const char* ru) {
+        using Lang = Language;
+        switch (config.language) {
+            case Lang::PT: return (pt && pt[0]) ? pt : en;
+            case Lang::EN: return (en && en[0]) ? en : pt;
+            case Lang::DE: return (de && de[0]) ? de : en;
+            case Lang::ES: return (es && es[0]) ? es : en;
+            case Lang::FR: return (fr && fr[0]) ? fr : en;
+            case Lang::IT: return (it && it[0]) ? it : en;
+            case Lang::RU: return (ru && ru[0]) ? ru : en;
+            default:       return (en && en[0]) ? en : pt;
+        }
     }
 
 }
+

@@ -1,4 +1,4 @@
-#include "local_auth_service.h"
+﻿#include "local_auth_service.h"
 
 #include "../platform/app_paths.h"
 #include "../platform/scope_exit.h"
@@ -382,3 +382,4 @@ void LocalAuthService::Logout(bool forgetRememberMe) {
 }
 
 }
+

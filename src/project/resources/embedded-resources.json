@@ -27,3 +27,8 @@
     { "namePrefix": "Cs2WebRadar", "idStart": 50000, "logicalPrefix": "cs2/webradar", "source": "src/games/Cs2/data/webradar", "extensions": [ ".html", ".js", ".css", ".json", ".png", ".svg" ], "mandatory": true }
   ]
 }
+
+
+
+
+

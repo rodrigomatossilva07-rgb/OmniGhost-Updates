@@ -67,7 +67,7 @@ std::optional<ProviderIdentity> ComputeProviderIdentity(std::string_view moduleP
     }
     ProviderIdentity identity;
     identity.moduleHash = *hash;
-    identity.version = "1.0.0";
+    identity.version = "1.3.3";
     return identity;
 }
 

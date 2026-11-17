@@ -1,4 +1,4 @@
-#include "license_service.h"
+﻿#include "license_service.h"
 #include "../auth/keyauth_remote_provider.h"
 #include "../auth/launcher_account_service.h"
 #include "../launcher/remote_usage_service.h"
@@ -546,3 +546,4 @@ void ClearRememberedRemoteCredentials() noexcept {
 }
 
 }
+

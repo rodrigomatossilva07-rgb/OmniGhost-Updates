@@ -1,4 +1,4 @@
-#include "session_log.h"
+﻿#include "session_log.h"
 #include "build_info.h"
 
 #include "app_paths.h"
@@ -932,3 +932,4 @@ void Shutdown() {
 }
 
 }
+

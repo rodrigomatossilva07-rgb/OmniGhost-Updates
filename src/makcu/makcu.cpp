@@ -1,4 +1,4 @@
-#include "makcu.h"
+﻿#include "makcu.h"
 #include "serialport.h"
 #include "makcu_connection.h"
 #include <iostream>
@@ -1073,3 +1073,4 @@ namespace makcu {
     }
 
 }
+

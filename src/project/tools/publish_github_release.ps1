@@ -552,3 +552,4 @@ Write-Gh "URL: $($View.url)"
 Write-Gh "Artefactos locais preservados em: $ReleaseDirectory"
 
 return
+

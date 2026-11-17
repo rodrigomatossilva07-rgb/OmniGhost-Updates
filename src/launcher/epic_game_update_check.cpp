@@ -1,4 +1,4 @@
-#include "epic_game_update_check.h"
+﻿#include "epic_game_update_check.h"
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -67,3 +67,4 @@ Status Get(GameId game) {
     for (std::size_t index = 0; index < kGames.size(); ++index) if (kGames[index].game == game) { SharedState& shared = Shared(); std::scoped_lock lock(shared.mutex); Status result = shared.status[index]; result.checking = shared.checking.load(std::memory_order_acquire); return result; } return {};
 }
 }
+

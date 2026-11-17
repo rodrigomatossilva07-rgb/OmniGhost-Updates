@@ -1,4 +1,4 @@
-﻿{
+{
   "version": "auto",
   "title": "OmniGhost",
   "summary": "Esta versão corrige o versionamento e separa a publicação automática de Publish da build local Release.",

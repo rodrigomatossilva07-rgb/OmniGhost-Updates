@@ -1,4 +1,4 @@
-#include "launcher_data.h"
+﻿#include "launcher_data.h"
 #include "remote_usage_service.h"
 #include "../platform/app_paths.h"
 #include "../config/app_settings.h"
@@ -521,3 +521,4 @@ void ForgetLastPlayedGame() {
 }
 
 }
+

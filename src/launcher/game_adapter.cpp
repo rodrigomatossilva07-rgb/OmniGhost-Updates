@@ -1,4 +1,4 @@
-#include "game_adapter.h"
+﻿#include "game_adapter.h"
 
 namespace OmniGhost::Launcher {
 
@@ -23,3 +23,4 @@ std::string_view AdapterErrorMessage(AdapterErrorCode code) noexcept {
 }
 
 }
+

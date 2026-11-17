@@ -1,4 +1,4 @@
-# FiveM Collision Builder
+﻿# FiveM Collision Builder
 
 Ferramenta offline que converte a colisão da instalação local do GTA V para o formato regional do OmniGhost.
 Não lê memória do jogo e não é necessária durante a execução normal do cliente.
@@ -69,4 +69,5 @@ O runtime correspondente encontra-se em
 `src/games/Fivem/collision/fivem_collision_world.{h,cpp}`. O carregador valida a assinatura, versão,
 tamanho, limites, nós e índices antes de aceitar uma região; o raycast percorre diretamente o BVH
 pré-construído, sem voltar a construir a árvore ao iniciar o OmniGhost.
+
 

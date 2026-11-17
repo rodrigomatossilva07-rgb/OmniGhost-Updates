@@ -1,4 +1,4 @@
-#include "keyauth_remote_provider.h"
+﻿#include "keyauth_remote_provider.h"
 #include "../platform/app_paths.h"
 #include "../platform/session_log.h"
 #include "../platform/text_encoding.h"
@@ -405,3 +405,4 @@ std::string KeyAuthRemoteLicenseProvider::GetModulePath() const {
 }
 
 }
+

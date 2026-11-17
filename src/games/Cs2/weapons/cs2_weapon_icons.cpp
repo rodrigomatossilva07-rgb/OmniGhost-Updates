@@ -1,4 +1,4 @@
-#include "cs2_weapon_icons.h"
+﻿#include "cs2_weapon_icons.h"
 #include "../src/platform/app_paths.h"
 #include "../src/platform/embedded_resources.h"
 
@@ -451,3 +451,4 @@ void Shutdown() {
 }
 
 }
+

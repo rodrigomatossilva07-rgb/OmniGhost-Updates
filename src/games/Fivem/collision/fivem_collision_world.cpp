@@ -1,4 +1,4 @@
-#include "fivem_collision_world.h"
+﻿#include "fivem_collision_world.h"
 #include "../../../platform/app_paths.h"
 
 #include <algorithm>
@@ -411,3 +411,4 @@ Diagnostics World::GetDiagnostics() const {
 }
 
 }
+

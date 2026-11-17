@@ -116,3 +116,4 @@ else {
 if (-not $Quiet) {
     Write-Host "[OmniGhost Release] Artefactos $Version validados: ZIP, manifesto, SHA-256, caminhos e SBOM."
 }
+

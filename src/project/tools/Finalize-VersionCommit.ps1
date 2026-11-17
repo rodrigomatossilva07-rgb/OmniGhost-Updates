@@ -45,3 +45,4 @@ if ([string]::IsNullOrWhiteSpace($userEmail)) { $identityArgs += @('-c', 'user.e
 & $git.Source -C $ProjectDir @identityArgs commit -m "chore(release): prepare v$version" -- @versionFiles
 if ($LASTEXITCODE -ne 0) { throw "Falha ao guardar automaticamente a versão $version." }
 Write-Host "[OmniGhost Version] Versão $version guardada automaticamente; working tree limpo."
+

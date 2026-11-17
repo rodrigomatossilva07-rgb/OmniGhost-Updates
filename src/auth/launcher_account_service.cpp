@@ -1,4 +1,4 @@
-#include "launcher_account_service.h"
+﻿#include "launcher_account_service.h"
 
 #include "../app_version.h"
 #include "../platform/internet_handle.h"
@@ -140,19 +140,19 @@ std::string ErrorText(const LauncherApiResponse& response, std::string fallback)
             if (Text(*object, OGS_LIT("message"), message, false) && !message.empty()) return message;
             if (Text(*object, OGS_LIT("error"), message, false) && !message.empty()) {
                 if (message == OGS_LIT("invalid_credentials"))
-                    return OGS_LIT("O email ou a palavra-passe da conta do site estÃ£o incorretos. Se usas apenas Google, define primeiro uma palavra-passe no site.");
+                    return OGS_LIT("O email ou a palavra-passe da conta do site estão incorretos. Se usas apenas Google, define primeiro uma palavra-passe no site.");
                 if (message == OGS_LIT("launcher_account_exists"))
-                    return OGS_LIT("Esta conta jÃ¡ foi ativada no launcher. Usa Iniciar sessÃ£o.");
+                    return OGS_LIT("Esta conta já foi ativada no launcher. Usa Iniciar sessão.");
                 if (message == OGS_LIT("launcher_license_not_owned"))
-                    return OGS_LIT("A licenÃ§a nÃ£o pertence Ã  conta indicada ou nÃ£o estÃ¡ ativa.");
+                    return OGS_LIT("A licença não pertence à conta indicada ou não está ativa.");
                 if (message == OGS_LIT("launcher_license_not_active"))
-                    return OGS_LIT("A licenÃ§a estÃ¡ suspensa, revogada ou expirada.");
+                    return OGS_LIT("A licença está suspensa, revogada ou expirada.");
                 if (message == OGS_LIT("no_active_license"))
-                    return OGS_LIT("A conta nÃ£o possui uma licenÃ§a ativa.");
+                    return OGS_LIT("A conta não possui uma licença ativa.");
                 if (message == OGS_LIT("unauthorized") || message == OGS_LIT("token_expired"))
-                    return OGS_LIT("A sessÃ£o terminou. Inicia sessÃ£o novamente.");
+                    return OGS_LIT("A sessão terminou. Inicia sessão novamente.");
                 if (message == OGS_LIT("device_mismatch"))
-                    return OGS_LIT("A sessÃ£o pertence a outro dispositivo. Inicia sessÃ£o novamente.");
+                    return OGS_LIT("A sessão pertence a outro dispositivo. Inicia sessão novamente.");
                 if (message == OGS_LIT("rate_limited"))
                     return OGS_LIT("Foram feitas demasiadas tentativas. Aguarda um pouco e tenta novamente.");
                 return fallback;
@@ -215,24 +215,24 @@ public:
         LauncherApiResponse result;
         if (path.empty() || path.front() != '/' || path.find("..") != std::string_view::npos ||
             bearerToken.size() > kMaximumTokenBytes || body.size() > 64u * 1024u)
-            return {0, {}, OGS_LIT("Pedido invÃ¡lido.")};
+            return {0, {}, OGS_LIT("Pedido inválido.")};
 
         auto session = OmniGhost::Platform::MakeWinHttpHandle(WinHttpOpen(
             OGS_WCSTR("OmniGhost-Launcher/2"), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
             WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0));
-        if (!session) return {0, {}, OGS_LIT("NÃ£o foi possÃ­vel iniciar a ligaÃ§Ã£o segura.")};
+        if (!session) return {0, {}, OGS_LIT("Não foi possível iniciar a ligação segura.")};
         WinHttpSetTimeouts(session.get(), 10000, 10000, 15000, 15000);
 
         auto connection = OmniGhost::Platform::MakeWinHttpHandle(
             WinHttpConnect(session.get(), ApiHost(), INTERNET_DEFAULT_HTTPS_PORT, 0));
-        if (!connection) return {0, {}, OGS_LIT("NÃ£o foi possÃ­vel contactar omnighost.store.")};
+        if (!connection) return {0, {}, OGS_LIT("Não foi possível contactar omnighost.store.")};
 
         const std::wstring wideMethod = WidenAscii(method);
         const std::wstring widePath = WidenAscii(path);
         auto request = OmniGhost::Platform::MakeWinHttpHandle(WinHttpOpenRequest(
             connection.get(), wideMethod.c_str(), widePath.c_str(), nullptr,
             WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE));
-        if (!request) return {0, {}, OGS_LIT("NÃ£o foi possÃ­vel preparar o pedido seguro.")};
+        if (!request) return {0, {}, OGS_LIT("Não foi possível preparar o pedido seguro.")};
 
         DWORD protocols = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
 #ifdef WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3
@@ -263,7 +263,7 @@ public:
                                 static_cast<DWORD>(body.size()),
                                 static_cast<DWORD>(body.size()), 0) ||
             !WinHttpReceiveResponse(request.get(), nullptr))
-            return {0, {}, OGS_LIT("O serviÃ§o de contas estÃ¡ temporariamente indisponÃ­vel.")};
+            return {0, {}, OGS_LIT("O serviço de contas está temporariamente indisponível.")};
 
         DWORD status = 0;
         DWORD statusSize = sizeof(status);
@@ -271,13 +271,13 @@ public:
                                  WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
                                  WINHTTP_HEADER_NAME_BY_INDEX, &status, &statusSize,
                                  WINHTTP_NO_HEADER_INDEX))
-            return {0, {}, OGS_LIT("Resposta HTTP invÃ¡lida.")};
+            return {0, {}, OGS_LIT("Resposta HTTP inválida.")};
         result.statusCode = static_cast<int>(status);
 
         while (true) {
             DWORD available = 0;
             if (!WinHttpQueryDataAvailable(request.get(), &available)) {
-                result.error = OGS_LIT("NÃ£o foi possÃ­vel ler a resposta do servidor.");
+                result.error = OGS_LIT("Não foi possível ler a resposta do servidor.");
                 return result;
             }
             if (available == 0) break;
@@ -293,7 +293,7 @@ public:
             if (!WinHttpReadData(request.get(), result.body.data() + previous,
                                  available, &read)) {
                 result.body.clear();
-                result.error = OGS_LIT("NÃ£o foi possÃ­vel ler a resposta do servidor.");
+                result.error = OGS_LIT("Não foi possível ler a resposta do servidor.");
                 return result;
             }
             result.body.resize(previous + read);
@@ -455,7 +455,7 @@ LicenseResult LauncherAccountService::Register(std::string_view emailInput,
         password.size() < 8 || password.size() > 1024 || licenseKey.empty() ||
         licenseKey.size() > 512)
         return {LicenseStatus::Invalid,
-                OGS_LIT("Indica o email, a palavra-passe da conta do site e a licenÃ§a comprada nessa conta."),
+                OGS_LIT("Indica o email, a palavra-passe da conta do site e a licença comprada nessa conta."),
                 "website.invalid_registration", {}};
     std::string body = OGS_LIT("{\"email\":\"") + JsonEscape(email) +
         OGS_LIT("\",\"password\":\"") + JsonEscape(password) +
@@ -474,7 +474,7 @@ LicenseResult LauncherAccountService::Restore() {
     std::scoped_lock operation(operationMutex_);
     StoredLauncherSession stored;
     if (!store_->Load(stored))
-        return {LicenseStatus::Invalid, OGS_LIT("NÃ£o existe uma sessÃ£o guardada."),
+        return {LicenseStatus::Invalid, OGS_LIT("Não existe uma sessão guardada."),
                 "website.no_saved_session", {}};
     {
         std::lock_guard lock(mutex_);
@@ -500,7 +500,7 @@ LicenseResult LauncherAccountService::Renew() {
         token = token_;
     }
     if (token.empty())
-        return {LicenseStatus::Invalid, OGS_LIT("A sessÃ£o terminou. Inicia sessÃ£o novamente."),
+        return {LicenseStatus::Invalid, OGS_LIT("A sessão terminou. Inicia sessão novamente."),
                 "website.no_session", {}};
     const std::string body = OGS_LIT("{\"deviceId\":\"") + JsonEscape(deviceId_) + "\"}";
     auto result = ApplySessionResponse(transport_->Request(
@@ -521,7 +521,7 @@ LicenseResult LauncherAccountService::RefreshLicensesUnlocked() {
         token = token_;
     }
     if (token.empty())
-        return {LicenseStatus::Invalid, OGS_LIT("A sessÃ£o terminou. Inicia sessÃ£o novamente."),
+        return {LicenseStatus::Invalid, OGS_LIT("A sessão terminou. Inicia sessão novamente."),
                 "website.no_session", {}};
     auto result = ApplyLicenseResponse(transport_->Request(
         "GET", OGS_LIT("/api/launcher/licenses"), {}, token, deviceId_));
@@ -603,7 +603,7 @@ std::string LauncherAccountService::ProductDuration(std::string_view productInpu
         const std::string current = TrimLower(license.product);
         if (license.IsUsable() &&
             (current == product || current == "all" || current == OGS_LIT("admin"))) {
-            if (TrimLower(license.plan) == OGS_LIT("lifetime") || license.expiresAt.empty()) return OGS_LIT("VitalÃ­cio");
+            if (TrimLower(license.plan) == OGS_LIT("lifetime") || license.expiresAt.empty()) return OGS_LIT("Vitalício");
             return license.expiresAt;
         }
     }
@@ -615,7 +615,7 @@ LauncherApiResponse LauncherAccountService::AuthenticatedRequest(
     std::string token;
     {
         std::lock_guard lock(mutex_);
-        if (!state_.authenticated || token_.empty()) return {401, {}, OGS_LIT("SessÃ£o indisponÃ­vel.")};
+        if (!state_.authenticated || token_.empty()) return {401, {}, OGS_LIT("Sessão indisponível.")};
         token = token_;
     }
     auto response = transport_->Request(method, path, body, token, deviceId_);
@@ -626,7 +626,7 @@ LauncherApiResponse LauncherAccountService::AuthenticatedRequest(
 LauncherApiResponse LauncherAccountService::BearerRequest(
     std::string_view method, std::string_view path, std::string_view body,
     std::string_view bearerToken) {
-    if (bearerToken.empty()) return {401, {}, OGS_LIT("Token indisponÃ­vel.")};
+    if (bearerToken.empty()) return {401, {}, OGS_LIT("Token indisponível.")};
     return transport_->Request(method, path, body, bearerToken, deviceId_);
 }
 
@@ -642,7 +642,7 @@ LicenseResult LauncherAccountService::ApplySessionResponse(
         }
         return {StatusForHttp(response.statusCode),
                 ErrorText(response, response.error.empty()
-                    ? OGS_LIT("O servidor recusou o inÃ­cio de sessÃ£o.")
+                    ? OGS_LIT("O servidor recusou o início de sessão.")
                     : response.error),
                 DiagnosticForHttp(response.statusCode), {}};
     }
@@ -652,12 +652,12 @@ LicenseResult LauncherAccountService::ApplySessionResponse(
     const auto parsed = OmniGhost::Update::Json::Parse(response.body, root, limits);
     const auto* object = parsed.ok ? OmniGhost::Update::Json::AsObject(root) : nullptr;
     if (!object)
-        return {LicenseStatus::Invalid, OGS_LIT("O servidor devolveu uma resposta invÃ¡lida."),
+        return {LicenseStatus::Invalid, OGS_LIT("O servidor devolveu uma resposta inválida."),
                 "website.invalid_response", {}};
     if (const auto* okValue = JsonField(*object, "ok")) {
         const bool* ok = OmniGhost::Update::Json::AsBool(*okValue);
         if (!ok || !*ok)
-            return {LicenseStatus::Invalid, ErrorText(response, OGS_LIT("O inÃ­cio de sessÃ£o foi recusado.")),
+            return {LicenseStatus::Invalid, ErrorText(response, OGS_LIT("O início de sessão foi recusado.")),
                     "website.rejected", {}};
     }
 
@@ -666,7 +666,7 @@ LicenseResult LauncherAccountService::ApplySessionResponse(
     Text(*object, OGS_LIT("sessionToken"), token, false);
     Text(*object, OGS_LIT("sessionExpiresAt"), expiry, false);
     if ((requireToken && token.empty()) || token.size() > kMaximumTokenBytes)
-        return {LicenseStatus::Invalid, OGS_LIT("O servidor nÃ£o forneceu uma sessÃ£o vÃ¡lida."),
+        return {LicenseStatus::Invalid, OGS_LIT("O servidor não forneceu uma sessão válida."),
                 "website.missing_token", {}};
 
     std::string email;
@@ -687,7 +687,7 @@ LicenseResult LauncherAccountService::ApplySessionResponse(
     std::vector<LauncherLicense> licenses;
     const bool hasLicenses = JsonField(*object, OGS_LIT("licenses")) != nullptr;
     if (hasLicenses && !ParseLicenses(root, licenses))
-        return {LicenseStatus::Invalid, OGS_LIT("A lista de licenÃ§as recebida Ã© invÃ¡lida."),
+        return {LicenseStatus::Invalid, OGS_LIT("A lista de licenças recebida é inválida."),
                 "website.invalid_licenses", {}};
 
     std::chrono::system_clock::time_point appliedExpiry;
@@ -710,7 +710,7 @@ LicenseResult LauncherAccountService::ApplySessionResponse(
             [](const LauncherLicense& license) { return license.IsUsable(); });
         if (usable == 0 && !state_.isAdmin) {
             ClearLocked();
-            return {LicenseStatus::Invalid, OGS_LIT("A conta nÃ£o possui uma licenÃ§a ativa."),
+            return {LicenseStatus::Invalid, OGS_LIT("A conta não possui uma licença ativa."),
                     "website.no_active_license", {}};
         }
         if (usable == 1) {
@@ -733,12 +733,12 @@ LicenseResult LauncherAccountService::ApplySessionResponse(
         if (!PersistLocked()) {
             ClearLocked();
             return {LicenseStatus::Unavailable,
-                    OGS_LIT("A sessÃ£o foi aceite, mas nÃ£o foi possÃ­vel guardÃ¡-la com seguranÃ§a."),
+                    OGS_LIT("A sessão foi aceite, mas não foi possível guardá-la com segurança."),
                     "website.credential_store_failed", {}};
         }
         appliedExpiry = state_.expiresAt;
     }
-    return {LicenseStatus::Valid, OGS_LIT("SessÃ£o OmniGhost iniciada."), "website.ok", appliedExpiry};
+    return {LicenseStatus::Valid, OGS_LIT("Sessão OmniGhost iniciada."), "website.ok", appliedExpiry};
 }
 
 LicenseResult LauncherAccountService::ApplyLicenseResponse(const LauncherApiResponse& response) {
@@ -749,18 +749,18 @@ LicenseResult LauncherAccountService::ApplyLicenseResponse(const LauncherApiResp
         }
         return {StatusForHttp(response.statusCode),
                 ErrorText(response, response.error.empty()
-                    ? OGS_LIT("NÃ£o foi possÃ­vel validar as licenÃ§as da conta.")
+                    ? OGS_LIT("Não foi possível validar as licenças da conta.")
                     : response.error),
                 DiagnosticForHttp(response.statusCode), {}};
     }
     OmniGhost::Update::Json::Value root;
     OmniGhost::Update::Json::Limits limits{24, 64u * 1024u, 5000};
     if (!OmniGhost::Update::Json::Parse(response.body, root, limits).ok)
-        return {LicenseStatus::Invalid, OGS_LIT("O servidor devolveu uma resposta invÃ¡lida."),
+        return {LicenseStatus::Invalid, OGS_LIT("O servidor devolveu uma resposta inválida."),
                 "website.invalid_response", {}};
     std::vector<LauncherLicense> licenses;
     if (!ParseLicenses(root, licenses))
-        return {LicenseStatus::Invalid, OGS_LIT("A lista de licenÃ§as recebida Ã© invÃ¡lida."),
+        return {LicenseStatus::Invalid, OGS_LIT("A lista de licenças recebida é inválida."),
                 "website.invalid_licenses", {}};
     bool isAdmin = false;
     bool hasAdminClaim = false;
@@ -781,7 +781,7 @@ LicenseResult LauncherAccountService::ApplyLicenseResponse(const LauncherApiResp
     if (usable == 0 && !(hasAdminClaim && isAdmin)) {
         std::lock_guard lock(mutex_);
         ClearLocked();
-        return {LicenseStatus::Invalid, OGS_LIT("A conta nÃ£o possui uma licenÃ§a ativa."),
+        return {LicenseStatus::Invalid, OGS_LIT("A conta não possui uma licença ativa."),
                 "website.no_active_license", {}};
     }
     std::chrono::system_clock::time_point appliedExpiry;
@@ -807,11 +807,11 @@ LicenseResult LauncherAccountService::ApplyLicenseResponse(const LauncherApiResp
         }
         state_.authenticated = true;
         if (!PersistLocked())
-            return {LicenseStatus::Unavailable, OGS_LIT("NÃ£o foi possÃ­vel atualizar a sessÃ£o guardada."),
+            return {LicenseStatus::Unavailable, OGS_LIT("Não foi possível atualizar a sessão guardada."),
                     "website.credential_store_failed", {}};
         appliedExpiry = state_.expiresAt;
     }
-    return {LicenseStatus::Valid, OGS_LIT("LicenÃ§as atualizadas."), "website.licenses_ok", appliedExpiry};
+    return {LicenseStatus::Valid, OGS_LIT("Licenças atualizadas."), "website.licenses_ok", appliedExpiry};
 }
 
 bool LauncherAccountService::PersistLocked() const {
@@ -828,3 +828,4 @@ void LauncherAccountService::ClearLocked() noexcept {
 }
 
 }
+

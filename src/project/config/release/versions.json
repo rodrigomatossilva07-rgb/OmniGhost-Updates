@@ -28,7 +28,7 @@
                                          }
                   },
     "cloudflared":  {
-                        "updated_at":  "2026-11-12T20:37:41.1293045Z",
+                        "updated_at":  "2026-11-17T11:37:02.0422774Z",
                         "asset":  "cloudflared-windows-amd64.exe",
                         "version":  "2026.11.0",
                         "architecture":  "win-x64",

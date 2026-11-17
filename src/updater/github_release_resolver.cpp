@@ -73,7 +73,7 @@ GitHubReleaseResult ResolveHighestStableGitHubRelease(const std::string& json) {
     };
 
     if (json.empty() || json.size() > kMaximumResponseBytes) {
-        return fail(OGS_CSTR("A resposta da API de versÃµes estÃ¡ vazia ou excede o limite permitido."));
+        return fail(OGS_CSTR("A resposta da API de versões está vazia ou excede o limite permitido."));
     }
 
     Json::Value root;
@@ -83,12 +83,12 @@ GitHubReleaseResult ResolveHighestStableGitHubRelease(const std::string& json) {
     limits.maximumNodes = 50000;
     const Json::ParseResult parsed = Json::Parse(json, root, limits);
     if (!parsed.ok) {
-        return fail(OGS_CSTR("A resposta da API de versÃµes nÃ£o contÃ©m JSON vÃ¡lido."));
+        return fail(OGS_CSTR("A resposta da API de versões não contém JSON válido."));
     }
 
     const Json::Array* releases = Json::AsArray(root);
     if (!releases || releases->size() > kMaximumReleaseCount) {
-        return fail(OGS_CSTR("A API de versÃµes nÃ£o devolveu uma lista vÃ¡lida."));
+        return fail(OGS_CSTR("A API de versões não devolveu uma lista válida."));
     }
 
     std::optional<GitHubReleaseSelection> best;
@@ -172,16 +172,17 @@ GitHubReleaseResult ResolveHighestStableGitHubRelease(const std::string& json) {
     }
 
     if (!highestPublishedVersion) {
-        return fail(OGS_CSTR("NÃ£o foi encontrada nenhuma versÃ£o estÃ¡vel publicada."));
+        return fail(OGS_CSTR("Não foi encontrada nenhuma versão estável publicada."));
     }
 
     if (!best || best->version.Compare(*highestPublishedVersion) != 0) {
         return fail(
-            OGS_CSTR("A versÃ£o estÃ¡vel mais recente publicada (") + highestPublishedTag +
-            OGS_CSTR(") nÃ£o contÃ©m um asset update.json vÃ¡lido."));
+            OGS_CSTR("A versão estável mais recente publicada (") + highestPublishedTag +
+            OGS_CSTR(") não contém um asset update.json válido."));
     }
 
     return GitHubReleaseResult{std::move(best), {}};
 }
 
 }
+

@@ -198,3 +198,4 @@ catch {
     $safe = $_.Exception.Message -replace 'sk-[A-Za-z0-9_-]+', '[redacted]'
     Write-Warning "[OmniGhost Semantic Changelog] Análise indisponível: $safe. Será usado o fallback conservador."
 }
+

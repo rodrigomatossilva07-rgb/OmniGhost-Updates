@@ -28,3 +28,4 @@ $checks = @(
 )
 foreach ($check in $checks) { if ($check.Value -notmatch $check.Pattern) { throw "Missing $($check.Name)" } }
 Write-Host '[PASS] Community Config Hub integration invariants.'
+

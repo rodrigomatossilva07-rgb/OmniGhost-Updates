@@ -1,4 +1,4 @@
-#include "game_select.h"
+﻿#include "game_select.h"
 
 #include "launcher_assets.h"
 #include "changelog_service.h"
@@ -476,3 +476,4 @@ bool ConsumeLogoutRequest() {
 }
 
 }
+

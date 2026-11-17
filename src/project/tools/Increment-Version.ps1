@@ -217,3 +217,4 @@ catch {
     Remove-StateAndLock
     throw
 }
+

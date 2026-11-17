@@ -1,4 +1,4 @@
-#include "../../widgets.h"
+﻿#include "../../widgets.h"
 #include "../../theme.h"
 #include "../../../launcher/launcher_assets.h"
 #include "src/games/Fortnite/fortnite_game.h"
@@ -199,3 +199,4 @@ void DrawFortniteVisuals() {
     CyberWidgets::EndCard();
     ImGui::EndChild();
 }
+

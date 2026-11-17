@@ -72,3 +72,4 @@ Remove-Item -LiteralPath $ManifestBackup -Force -ErrorAction SilentlyContinue
 
 Write-VersionLog 'Rollback concluído.'
 return
+

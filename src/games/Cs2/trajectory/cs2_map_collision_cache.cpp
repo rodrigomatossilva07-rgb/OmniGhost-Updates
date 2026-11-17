@@ -1,4 +1,4 @@
-#include "cs2_map_collision_cache.h"
+﻿#include "cs2_map_collision_cache.h"
 #include "../../../platform/embedded_resources.h"
 #include <algorithm>
 #include <cctype>
@@ -57,3 +57,4 @@ std::string MapCollisionCache::Map() const { std::shared_lock lock(mutex); retur
 std::string MapCollisionCache::Error() const { std::shared_lock lock(mutex); return error; }
 MapCollisionCache& CollisionCache(){static MapCollisionCache cache;return cache;}
 }
+

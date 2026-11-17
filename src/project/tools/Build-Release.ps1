@@ -27,3 +27,4 @@ if (-not $msbuild) { throw 'MSBuild not found.' }
 Write-Host '[OmniGhost Build] Release|x64: compilação local. Esta ação nunca publica no GitHub.'
 & $msbuild (Join-Path $ProjectDir 'OmiGhost.vcxproj') /m /p:Configuration=Release /p:Platform=x64 /p:OmniGhostReleaseChannel=stable
 exit $LASTEXITCODE
+

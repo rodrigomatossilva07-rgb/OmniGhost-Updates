@@ -122,3 +122,4 @@ if (-not $ValidateOnly) {
     & (Join-Path $PSScriptRoot 'Test-CommercialPreflight.ps1') -ProjectDir $ProjectDir -AllowMissingTag -SourceOnly
 }
 Write-Host "[OmniGhost Version] Validação concluída em $(Format-OmniDuration $versionPhaseTimer.Elapsed)."
+

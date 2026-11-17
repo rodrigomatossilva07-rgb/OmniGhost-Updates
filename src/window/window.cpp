@@ -1,4 +1,4 @@
-#include "window.hpp"
+﻿#include "window.hpp"
 
 #include "fonts.h"
 #include "menu_tab.h"
@@ -47,19 +47,19 @@ namespace {
     PagePresentation PresentationFor(MenuTab tab)
     {
         switch (tab) {
-        case MenuTab::TAB_VISUALS:          return { Loc::Tr("nav.visuals"), app_settings::T("Jogadores, informação e aparência", "Players, information and appearance") };
-        case MenuTab::TAB_AIM:              return { Loc::Tr("nav.aim"), app_settings::T("Alvo, suavidade e disparo", "Targeting, smoothing and trigger") };
-        case MenuTab::TAB_VEHICLES:         return { Loc::Tr("nav.vehicles"), app_settings::T("ESP, estado e personalização", "ESP, status and customization") };
-        case MenuTab::TAB_RADAR:            return { Loc::Tr("nav.radar"), app_settings::T("Posição, alcance e apresentação", "Position, range and appearance") };
-        case MenuTab::TAB_FRIENDS:          return { Loc::Tr("nav.friends"), app_settings::T("Lista segura e jogadores próximos", "Friend list and nearby players") };
-        case MenuTab::TAB_STATUS:           return { Loc::Tr("nav.status"), app_settings::T("Ligação, offsets e diagnóstico", "Connection, offsets and diagnostics") };
-        case MenuTab::TAB_CONFIGS:          return { Loc::Tr("nav.configs"), app_settings::T("Interface, desempenho e preferências", "Interface, performance and preferences") };
-        case MenuTab::TAB_SAVECONFIG:       return { Loc::Tr("nav.save"), app_settings::T("Guardar, carregar e organizar perfis", "Save, load and organize profiles") };
+        case MenuTab::TAB_VISUALS:          return { Loc::Tr("nav.visuals"), Loc::Tr("tab.desc.visuals") };
+        case MenuTab::TAB_AIM:              return { Loc::Tr("nav.aim"), Loc::Tr("tab.desc.aim") };
+        case MenuTab::TAB_VEHICLES:         return { Loc::Tr("nav.vehicles"), Loc::Tr("tab.desc.vehicles") };
+        case MenuTab::TAB_RADAR:            return { Loc::Tr("nav.radar"), Loc::Tr("tab.desc.radar") };
+        case MenuTab::TAB_FRIENDS:          return { Loc::Tr("nav.friends"), Loc::Tr("tab.desc.friends") };
+        case MenuTab::TAB_STATUS:           return { Loc::Tr("nav.status"), Loc::Tr("tab.desc.status") };
+        case MenuTab::TAB_CONFIGS:          return { Loc::Tr("nav.configs"), Loc::Tr("tab.desc.configs") };
+        case MenuTab::TAB_SAVECONFIG:       return { Loc::Tr("nav.save"), Loc::Tr("tab.desc.saveconfig") };
         case MenuTab::TAB_CS2_VISUALS:      return { OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Rust ? "VISUAIS RUST" : "VISUAIS CS2", "ESP de jogadores" };
         case MenuTab::TAB_CS2_AIM:          return { OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Rust ? "MIRA RUST" : "MIRA CS2", "Interface preparada; runtime desativado" };
         case MenuTab::TAB_CS2_MISC:         return { OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Rust ? "DIVERSOS RUST" : "DIVERSOS CS2", "Interface preparada; runtime desativado" };
         case MenuTab::TAB_CS2_RADAR:        return { OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Rust ? "RADAR RUST" : "RADAR CS2", "Interface preparada; runtime desativado" };
-        case MenuTab::TAB_CS2_STATUS:       return { Loc::Tr("nav.status"), app_settings::T("Ligação, offsets e estado em tempo real", "Connection, offsets and live status") };
+        case MenuTab::TAB_CS2_STATUS:       return { Loc::Tr("nav.status"), Loc::Tr("tab.desc.cs2_status") };
         case MenuTab::TAB_FORTNITE_VISUALS: return { "VISUAIS FORTNITE", "ESP e informação" };
         case MenuTab::TAB_FORTNITE_AIM:     return { "MIRA FORTNITE", "Alvo e assistência" };
         case MenuTab::TAB_FORTNITE_STATUS:  return { "SISTEMA FORTNITE", "Ligação e diagnóstico" };
@@ -651,3 +651,4 @@ void Overlay::WaitForEvents(std::chrono::milliseconds timeout) {
         QS_ALLINPUT, MWMO_ALERTABLE);
     (void)result;
 }
+

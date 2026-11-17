@@ -1,4 +1,4 @@
-#include "../../widgets.h"
+﻿#include "../../widgets.h"
 #include "../../theme.h"
 #include "../../localization.h"
 #include "config/app_settings.h"
@@ -15,15 +15,14 @@ void DrawVehicles()
     ImGui::BeginGroup();
 
     CyberWidgets::BeginCard(Loc::Tr("nav.vehicles"), full);
-    CyberWidgets::TextLine(app_settings::T("Estado, ocupantes e movimento sem sobrecarregar o ecrã.",
-                                          "Status, occupants and movement in a clean layout."),
+    CyberWidgets::TextLine(Loc::Tr("veh.desc"),
                            CyberWidgets::TextTone::Secondary);
     CyberWidgets::Separator();
     CyberWidgets::ToggleSwitch(Loc::Tr("veh.enabled"), &vehicle_esp::config.enabled);
     if (vehicle_esp::config.enabled) {
         CyberWidgets::ToggleSwitch(Loc::Tr("veh.box3d"), &vehicle_esp::config.box_3d);
-        CyberWidgets::ToggleSwitch(app_settings::T("Caixa 2D", "2D box"), &vehicle_esp::config.box_2d);
-        CyberWidgets::ToggleSwitch(app_settings::T("Marcador direcional", "Direction marker"), &vehicle_esp::config.marker);
+        CyberWidgets::ToggleSwitch(Loc::Tr("veh.box_2d"), &vehicle_esp::config.box_2d);
+        CyberWidgets::ToggleSwitch(Loc::Tr("veh.marker"), &vehicle_esp::config.marker);
         CyberWidgets::ToggleSwitch(Loc::Tr("veh.snaplines"), &vehicle_esp::config.snaplines);
         if (vehicle_esp::config.snaplines) {
             const char* snap_pos[] = { Loc::Tr("common.top"), Loc::Tr("common.center"), Loc::Tr("common.bottom") };
@@ -32,27 +31,25 @@ void DrawVehicles()
         CyberWidgets::ToggleSwitch(Loc::Tr("veh.distance"), &vehicle_esp::config.distance);
         CyberWidgets::ToggleSwitch(Loc::Tr("veh.occupants"), &vehicle_esp::config.show_occupants);
         CyberWidgets::ToggleSwitch(Loc::Tr("veh.lock_status"), &vehicle_esp::config.lock_status);
-        CyberWidgets::ToggleSwitch(app_settings::T("Velocidade", "Speed"), &vehicle_esp::config.show_speed);
-        CyberWidgets::ToggleSwitch(app_settings::T("Direção", "Direction"), &vehicle_esp::config.show_direction);
-        CyberWidgets::ToggleSwitch(app_settings::T("Destacar veículo local", "Highlight local vehicle"), &vehicle_esp::config.highlight_local);
+        CyberWidgets::ToggleSwitch(Loc::Tr("veh.speed"), &vehicle_esp::config.show_speed);
+        CyberWidgets::ToggleSwitch(Loc::Tr("veh.direction"), &vehicle_esp::config.show_direction);
+        CyberWidgets::ToggleSwitch(Loc::Tr("veh.highlight_local"), &vehicle_esp::config.highlight_local);
         CyberWidgets::ToggleSwitch(Loc::Tr("veh.ignore_occ"), &vehicle_esp::config.ignore_occupied);
         CyberWidgets::SliderFloat(Loc::Tr("veh.max_dist"), &vehicle_esp::config.max_distance,
                                   10.f, 2000.f, "%.0f m");
-        ImGui::SliderInt(app_settings::T("Máximo de veículos", "Maximum vehicles"),
+        ImGui::SliderInt(Loc::Tr("veh.max_vehicles"),
                          &vehicle_esp::config.max_vehicles, 8, 128);
-        CyberWidgets::SliderFloat(app_settings::T("Espessura das caixas", "Box thickness"),
+        CyberWidgets::SliderFloat(Loc::Tr("veh.box_thickness"),
                                   &vehicle_esp::config.box_thickness, .5f, 4.f, "%.1f px");
     } else {
-        CyberWidgets::TextLine(app_settings::T("Ativa o ESP para revelar as opções relacionadas.",
-                                              "Enable ESP to reveal its options."), CyberWidgets::TextTone::Secondary);
+        CyberWidgets::TextLine(Loc::Tr("veh.enable_hint"), CyberWidgets::TextTone::Secondary);
     }
     CyberWidgets::EndCard();
 
     CyberWidgets::CardGap(CyberTheme::Spacing::Sm);
 
     CyberWidgets::BeginCard(Loc::Tr("vis.customize"), full);
-    CyberWidgets::TextLine(app_settings::T("As cores só aparecem quando o respetivo elemento está ativo.",
-                                          "Colors appear when their corresponding element is enabled."),
+    CyberWidgets::TextLine(Loc::Tr("veh.colors_hint"),
                            CyberWidgets::TextTone::Secondary);
     if (!vehicle_esp::config.enabled) {
         CyberWidgets::Badge("ESP DESATIVADO", CyberWidgets::TextTone::Secondary);
@@ -80,3 +77,6 @@ void DrawVehicles()
     CyberWidgets::EndCard();
     ImGui::EndGroup();
 }
+
+
+

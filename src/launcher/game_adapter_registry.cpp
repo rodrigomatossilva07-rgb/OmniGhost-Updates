@@ -1,4 +1,4 @@
-#include "game_adapter_registry.h"
+﻿#include "game_adapter_registry.h"
 #include "game_launch_service.h"
 
 #include "../globals.h"
@@ -15,6 +15,8 @@
 #include "src/games/Fivem/game/offsets.h"
 #include "src/games/Fortnite/fortnite_game.h"
 #include "src/games/Rust/rust_game.h"
+#include "src/games/Warzone/warzone_game.h"
+#include "src/games/Apex/apex_game.h"
 #include "imgui.h"
 
 #include <functional>
@@ -342,6 +344,40 @@ bool FortniteValidateOffsets() { return Fortnite::ValidateLiveOffsets(); }
 std::string_view FortniteTerminationReason() { return "Processo Fortnite terminou"; }
 ActiveGame FortniteGameId() { return ActiveGame::Fortnite; }
 
+// Warzone
+bool StartWarzone() {
+    ScopedActiveGame gameGuard;
+    g_activeGame = ActiveGame::Warzone;
+    config_manager::ActivateCurrentGameConfig();
+    if (!Warzone::Attach())
+        return false;
+    OmniGhost::GameContext::Instance().SetActiveGame(ActiveGame::Warzone);
+    gameGuard.Commit();
+    return true;
+}
+
+bool WarzoneIsAlive() { return Warzone::IsGameProcessAlive(); }
+bool WarzoneValidateOffsets() { return Warzone::ValidateLiveOffsets(); }
+std::string_view WarzoneTerminationReason() { return "Processo cod.exe terminou"; }
+ActiveGame WarzoneGameId() { return ActiveGame::Warzone; }
+
+// Apex
+bool StartApex() {
+    ScopedActiveGame gameGuard;
+    g_activeGame = ActiveGame::Apex;
+    config_manager::ActivateCurrentGameConfig();
+    if (!Apex::Attach())
+        return false;
+    OmniGhost::GameContext::Instance().SetActiveGame(ActiveGame::Apex);
+    gameGuard.Commit();
+    return true;
+}
+
+bool ApexIsAlive() { return Apex::IsGameProcessAlive(); }
+bool ApexValidateOffsets() { return Apex::ValidateLiveOffsets(); }
+std::string_view ApexTerminationReason() { return "Processo r5apex.exe terminou"; }
+ActiveGame ApexGameId() { return ActiveGame::Apex; }
+
 
 IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
     using Capability = AdapterCapability;
@@ -411,12 +447,26 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
         },
         FortniteIsAlive, FortniteValidateOffsets, FortniteTerminationReason, FortniteGameId,
         FortniteStartFailure);
+    static FunctionGameAdapter warzone({ ::Launcher::GameId::Warzone, "Call of Duty: Warzone", AdapterMaturity::Beta,
+        Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay },
+        StartWarzone, [] { Warzone::Shutdown(); mem.InvalidateProcess(); },
+        [] { return std::string_view(Warzone::StatusLine()); },
+        [] { Warzone::Tick(); },
+        WarzoneIsAlive, WarzoneValidateOffsets, WarzoneTerminationReason, WarzoneGameId);
+    static FunctionGameAdapter apex({ ::Launcher::GameId::Apex, "Apex Legends", AdapterMaturity::Beta,
+        Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay },
+        StartApex, [] { Apex::Shutdown(); mem.InvalidateProcess(); },
+        [] { return std::string_view(Apex::StatusLine()); },
+        [] { Apex::Tick(); },
+        ApexIsAlive, ApexValidateOffsets, ApexTerminationReason, ApexGameId);
 
     switch (game) {
     case ::Launcher::GameId::FiveM: return &fivem;
     case ::Launcher::GameId::CS2: return &cs2;
     case ::Launcher::GameId::Rust: return &rust;
     case ::Launcher::GameId::Fortnite: return &fortnite;
+    case ::Launcher::GameId::Warzone: return &warzone;
+    case ::Launcher::GameId::Apex: return &apex;
     default: return nullptr;
     }
 }
@@ -434,3 +484,4 @@ AdapterStartResult StartGameAdapter(::Launcher::GameId game) {
     return { true, {} };
 }
 }
+

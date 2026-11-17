@@ -1,4 +1,4 @@
-#include "../../widgets.h"
+﻿#include "../../widgets.h"
 #include "../../theme.h"
 #include "../../localization.h"
 #include "../../../launcher/launcher_assets.h"
@@ -360,3 +360,4 @@ void DrawFivemVisuals() {
     CyberWidgets::EndCard();
     ImGui::EndChild();
 }
+

@@ -161,6 +161,6 @@ struct Config {
     bool MotionEnabled();
     const char* EffectLevelName(EffectLevel level);
     const char* LangName(Language l);
-    const char* T(const char* pt, const char* en);
+    const char* T(const char* pt, const char* en, const char* de, const char* es, const char* fr, const char* it, const char* ru);
 
 }

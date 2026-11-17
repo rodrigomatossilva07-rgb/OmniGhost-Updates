@@ -435,12 +435,12 @@ namespace makcu_wrapper {
         }
         if (!d.monitoringConfirmed) {
             std::snprintf(buf, sizeof(buf),
-                OGS_CSTR("makcu=ligado fluxo=NÃƒO mÃ¡scara=0x%02X (clica no rato dentro do JOGO)"),
+                OGS_CSTR("makcu=ligado fluxo=NÃO máscara=0x%02X (clica no rato dentro do JOGO)"),
                 d.buttonMask);
             return buf;
         }
         std::snprintf(buf, sizeof(buf),
-            OGS_CSTR("makcu=ligado mÃ¡scara=0x%02X origem=%s"),
+            OGS_CSTR("makcu=ligado máscara=0x%02X origem=%s"),
             d.buttonMask, d.lastSource);
         return buf;
     }
@@ -476,13 +476,14 @@ namespace makcu_wrapper {
 
 
         std::shared_lock deviceLock(device_mutex);
-        if (!device) return OGS_CSTR("Nenhuma instÃ¢ncia do dispositivo");
+        if (!device) return OGS_CSTR("Nenhuma instância do dispositivo");
         switch (device->getStatus()) {
         case makcu::ConnectionStatus::CONNECTED: return OGS_CSTR("Ligado");
         case makcu::ConnectionStatus::CONNECTING: return OGS_CSTR("A ligar...");
         case makcu::ConnectionStatus::DISCONNECTED: return OGS_CSTR("Desligado");
-        case makcu::ConnectionStatus::CONNECTION_ERROR: return OGS_CSTR("Erro de ligaÃ§Ã£o");
+        case makcu::ConnectionStatus::CONNECTION_ERROR: return OGS_CSTR("Erro de ligação");
         default: return OGS_CSTR("Desconhecido");
         }
     }
 }
+

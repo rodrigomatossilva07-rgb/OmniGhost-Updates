@@ -1,4 +1,4 @@
-#include "crash_handler.h"
+﻿#include "crash_handler.h"
 #include "build_info.h"
 
 #include "app_paths.h"
@@ -335,3 +335,4 @@ const char* PreviousRunStateName(PreviousRunState state) noexcept {
 }
 
 }
+

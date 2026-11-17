@@ -220,22 +220,21 @@ void DrawVisuals()
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.distance"), &esp::config.distance);
     esp::config.offscreen_arrows = false;
     CyberWidgets::Separator();
-    CyberWidgets::SectionTitle(app_settings::T("PAINEL ATIVO", "ACTIVE PANEL"));
-    CyberWidgets::ToggleSwitch(app_settings::T("Mostrar funcionalidades ativas", "Show active features"),
+    CyberWidgets::SectionTitle(Loc::Tr("vis.active_panel"));
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.active_features"),
         &esp::config.active_features_panel);
     if (esp::config.active_features_panel) {
-        CyberWidgets::SliderFloat(app_settings::T("Escala", "Scale"),
+        CyberWidgets::SliderFloat(Loc::Tr("vis.scale"),
             &esp::config.active_panel_scale, .65f, 1.6f, "%.2f");
-        CyberWidgets::SliderFloat(app_settings::T("Opacidade do painel", "Panel opacity"),
+        CyberWidgets::SliderFloat(Loc::Tr("vis.panel_opacity"),
             &esp::config.active_panel_opacity, .15f, 1.f, "%.2f");
-        CyberWidgets::ToggleSwitch(app_settings::T("Modo compacto", "Compact mode"),
+        CyberWidgets::ToggleSwitch(Loc::Tr("vis.compact_mode"),
             &esp::config.active_panel_compact);
         CyberWidgets::ToggleSwitch("ESP", &esp::config.active_panel_show_esp);
         CyberWidgets::ToggleSwitch("Aimbot", &esp::config.active_panel_show_aim);
         CyberWidgets::ToggleSwitch("Triggerbot", &esp::config.active_panel_show_trigger);
         CyberWidgets::ToggleSwitch("Radar", &esp::config.active_panel_show_radar);
-        CyberWidgets::TextLine(app_settings::T("Arrasta o painel com o menu aberto.",
-                                              "Drag the panel while the menu is open."),
+        CyberWidgets::TextLine(Loc::Tr("vis.drag_hint"),
             CyberWidgets::TextTone::Secondary);
     }
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.box_2d"), &esp::config.box_2d);

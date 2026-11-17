@@ -117,8 +117,8 @@ bool HasDemoText(const std::string& value) {
         return static_cast<char>(std::toupper(c));
     });
     static const char* blocked[] = {
-        OGS_CSTR("EXEMPLO"), OGS_CSTR("DADOS DE EXEMPLO"), OGS_CSTR("DADOS NÃƒO OFICIAIS"),
-        OGS_CSTR("CONTEÃšDO DE DEMONSTRAÃ‡ÃƒO"), OGS_CSTR("DESCREVE AQUI"), OGS_CSTR("SUBSTITUI ESTE TEXTO")
+        OGS_CSTR("EXEMPLO"), OGS_CSTR("DADOS DE EXEMPLO"), OGS_CSTR("DADOS NÃO OFICIAIS"),
+        OGS_CSTR("CONTEÚDO DE DEMONSTRAÇÃO"), OGS_CSTR("DESCREVE AQUI"), OGS_CSTR("SUBSTITUI ESTE TEXTO")
     };
     for (const char* text : blocked)
         if (upper.find(text) != std::string::npos) return true;
@@ -156,7 +156,7 @@ ParseResult ParseChangelog(const std::string& json) {
         return ParseResult{std::nullopt, std::move(message)};
     };
     if (json.empty() || json.size() > 1024 * 1024)
-        return fail(OGS_CSTR("O changelog estÃ¡ vazio ou excede 1 MB."));
+        return fail(OGS_CSTR("O changelog está vazio ou excede 1 MB."));
 
     Json root;
     SharedJson::Limits limits;
@@ -165,75 +165,75 @@ ParseResult ParseChangelog(const std::string& json) {
     limits.maximumNodes = 50000;
     const auto parsedJson = SharedJson::Parse(json, root, limits);
     if (!parsedJson.ok)
-        return fail(OGS_CSTR("JSON do changelog invÃ¡lido (offset ") +
+        return fail(OGS_CSTR("JSON do changelog inválido (offset ") +
                     std::to_string(parsedJson.errorOffset) + "): " + parsedJson.error + ".");
     const Object* object = SharedJson::AsObject(root);
-    if (!object) return fail(OGS_CSTR("A raiz de changelog.json nÃ£o Ã© um objeto."));
+    if (!object) return fail(OGS_CSTR("A raiz de changelog.json não é um objeto."));
 
     int schemaVersion = 0;
     if (!Number(*object, OGS_CSTR("schemaVersion"), schemaVersion) || schemaVersion != 1)
-        return fail(OGS_CSTR("schemaVersion do changelog nÃ£o Ã© suportado."));
+        return fail(OGS_CSTR("schemaVersion do changelog não é suportado."));
 
     ChangelogSnapshot snapshot;
     snapshot.status = ChangelogStatus::Ready;
     if (!Text(*object, OGS_CSTR("generatedAt"), snapshot.generatedAt) ||
         !SafeDate(snapshot.generatedAt))
-        return fail(OGS_CSTR("generatedAt do changelog Ã© invÃ¡lido."));
+        return fail(OGS_CSTR("generatedAt do changelog é inválido."));
     if (!Text(*object, OGS_CSTR("channel"), snapshot.channel) ||
         (snapshot.channel != OGS_CSTR("stable") && snapshot.channel != OGS_CSTR("beta")))
-        return fail(OGS_CSTR("Canal do changelog Ã© invÃ¡lido."));
+        return fail(OGS_CSTR("Canal do changelog é inválido."));
 
     const Json* releasesField = Field(*object, OGS_CSTR("releases"));
     const Array* releases = releasesField
         ? SharedJson::AsArray(*releasesField) : nullptr;
     if (!releases || releases->size() > kMaximumReleases)
-        return fail(OGS_CSTR("Lista de releases do changelog Ã© invÃ¡lida."));
+        return fail(OGS_CSTR("Lista de releases do changelog é inválida."));
 
     std::set<std::string> versions;
     std::set<std::string> releaseIds;
     for (const Json& releaseValue : *releases) {
         const Object* releaseObject = SharedJson::AsObject(releaseValue);
-        if (!releaseObject) return fail(OGS_CSTR("Uma release do changelog nÃ£o Ã© um objeto."));
+        if (!releaseObject) return fail(OGS_CSTR("Uma release do changelog não é um objeto."));
 
         ChangelogRelease release;
         if (!Text(*releaseObject, "id", release.id) || !SafeIdentifier(release.id))
-            return fail(OGS_CSTR("ID de release invÃ¡lido."));
+            return fail(OGS_CSTR("ID de release inválido."));
         if (!Text(*releaseObject, OGS_CSTR("version"), release.version) ||
             !OmniGhost::Update::SemVersion::Parse(release.version))
-            return fail(OGS_CSTR("VersÃ£o de release invÃ¡lida."));
+            return fail(OGS_CSTR("Versão de release inválida."));
         if (!Text(*releaseObject, "tag", release.tag) ||
             release.tag != "v" + release.version)
-            return fail(OGS_CSTR("A tag do changelog nÃ£o corresponde Ã  versÃ£o."));
+            return fail(OGS_CSTR("A tag do changelog não corresponde à versão."));
         if (!Text(*releaseObject, OGS_CSTR("publishedAt"), release.publishedAt) ||
             !SafeDate(release.publishedAt))
-            return fail(OGS_CSTR("publishedAt de uma release Ã© invÃ¡lido."));
+            return fail(OGS_CSTR("publishedAt de uma release é inválido."));
         if (!Text(*releaseObject, OGS_CSTR("title"), release.title) || HasDemoText(release.title))
-            return fail(OGS_CSTR("TÃ­tulo de release invÃ¡lido."));
+            return fail(OGS_CSTR("Título de release inválido."));
         if (!Text(*releaseObject, OGS_CSTR("summary"), release.summary, true) ||
             HasDemoText(release.summary))
-            return fail(OGS_CSTR("Resumo de release invÃ¡lido."));
+            return fail(OGS_CSTR("Resumo de release inválido."));
         if (!OptionalText(*releaseObject, OGS_CSTR("author"), release.author) ||
             !OptionalText(*releaseObject, OGS_CSTR("commit"), release.commit) ||
             !OptionalText(*releaseObject, OGS_CSTR("releaseUrl"), release.releaseUrl))
-            return fail(OGS_CSTR("Metadados pÃºblicos da Release sÃ£o invÃ¡lidos."));
+            return fail(OGS_CSTR("Metadados públicos da Release são inválidos."));
         if (release.author.empty())
             release.author = OGS_CSTR("rodrigomatossilva07-rgb");
         if (release.releaseUrl.empty())
             release.releaseUrl = std::string(kReleasePagePrefix) + release.tag;
         if (!SafeReleaseUrl(release.releaseUrl, release.tag))
-            return fail(OGS_CSTR("URL pÃºblica da Release Ã© invÃ¡lida."));
+            return fail(OGS_CSTR("URL pública da Release é inválida."));
         if (!release.commit.empty() && !SafeIdentifier(release.commit))
-            return fail(OGS_CSTR("Identificador de commit da Release Ã© invÃ¡lido."));
+            return fail(OGS_CSTR("Identificador de commit da Release é inválido."));
         if (!versions.insert(release.version).second ||
             !releaseIds.insert(release.id).second)
-            return fail(OGS_CSTR("VersÃ£o ou ID de release duplicado no changelog."));
+            return fail(OGS_CSTR("Versão ou ID de release duplicado no changelog."));
 
         const Json* modulesField = Field(*releaseObject, OGS_CSTR("modules"));
         std::vector<const Json*> moduleValues;
         if (modulesField) {
             if (const Array* modules = SharedJson::AsArray(*modulesField)) {
                 if (modules->size() > kMaximumModulesPerRelease)
-                    return fail(OGS_CSTR("Uma release contÃ©m demasiados mÃ³dulos."));
+                    return fail(OGS_CSTR("Uma release contém demasiados módulos."));
                 for (const Json& module : *modules)
                     moduleValues.push_back(&module);
             } else if (SharedJson::AsObject(*modulesField) != nullptr) {
@@ -243,30 +243,30 @@ ParseResult ParseChangelog(const std::string& json) {
             }
         }
         if (moduleValues.empty())
-            return fail(OGS_CSTR("Uma release nÃ£o contÃ©m mÃ³dulos vÃ¡lidos."));
+            return fail(OGS_CSTR("Uma release não contém módulos válidos."));
 
         std::set<std::string> moduleIds;
         for (const Json* moduleValue : moduleValues) {
             const Object* moduleObject = moduleValue
                 ? SharedJson::AsObject(*moduleValue)
                 : nullptr;
-            if (!moduleObject) return fail(OGS_CSTR("Um mÃ³dulo do changelog nÃ£o Ã© um objeto."));
+            if (!moduleObject) return fail(OGS_CSTR("Um módulo do changelog não é um objeto."));
 
             ChangelogModule module;
             if (!Text(*moduleObject, "id", module.id) || !SafeIdentifier(module.id) ||
                 !moduleIds.insert(module.id).second)
-                return fail(OGS_CSTR("ID de mÃ³dulo invÃ¡lido ou duplicado."));
+                return fail(OGS_CSTR("ID de módulo inválido ou duplicado."));
             if (!Text(*moduleObject, OGS_CSTR("name"), module.name) || HasDemoText(module.name))
-                return fail(OGS_CSTR("Nome de mÃ³dulo invÃ¡lido."));
+                return fail(OGS_CSTR("Nome de módulo inválido."));
             if (!OptionalText(*moduleObject, OGS_CSTR("version"), module.version))
-                return fail(OGS_CSTR("VersÃ£o de mÃ³dulo invÃ¡lida."));
+                return fail(OGS_CSTR("Versão de módulo inválida."));
 
             const Json* changesField = Field(*moduleObject, OGS_CSTR("changes"));
             std::vector<const Json*> changeValues;
             if (changesField) {
                 if (const Array* changes = SharedJson::AsArray(*changesField)) {
                     if (changes->size() > kMaximumChangesPerModule)
-                        return fail(OGS_CSTR("Um mÃ³dulo contÃ©m demasiadas alteraÃ§Ãµes."));
+                        return fail(OGS_CSTR("Um módulo contém demasiadas alterações."));
                     for (const Json& change : *changes)
                         changeValues.push_back(&change);
                 } else if (SharedJson::AsObject(*changesField) != nullptr) {
@@ -275,31 +275,31 @@ ParseResult ParseChangelog(const std::string& json) {
                 }
             }
             if (changeValues.empty())
-                return fail(OGS_CSTR("Um mÃ³dulo nÃ£o contÃ©m alteraÃ§Ãµes vÃ¡lidas."));
+                return fail(OGS_CSTR("Um módulo não contém alterações válidas."));
 
             std::set<std::string> uniqueChanges;
             for (const Json* changeValue : changeValues) {
                 const Object* changeObject = changeValue
                     ? SharedJson::AsObject(*changeValue)
                     : nullptr;
-                if (!changeObject) return fail(OGS_CSTR("Uma alteraÃ§Ã£o nÃ£o Ã© um objeto."));
+                if (!changeObject) return fail(OGS_CSTR("Uma alteração não é um objeto."));
                 std::string typeText;
                 ChangelogChange change;
                 if (!Text(*changeObject, OGS_CSTR("type"), typeText))
-                    return fail(OGS_CSTR("Categoria de alteraÃ§Ã£o em falta."));
+                    return fail(OGS_CSTR("Categoria de alteração em falta."));
                 const auto parsedType = ParseChangeType(typeText);
                 if (!parsedType)
-                    return fail(OGS_CSTR("Categoria de alteraÃ§Ã£o desconhecida."));
+                    return fail(OGS_CSTR("Categoria de alteração desconhecida."));
                 change.type = *parsedType;
                 if (!Text(*changeObject, OGS_CSTR("text"), change.text) ||
                     HasDemoText(change.text))
-                    return fail(OGS_CSTR("Texto de alteraÃ§Ã£o invÃ¡lido."));
+                    return fail(OGS_CSTR("Texto de alteração inválido."));
                 std::string uniqueKey = typeText + "\n" + change.text;
                 if (uniqueChanges.insert(uniqueKey).second)
                     module.changes.push_back(std::move(change));
             }
             if (module.changes.empty())
-                return fail(OGS_CSTR("Um mÃ³dulo ficou sem alteraÃ§Ãµes depois da validaÃ§Ã£o."));
+                return fail(OGS_CSTR("Um módulo ficou sem alterações depois da validação."));
             release.modules.push_back(std::move(module));
         }
         snapshot.releases.push_back(std::move(release));
@@ -316,7 +316,7 @@ ParseResult ParseChangelog(const std::string& json) {
     snapshot.status = snapshot.releases.empty()
         ? ChangelogStatus::Empty : ChangelogStatus::Ready;
     snapshot.message = snapshot.releases.empty()
-        ? OGS_CSTR("Ainda nÃ£o existem atualizaÃ§Ãµes publicadas.") : std::string{};
+        ? OGS_CSTR("Ainda não existem atualizações publicadas.") : std::string{};
     return {std::move(snapshot), {}};
 }
 
@@ -399,7 +399,7 @@ void ChangelogService::LoadCache() {
     if (!parsed.snapshot) {
         ChangelogSnapshot empty;
         empty.status = ChangelogStatus::Idle;
-        empty.message = OGS_CSTR("O cache local do histÃ³rico foi ignorado por ser invÃ¡lido.");
+        empty.message = OGS_CSTR("O cache local do histórico foi ignorado por ser inválido.");
         SetSnapshot(std::move(empty));
         return;
     }
@@ -412,7 +412,7 @@ void ChangelogService::RefreshAsync(bool force) {
     if (!initialized_) Initialize();
     if (busy_.exchange(true)) {
         Log(OmniGhost::Update::LogLevel::Warning, OGS_CSTR("worker"),
-            OGS_CSTR("Pedido de refresh ignorado porque o changelog jÃ¡ estÃ¡ ocupado."));
+            OGS_CSTR("Pedido de refresh ignorado porque o changelog já está ocupado."));
         return;
     }
     cancelled_ = false;
@@ -428,26 +428,26 @@ void ChangelogService::RefreshAsync(bool force) {
         } catch (const std::exception& exception) {
             ChangelogSnapshot failed = GetSnapshot();
             failed.status = ChangelogStatus::Error;
-            failed.message = OGS_CSTR("O histÃ³rico terminou de forma inesperada.");
+            failed.message = OGS_CSTR("O histórico terminou de forma inesperada.");
             SetSnapshot(std::move(failed));
             Log(OmniGhost::Update::LogLevel::Error, OGS_CSTR("worker"), exception.what());
         } catch (...) {
             ChangelogSnapshot failed = GetSnapshot();
             failed.status = ChangelogStatus::Error;
-            failed.message = OGS_CSTR("O histÃ³rico terminou de forma inesperada.");
+            failed.message = OGS_CSTR("O histórico terminou de forma inesperada.");
             SetSnapshot(std::move(failed));
             Log(OmniGhost::Update::LogLevel::Error, OGS_CSTR("worker"),
-                OGS_CSTR("ExceÃ§Ã£o nÃ£o identificada na thread do changelog."));
+                OGS_CSTR("Exceção não identificada na thread do changelog."));
         }
     });
 }
 
 void ChangelogService::RunRefresh(bool force) {
     (void)force;
-    Log(OmniGhost::Update::LogLevel::Info, OGS_CSTR("check"), OGS_CSTR("A iniciar a atualizaÃ§Ã£o do changelog."));
+    Log(OmniGhost::Update::LogLevel::Info, OGS_CSTR("check"), OGS_CSTR("A iniciar a atualização do changelog."));
     ChangelogSnapshot current = GetSnapshot();
     current.status = ChangelogStatus::Loading;
-    current.message = OGS_CSTR("A carregar atualizaÃ§Ãµesâ€¦");
+    current.message = OGS_CSTR("A carregar atualizações…");
     SetSnapshot(std::move(current));
 
     std::string changelogUrl = kChangelogFallbackUrl;
@@ -466,21 +466,21 @@ void ChangelogService::RunRefresh(bool force) {
             Log(
                 OmniGhost::Update::LogLevel::Info,
                 OGS_CSTR("release-resolution"),
-                OGS_CSTR("Changelog associado Ã  maior Release estÃ¡vel: ") +
+                OGS_CSTR("Changelog associado à maior Release estável: ") +
                     releaseResult.selection->tag + ".");
         } else if (!releaseResult.error.empty()) {
             Log(
                 OmniGhost::Update::LogLevel::Warning,
                 OGS_CSTR("release-resolution"),
                 releaseResult.error +
-                    OGS_CSTR(" SerÃ¡ usado o marcador Latest como compatibilidade."));
+                    OGS_CSTR(" Será usado o marcador Latest como compatibilidade."));
         }
     } else {
         Log(
             OmniGhost::Update::LogLevel::Warning,
             OGS_CSTR("release-resolution"),
             releasesResponse.error +
-                OGS_CSTR(" SerÃ¡ usado o marcador Latest como compatibilidade."));
+                OGS_CSTR(" Será usado o marcador Latest como compatibilidade."));
     }
 
     const auto result = http_->GetText(changelogUrl, 15000, cancelled_);
@@ -495,16 +495,16 @@ void ChangelogService::RunRefresh(bool force) {
             fallback.status = ChangelogStatus::OfflineCache;
             fallback.fromCache = true;
             fallback.message = networkUnavailable
-                ? OGS_CSTR("Sem ligaÃ§Ã£o Ã  Internet. A mostrar o histÃ³rico guardado.")
-                : OGS_CSTR("NÃ£o foi possÃ­vel atualizar o histÃ³rico. A mostrar os dados guardados.");
+                ? OGS_CSTR("Sem ligação à Internet. A mostrar o histórico guardado.")
+                : OGS_CSTR("Não foi possível atualizar o histórico. A mostrar os dados guardados.");
         } else if (result.statusCode == 404) {
             fallback.status = ChangelogStatus::Empty;
-            fallback.message = OGS_CSTR("Ainda nÃ£o existem atualizaÃ§Ãµes publicadas.");
+            fallback.message = OGS_CSTR("Ainda não existem atualizações publicadas.");
         } else {
             fallback.status = ChangelogStatus::Error;
             fallback.message = networkUnavailable
-                ? OGS_CSTR("Sem ligaÃ§Ã£o Ã  Internet. Liga-te a uma rede e tenta novamente.")
-                : OGS_CSTR("NÃ£o foi possÃ­vel carregar o histÃ³rico de atualizaÃ§Ãµes.");
+                ? OGS_CSTR("Sem ligação à Internet. Liga-te a uma rede e tenta novamente.")
+                : OGS_CSTR("Não foi possível carregar o histórico de atualizações.");
         }
         Log(OmniGhost::Update::LogLevel::Warning, OGS_CSTR("download"), result.error);
         SetSnapshot(std::move(fallback));
@@ -518,10 +518,10 @@ void ChangelogService::RunRefresh(bool force) {
             fallback.status = ChangelogStatus::OfflineCache;
             fallback.fromCache = true;
             fallback.message =
-                OGS_CSTR("O histÃ³rico remoto Ã© invÃ¡lido. A mostrar os dados guardados.");
+                OGS_CSTR("O histórico remoto é inválido. A mostrar os dados guardados.");
         } else {
             fallback.status = ChangelogStatus::Error;
-            fallback.message = OGS_CSTR("NÃ£o foi possÃ­vel carregar o histÃ³rico de atualizaÃ§Ãµes.");
+            fallback.message = OGS_CSTR("Não foi possível carregar o histórico de atualizações.");
         }
         Log(OmniGhost::Update::LogLevel::Error, OGS_CSTR("validation"), parsed.error);
         SetSnapshot(std::move(fallback));
@@ -529,7 +529,7 @@ void ChangelogService::RunRefresh(bool force) {
     }
 
     if (!WriteAtomically(CacheFile(), result.body)) {
-        Log(OmniGhost::Update::LogLevel::Warning, OGS_CSTR("cache"), OGS_CSTR("NÃ£o foi possÃ­vel atualizar a cache local."));
+        Log(OmniGhost::Update::LogLevel::Warning, OGS_CSTR("cache"), OGS_CSTR("Não foi possível atualizar a cache local."));
     }
     parsed.snapshot->fromCache = false;
     Log(OmniGhost::Update::LogLevel::Info, OGS_CSTR("complete"), OGS_CSTR("Changelog remoto validado e carregado."));
@@ -574,3 +574,4 @@ void ChangelogService::Shutdown() {
 }
 
 }
+

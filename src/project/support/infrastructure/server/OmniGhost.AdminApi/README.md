@@ -1,4 +1,4 @@
-# OmniGhost Admin API
+﻿# OmniGhost Admin API
 
 Serviço administrativo separado do executável. O Seller Key do KeyAuth nunca é
 incluído no cliente, nos logs ou no repositório.
@@ -66,3 +66,4 @@ para tráfego externo. Sem essa opção, Production exige HTTPS diretamente no K
 
 O audit log é JSONL encadeado por SHA-256. Identificadores de licenças são
 registados por fingerprint, nunca em texto integral.
+

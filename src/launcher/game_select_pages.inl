@@ -60,7 +60,7 @@ void DrawHome(ImVec2 display) {
     ImGui::Dummy(ImVec2(0.f, overviewExpansion * 0.5f));
     CyberWidgets::Badge(account.websiteAccount ? "CONTA OMNIGHOST" : "ACESSO LEGACY",
         account.remoteAuthenticated ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
-    CyberWidgets::TextLine(account.remoteUsername.empty() ? "SessÃ£o local" : account.remoteUsername.c_str(),
+    CyberWidgets::TextLine(account.remoteUsername.empty() ? "Sessão local" : account.remoteUsername.c_str(),
         CyberWidgets::TextTone::Secondary);
     ImGui::Dummy(ImVec2(0.f, overviewExpansion * 0.5f));
     CyberWidgets::EndCard();
@@ -72,18 +72,18 @@ void DrawHome(ImVec2 display) {
     ImGui::Dummy(ImVec2(0.f, overviewExpansion * 0.5f));
     CyberWidgets::EndCard();
     if (available >= S(900.f)) ImGui::SameLine(0.f, gap); else ImGui::Dummy(ImVec2(0.f, gap));
-    CyberWidgets::BeginCard("SESSÃƒO", overviewWidth);
+    CyberWidgets::BeginCard("SESSÃO", overviewWidth);
     ImGui::Dummy(ImVec2(0.f, overviewExpansion * 0.5f));
     const GameId overviewRecent = MostRecentHistoryGame();
     const GameHistory overviewHistory = GetGameHistory(overviewRecent);
-    CyberWidgets::TextLineF(CyberWidgets::TextTone::Primary, "%u sessÃµes registadas", overviewHistory.sessionCount);
+    CyberWidgets::TextLineF(CyberWidgets::TextTone::Primary, "%u sessões registadas", overviewHistory.sessionCount);
     CyberWidgets::TextLine(FormatActiveDuration(overviewHistory.totalActiveSeconds).c_str(), CyberWidgets::TextTone::Secondary);
     ImGui::Dummy(ImVec2(0.f, overviewExpansion * 0.5f));
     CyberWidgets::EndCard();
     ImGui::SameLine(0.f, gap);
-    CyberWidgets::BeginCard("SEGURANÃ‡A", overviewWidth);
+    CyberWidgets::BeginCard("SEGURANÇA", overviewWidth);
     ImGui::Dummy(ImVec2(0.f, overviewExpansion * 0.5f));
-    CyberWidgets::Badge(account.websiteAccount ? "SESSÃƒO PROTEGIDA" : "MIGRAÃ‡ÃƒO DISPONÃVEL",
+    CyberWidgets::Badge(account.websiteAccount ? "SESSÃO PROTEGIDA" : "MIGRAÇÃO DISPONÍVEL",
         account.websiteAccount ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
     CyberWidgets::TextLine(account.websiteAccount ? "Token guardado pelo Windows" : "Usa a conta do website", CyberWidgets::TextTone::Secondary);
     ImGui::Dummy(ImVec2(0.f, overviewExpansion * 0.5f));
@@ -105,11 +105,11 @@ void DrawHome(ImVec2 display) {
                 IsReadyState(runtime->state) ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
             ImGui::Dummy(ImVec2(0, S(5.f)));
             CyberWidgets::TextLine(game->name, CyberWidgets::TextTone::Primary);
-            CyberWidgets::TextLine(account.websiteAccount ? "PERFIL REMOTO Â· ESTATÃSTICAS SINCRONIZADAS" : "PERFIL LOCAL Â· SESSÃƒO PROTEGIDA", CyberWidgets::TextTone::Secondary);
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "Ãšltima sessÃ£o Â· %s Â· %s",
+            CyberWidgets::TextLine(account.websiteAccount ? "PERFIL REMOTO Â· ESTATÍSTICAS SINCRONIZADAS" : "PERFIL LOCAL Â· SESSÃO PROTEGIDA", CyberWidgets::TextTone::Secondary);
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "Última sessão Â· %s Â· %s",
                 SessionResultDisplay(history.lastResult), FormatLastUsed(history.lastUsedUnix).c_str());
             CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-                "%u sessÃµes Â· %s de menu ativo", history.sessionCount,
+                "%u sessões Â· %s de menu ativo", history.sessionCount,
                 FormatActiveDuration(history.totalActiveSeconds).c_str());
             ImGui::Dummy(ImVec2(0, S(8.f)));
             if (IsReadyState(runtime->state)) {
@@ -122,8 +122,8 @@ void DrawHome(ImVec2 display) {
     } else {
         CyberWidgets::EmptyState(Loc::Tr("launcher.last_session"),
             MostRecentHistoryGame() == GameId::None
-                ? "Abre um menu para comeÃ§ar o teu histÃ³rico de sessÃµes."
-                : "Ativa 'Recordar o Ãºltimo jogo' para continuar daqui.");
+                ? "Abre um menu para começar o teu histórico de sessões."
+                : "Ativa 'Recordar o último jogo' para continuar daqui.");
     }
     ImGui::Dummy(ImVec2(0.f, verticalExpansion * 0.5f));
     CyberWidgets::EndCard();
@@ -142,7 +142,7 @@ void DrawHome(ImVec2 display) {
     CyberWidgets::HealthRow(Loc::Tr("launcher.updates_status"), UpdateStatusText(update),
         update.status == OmniGhost::Update::Status::Error ? CyberWidgets::HealthStatus::Error : CyberWidgets::HealthStatus::Ok);
     if (!dma.dependencyIntegrityOk)
-        CyberWidgets::TextLine("Integridade das dependÃªncias DMA requer atenÃ§Ã£o.", CyberWidgets::TextTone::Warning);
+        CyberWidgets::TextLine("Integridade das dependências DMA requer atenção.", CyberWidgets::TextTone::Warning);
     ImGui::Dummy(ImVec2(0.f, verticalExpansion * 0.5f));
     CyberWidgets::EndCard();
 
@@ -153,7 +153,7 @@ void DrawHome(ImVec2 display) {
     if (recent != GameId::None) {
         const GameDefinition* game = FindGame(recent);
         const GameHistory history = GetGameHistory(recent);
-        CyberWidgets::KeyValueRow(Loc::Tr("launcher.game"), game ? game->name : "â€”");
+        CyberWidgets::KeyValueRow(Loc::Tr("launcher.game"), game ? game->name : "—");
         CyberWidgets::KeyValueRow(Loc::Tr("launcher.result"), SessionResultDisplay(history.lastResult));
         const std::string when = FormatLastUsed(history.lastUsedUnix);
         CyberWidgets::KeyValueRow(Loc::Tr("launcher.when"), when.c_str());
@@ -161,11 +161,11 @@ void DrawHome(ImVec2 display) {
         const std::string lastTime = FormatActiveDuration(history.lastSessionSeconds);
         CyberWidgets::KeyValueRow("Tempo total", totalTime.c_str());
         if (history.sessionCount)
-            CyberWidgets::KeyValueRow("Ãšltima duraÃ§Ã£o", lastTime.c_str());
+            CyberWidgets::KeyValueRow("Última duração", lastTime.c_str());
         if (!history.detail.empty())
             CyberWidgets::TextLine(history.detail.c_str(), CyberWidgets::TextTone::Secondary);
     } else {
-        CyberWidgets::EmptyState("SEM ATIVIDADE", "Quando iniciares um jogo, a Ãºltima sessÃ£o serÃ¡ mostrada aqui.");
+        CyberWidgets::EmptyState("SEM ATIVIDADE", "Quando iniciares um jogo, a última sessão será mostrada aqui.");
     }
     ImGui::Dummy(ImVec2(0.f, verticalExpansion * 0.5f));
     CyberWidgets::EndCard();
@@ -179,7 +179,7 @@ void DrawHome(ImVec2 display) {
     for (std::size_t i = 0; i < homeGameCount; ++i) {
         if (!homeGames[i].coming_soon) ++availableGames;
     }
-    const std::string availableSummary = std::to_string(availableGames) + " produtos disponÃ­veis";
+    const std::string availableSummary = std::to_string(availableGames) + " produtos disponíveis";
     CyberWidgets::KeyValueRow(Loc::Tr("launcher.games"), availableSummary.c_str());
     std::size_t shown = 0;
     for (std::size_t index = 0; index < homeGameCount && shown < 4; ++index) {
@@ -190,7 +190,7 @@ void DrawHome(ImVec2 display) {
             runtime && IsReadyState(runtime->state) ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
         ++shown;
     }
-    if (!shown) CyberWidgets::TextLine("NÃ£o existem produtos ativos nesta conta.", CyberWidgets::TextTone::Warning);
+    if (!shown) CyberWidgets::TextLine("Não existem produtos ativos nesta conta.", CyberWidgets::TextTone::Warning);
     ImGui::Dummy(ImVec2(0.f, S(6.f)));
     if (CyberWidgets::Button(Loc::Tr("launcher.continue_last"), CyberWidgets::ButtonStyle::Secondary, ImVec2(S(165.f), S(33.f))))
         ChangeNavigation(static_cast<int>(NavPage::Library));
@@ -222,14 +222,14 @@ void DrawMarketplace(ImVec2 display) {
     const char* configGames[] = { "FiveM", "CS2", "Fortnite", "Warzone" };
     const char* configGameIds[] = { "fivem", "cs2", "fortnite", "warzone" };
     const char* configCategories[] = { "Destaques", "Oficiais", "Verificadas", "Populares" };
-    const char* configSorts[] = { "Populares", "Recentes", "AvaliaÃ§Ã£o" };
+    const char* configSorts[] = { "Populares", "Recentes", "Avaliação" };
     const char* configSortValue = configSort == 1 ? "recent" : configSort == 2 ? "rating" : "popular";
 
-    CyberWidgets::BeginCard("CONFIGURAÃ‡Ã•ES VERIFICADAS", 0.f);
+    CyberWidgets::BeginCard("CONFIGURAÇÕES VERIFICADAS", 0.f);
     CyberWidgets::Badge("CONFIG HUB", CyberWidgets::TextTone::Accent);
     ImGui::Dummy(ImVec2(0.f, S(6.f)));
-    CyberWidgets::TextLine("Presets oficiais e da comunidade que passaram pela validaÃ§Ã£o tÃ©cnica e moderaÃ§Ã£o.", CyberWidgets::TextTone::Primary);
-    CyberWidgets::TextLine("Guardar cria uma cÃ³pia independente na tua biblioteca; atualizaÃ§Ãµes do autor nunca alteram a tua cÃ³pia.", CyberWidgets::TextTone::Secondary);
+    CyberWidgets::TextLine("Presets oficiais e da comunidade que passaram pela validação técnica e moderação.", CyberWidgets::TextTone::Primary);
+    CyberWidgets::TextLine("Guardar cria uma cópia independente na tua biblioteca; atualizações do autor nunca alteram a tua cópia.", CyberWidgets::TextTone::Secondary);
     const float filterAvailable = ImGui::GetContentRegionAvail().x;
     const bool inlineFilters = filterAvailable >= S(720.f);
     const float filterWidth = inlineFilters
@@ -249,9 +249,9 @@ void DrawMarketplace(ImVec2 display) {
                           configCategories, 4);
     if (inlineFilters) ImGui::SameLine(0.f, S(10.f));
     drawMarketplaceFilter("##market_sort_filter", "Ordenar", &configSort, configSorts, 3);
-    CyberWidgets::InputField("##marketplace_config_search", configSearch, sizeof(configSearch), "Pesquisar configuraÃ§Ã£o ou autor", 0, -1.f);
+    CyberWidgets::InputField("##marketplace_config_search", configSearch, sizeof(configSearch), "Pesquisar configuração ou autor", 0, -1.f);
     CyberWidgets::InputField("##marketplace_config_style", configStyle, sizeof(configStyle), "Etiqueta/estilo", 0, -1.f);
-    CyberWidgets::ToggleSwitch("Apenas compatÃ­veis", &compatibleOnly);
+    CyberWidgets::ToggleSwitch("Apenas compatíveis", &compatibleOnly);
     if (CyberWidgets::GoldButton("ATUALIZAR CONFIG HUB", ImVec2(S(195.f), S(34.f)))) {
         configLoaded = config_manager::RefreshCommunityConfigsForGame(configGameIds[configGame],
             config_manager::CommunityScope::Marketplace, configSearch, configSortValue);
@@ -276,8 +276,8 @@ void DrawMarketplace(ImVec2 display) {
                 item.official ? CyberWidgets::TextTone::Accent : CyberWidgets::TextTone::Success);
             CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%s Â· %s Â· v%d", item.author.c_str(), item.game.c_str(), item.version);
             CyberWidgets::TextLineF(item.compatible ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning,
-                "Schema %d Â· Launcher mÃ­nimo %s", item.schema_version, item.min_launcher_version.c_str());
-            CyberWidgets::TextLine(item.description.empty() ? "Sem descriÃ§Ã£o." : item.description.c_str(), CyberWidgets::TextTone::Secondary);
+                "Schema %d Â· Launcher mínimo %s", item.schema_version, item.min_launcher_version.c_str());
+            CyberWidgets::TextLine(item.description.empty() ? "Sem descrição." : item.description.c_str(), CyberWidgets::TextTone::Secondary);
             CyberWidgets::TextLineF(CyberWidgets::TextTone::Accent, "%d downloads Â· %.1f/5 Â· %d favoritos",
                 item.downloads, item.rating, item.favorites);
             if (CyberWidgets::GoldButton("GUARDAR", ImVec2(S(100.f), S(31.f)))) {
@@ -299,7 +299,7 @@ void DrawMarketplace(ImVec2 display) {
         }
         if (!shownConfigs) {
             CyberWidgets::BeginCard("SEM RESULTADOS", 0.f);
-            CyberWidgets::EmptyState("SEM CONFIGURAÃ‡Ã•ES", "Ainda nÃ£o existem configuraÃ§Ãµes verificadas nesta categoria.");
+            CyberWidgets::EmptyState("SEM CONFIGURAÇÕES", "Ainda não existem configurações verificadas nesta categoria.");
             CyberWidgets::EndCard();
         }
     }
@@ -307,11 +307,11 @@ void DrawMarketplace(ImVec2 display) {
     ImGui::Dummy(ImVec2(0.f, gap));
 
     CyberWidgets::BeginCard("TEMAS E VISUAIS", 0.f);
-    CyberWidgets::Badge("INCLUÃDOS", CyberWidgets::TextTone::Success);
+    CyberWidgets::Badge("INCLUÍDOS", CyberWidgets::TextTone::Success);
     ImGui::Dummy(ImVec2(0.f, S(7.f)));
-    CyberWidgets::TextLine("O mesmo estilo Ã© aplicado ao launcher, menus dos jogos e janelas do overlay.",
+    CyberWidgets::TextLine("O mesmo estilo é aplicado ao launcher, menus dos jogos e janelas do overlay.",
                            CyberWidgets::TextTone::Primary);
-    CyberWidgets::TextLine("Para trocar depois, volta aqui e escolhe outro estilo â€” ou usa PadrÃ£o OmniGhost.",
+    CyberWidgets::TextLine("Para trocar depois, volta aqui e escolhe outro estilo — ou usa Padrão OmniGhost.",
                            CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
 
@@ -323,12 +323,12 @@ void DrawMarketplace(ImVec2 display) {
         CyberTheme::VisualStyle visual;
     };
     static constexpr MarketplaceStyle styles[] = {
-        { "PadrÃ£o OmniGhost", "TÃ©cnico, equilibrado e com a identidade original.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Cyber, CyberTheme::VisualStyle::Omni },
-		{ "Obsidian Ember", "PainÃ©is rectos, densos e acabamento laranja incandescente.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Orange, CyberTheme::VisualStyle::Obsidian },
+        { "Padrão OmniGhost", "Técnico, equilibrado e com a identidade original.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Cyber, CyberTheme::VisualStyle::Omni },
+		{ "Obsidian Ember", "Painéis rectos, densos e acabamento laranja incandescente.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Orange, CyberTheme::VisualStyle::Obsidian },
         { "Neon Azure", "Interface leve, arredondada e profundidade azul.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Blue, CyberTheme::VisualStyle::Azure },
-        { "Violet Pulse", "CartÃµes suaves, espaÃ§os amplos e movimento orgÃ¢nico.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Purple, CyberTheme::VisualStyle::Violet },
+        { "Violet Pulse", "Cartões suaves, espaços amplos e movimento orgânico.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Purple, CyberTheme::VisualStyle::Violet },
         { "Matrix Signal", "Terminal angular, compacto e grelha digital.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Matrix, CyberTheme::VisualStyle::Matrix },
-        { "Crimson Focus", "Controlos afiados e superfÃ­cies vermelhas intensas.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Red, CyberTheme::VisualStyle::Crimson },
+        { "Crimson Focus", "Controlos afiados e superfícies vermelhas intensas.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Red, CyberTheme::VisualStyle::Crimson },
         { "Arctic Teal", "Layout aberto, frio e minimalista em vidro teal.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Teal, CyberTheme::VisualStyle::Arctic },
     };
 
@@ -370,7 +370,7 @@ void DrawMarketplace(ImVec2 display) {
             if (app_settings::SaveGlobal(&saveError))
                 CyberWidgets::Notify("Tema completo aplicado e guardado.", CyberWidgets::ToastType::Success);
             else
-                CyberWidgets::Notify(saveError.empty() ? "O tema foi aplicado, mas nÃ£o foi possÃ­vel guardar." : saveError.c_str(),
+                CyberWidgets::Notify(saveError.empty() ? "O tema foi aplicado, mas não foi possível guardar." : saveError.c_str(),
                                      CyberWidgets::ToastType::Warning);
         }
         ImGui::PopID();
@@ -382,18 +382,18 @@ void DrawMarketplace(ImVec2 display) {
 
     ImGui::Dummy(ImVec2(0.f, gap));
     CyberWidgets::BeginCard("OS MEUS ITENS", 0.f);
-    CyberWidgets::HealthRow("Biblioteca", "Ainda nÃ£o existem itens desbloqueados", CyberWidgets::HealthStatus::Warning);
-    CyberWidgets::TextLine("Os temas da comunidade aprovados e associados Ã  tua conta aparecerÃ£o aqui.",
+    CyberWidgets::HealthRow("Biblioteca", "Ainda não existem itens desbloqueados", CyberWidgets::HealthStatus::Warning);
+    CyberWidgets::TextLine("Os temas da comunidade aprovados e associados à tua conta aparecerão aqui.",
                            CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0.f, gap));
     CyberWidgets::BeginCard("CRIADORES DA COMUNIDADE", 0.f);
-    CyberWidgets::Badge("REVISÃƒO OBRIGATÃ“RIA", CyberWidgets::TextTone::Warning);
+    CyberWidgets::Badge("REVISÃO OBRIGATÓRIA", CyberWidgets::TextTone::Warning);
     ImGui::Dummy(ImVec2(0.f, S(6.f)));
-    CyberWidgets::TextLine("Cria um pack .ogtheme e envia-o para avaliaÃ§Ã£o antes de poder entrar no Marketplace.",
+    CyberWidgets::TextLine("Cria um pack .ogtheme e envia-o para avaliação antes de poder entrar no Marketplace.",
                            CyberWidgets::TextTone::Primary);
-    CyberWidgets::TextLine("O launcher nÃ£o aceita importaÃ§Ãµes locais: apenas temas revistos e publicados podem ser aplicados.",
+    CyberWidgets::TextLine("O launcher não aceita importações locais: apenas temas revistos e publicados podem ser aplicados.",
                            CyberWidgets::TextTone::Secondary);
     ImGui::Dummy(ImVec2(0.f, S(8.f)));
 	static bool openThemeGuide = false;
@@ -413,10 +413,10 @@ void DrawMarketplace(ImVec2 display) {
             ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings)) {
         CyberWidgets::Badge("GUIA .OGTHEME", CyberWidgets::TextTone::Info);
         ImGui::Dummy(ImVec2(0.f, S(8.f)));
-        CyberWidgets::TextLine("1. Cria um ficheiro de texto UTF-8 e muda a extensÃ£o para .ogtheme.", CyberWidgets::TextTone::Primary);
+        CyberWidgets::TextLine("1. Cria um ficheiro de texto UTF-8 e muda a extensão para .ogtheme.", CyberWidgets::TextTone::Primary);
         CyberWidgets::TextLine("2. Usa apenas os campos visuais suportados no exemplo abaixo.", CyberWidgets::TextTone::Primary);
-        CyberWidgets::TextLine("3. Envia o ficheiro e uma captura do tema ao suporte OmniGhost para revisÃ£o.", CyberWidgets::TextTone::Primary);
-        CyberWidgets::TextLine("4. SÃ³ depois da aprovaÃ§Ã£o o tema poderÃ¡ ser publicado e associado Ã s contas.", CyberWidgets::TextTone::Primary);
+        CyberWidgets::TextLine("3. Envia o ficheiro e uma captura do tema ao suporte OmniGhost para revisão.", CyberWidgets::TextTone::Primary);
+        CyberWidgets::TextLine("4. Só depois da aprovação o tema poderá ser publicado e associado às contas.", CyberWidgets::TextTone::Primary);
         ImGui::Dummy(ImVec2(0.f, S(10.f)));
         static char example[] =
             "{\n"
@@ -445,7 +445,7 @@ void DrawMarketplace(ImVec2 display) {
 
 const char* DiagnosticsGameName(GameId id) {
     const GameDefinition* game = FindGame(id);
-    return game ? game->name : "â€”";
+    return game ? game->name : "—";
 }
 
 GameId DiagnosticsGameId() {
@@ -478,7 +478,7 @@ CyberWidgets::HealthStatus BuildHealthStatus() {
 std::string FriendlyBuildLabel() {
     const std::string_view id = OmniGhost::BuildInfo::BuildId;
     const bool local = id.starts_with("local-") || id == "development";
-    std::string label = local ? "CompilaÃ§Ã£o de desenvolvimento" : "VersÃ£o oficial";
+    std::string label = local ? "Compilação de desenvolvimento" : "Versão oficial";
     label += " Â· ";
     label += OmniGhost::BuildInfo::Architecture[0] ? OmniGhost::BuildInfo::Architecture : "x64";
     return label;
@@ -528,7 +528,7 @@ std::string BuildDiagnosticsText() {
 
     std::ostringstream out;
     out << "OmniGhost Â· " << Loc::Tr("launcher.diagnostics") << "\n";
-    out << "CÃ³digo de suporte: " << OmniGhost::Support::Code(supportCode)
+    out << "Código de suporte: " << OmniGhost::Support::Code(supportCode)
         << " Â· " << OmniGhost::Support::Message(supportCode) << "\n";
     out << Loc::Tr("launcher.version") << ": " << UiFormat::Version(OmniGhost::Version) << "\n";
     out << Loc::Tr("launcher.build") << ": " << OmniGhost::BuildInfo::BuildId << " | "
@@ -543,13 +543,13 @@ std::string BuildDiagnosticsText() {
     out << Loc::Tr("launcher.renderer") << ": "
         << (rendererOk ? Loc::Tr("launcher.renderer_ready") : Loc::Tr("launcher.renderer_unavailable")) << "\n";
     out << "DMA: " << (dma.deviceOpen ? Loc::Tr("launcher.connected")
-        : (dma.deviceDetected ? "detetado" : "nÃ£o detetado"))
+        : (dma.deviceDetected ? "detetado" : "não detetado"))
         << " | processo=" << (dma.processInitialized ? Loc::Tr("launcher.attached") : Loc::Tr("launcher.not_attached"))
-        << " | dependÃªncias=" << (dma.dependencyIntegrityOk ? "OK" : Loc::Tr("launcher.attention")) << "\n";
+        << " | dependências=" << (dma.dependencyIntegrityOk ? "OK" : Loc::Tr("launcher.attention")) << "\n";
     if (game) {
         const GameHistory history = GetGameHistory(gameId);
         if (!history.detail.empty())
-            out << "Ãšltimo diagnÃ³stico de arranque: " << history.detail << "\n";
+            out << "Último diagnóstico de arranque: " << history.detail << "\n";
     }
     out << Loc::Tr("launcher.input") << ": " << InputDeviceName() << " | "
         << (InputDeviceConnected() ? Loc::Tr("launcher.connected") : Loc::Tr("launcher.standby")) << "\n";
@@ -620,7 +620,7 @@ void DrawDiagnostics(ImVec2 display) {
                             dma.deviceOpen ? (dma.dependencyIntegrityOk ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning)
                                            : CyberWidgets::HealthStatus::Warning);
     CyberWidgets::HealthRow("Leitura do processo",
-                            dma.processInitialized ? "Validada nesta sessÃ£o" : "Ainda nÃ£o validada",
+                            dma.processInitialized ? "Validada nesta sessão" : "Ainda não validada",
                             dma.processInitialized ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
     CyberWidgets::HealthRow(Loc::Tr("launcher.input"), InputDeviceConnected() ? InputDeviceName() : Loc::Tr("launcher.standby"),
                             InputDeviceConnected() ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
@@ -702,10 +702,10 @@ void DrawDiagnostics(ImVec2 display) {
         CyberWidgets::KeyValueRow(Loc::Tr("launcher.last_session"), SessionResultDisplay(history.lastResult));
         const std::string totalTime = FormatActiveDuration(history.totalActiveSeconds);
         const std::string lastTime = FormatActiveDuration(history.lastSessionSeconds);
-        CyberWidgets::KeyValueRow("SessÃµes com menu ativo", std::to_string(history.sessionCount).c_str());
+        CyberWidgets::KeyValueRow("Sessões com menu ativo", std::to_string(history.sessionCount).c_str());
         CyberWidgets::KeyValueRow("Tempo total", totalTime.c_str());
         if (history.sessionCount)
-            CyberWidgets::KeyValueRow("Ãšltima duraÃ§Ã£o", lastTime.c_str());
+            CyberWidgets::KeyValueRow("Última duração", lastTime.c_str());
         for (const auto& session : history.recentSessions) {
             const std::string when = FormatLastUsed(session.endedUnix);
             const std::string duration = FormatActiveDuration(session.activeSeconds);
@@ -726,7 +726,7 @@ const char* SettingsVkName(int vk) {
     if (vk <= 0) return "Nenhuma";
     switch (vk) {
     case VK_INSERT: return "Inserir";
-    case VK_HOME: return "InÃ­cio";
+    case VK_HOME: return "Início";
     case VK_END: return "Fim";
     case VK_DELETE: return "Eliminar";
     case VK_F1: return "F1"; case VK_F2: return "F2"; case VK_F3: return "F3"; case VK_F4: return "F4";
@@ -776,7 +776,7 @@ bool SettingsFileDialog(bool save, std::filesystem::path& selected) {
     OPENFILENAMEW dialog{};
     dialog.lStructSize = sizeof(dialog);
     dialog.hwndOwner = g_overlay_instance ? g_overlay_instance->overlay : nullptr;
-    dialog.lpstrFilter = L"DefiniÃ§Ãµes OmniGhost (*.ogsettings)\0*.ogsettings\0Todos os ficheiros (*.*)\0*.*\0\0";
+    dialog.lpstrFilter = L"Definições OmniGhost (*.ogsettings)\0*.ogsettings\0Todos os ficheiros (*.*)\0*.*\0\0";
     dialog.lpstrFile = path;
     dialog.nMaxFile = MAX_PATH;
     dialog.lpstrDefExt = L"ogsettings";
@@ -823,8 +823,8 @@ void DrawSettings(ImVec2 display) {
     };
     const SettingsNavigationItem navigation[] = {
         {app_settings::SettingsPage::General, Loc::Tr("launcher.settings.general"), "GERAL"},
-        {app_settings::SettingsPage::Appearance, Loc::Tr("launcher.settings.appearance"), "APARÃŠNCIA"},
-        {app_settings::SettingsPage::Overlay, Loc::Tr("launcher.settings.overlay"), "APARÃŠNCIA"},
+        {app_settings::SettingsPage::Appearance, Loc::Tr("launcher.settings.appearance"), "APARÊNCIA"},
+        {app_settings::SettingsPage::Overlay, Loc::Tr("launcher.settings.overlay"), "APARÊNCIA"},
         {app_settings::SettingsPage::Input, Loc::Tr("launcher.settings.input"), "CONTROLOS"},
         {app_settings::SettingsPage::Licenses, Loc::Tr("launcher.settings.licenses"), "SISTEMA"},
         {app_settings::SettingsPage::Language, Loc::Tr("launcher.language"), "SISTEMA"},
@@ -961,13 +961,13 @@ void DrawSettings(ImVec2 display) {
         if (CyberWidgets::Combo(Loc::Tr("launcher.monitor"), &monitor, monitorItems.data(), static_cast<int>(monitorItems.size()))) { app_settings::config.monitor_index = monitor - 1; changed = true; }
         CyberWidgets::EndCard();
         CyberWidgets::CardGap();
-        CyberWidgets::BeginCard("Indicadores da sobreposiÃ§Ã£o", S(760.f));
+        CyberWidgets::BeginCard("Indicadores da sobreposição", S(760.f));
         const ImU32 fpsColorBefore = app_settings::config.color_fps;
         CyberWidgets::ColorEditU32("Cor do contador FPS", &app_settings::config.color_fps);
         if (fpsColorBefore != app_settings::config.color_fps) changed = true;
-        CyberWidgets::KeyValueRow("ComposiÃ§Ã£o", app_settings::config.vsync ? "Sincronizada com o monitor" : "Sem sincronizaÃ§Ã£o vertical");
-        CyberWidgets::KeyValueRow("Monitor de destino", monitor == 0 ? "AutomÃ¡tico" : monitorLabels[monitor].c_str());
-        CyberWidgets::TextLine("Estas opÃ§Ãµes afetam apenas a apresentaÃ§Ã£o do menu e dos indicadores locais.", CyberWidgets::TextTone::Secondary);
+        CyberWidgets::KeyValueRow("Composição", app_settings::config.vsync ? "Sincronizada com o monitor" : "Sem sincronização vertical");
+        CyberWidgets::KeyValueRow("Monitor de destino", monitor == 0 ? "Automático" : monitorLabels[monitor].c_str());
+        CyberWidgets::TextLine("Estas opções afetam apenas a apresentação do menu e dos indicadores locais.", CyberWidgets::TextTone::Secondary);
         CyberWidgets::EndCard();
         break;
     }
@@ -993,9 +993,9 @@ void DrawSettings(ImVec2 display) {
 
         CyberWidgets::BeginCardRow(2);
         const float licenseColumnWidth = CyberWidgets::CardRowHalfWidth();
-        CyberWidgets::BeginCard("Estado da licenÃ§a", licenseColumnWidth);
+        CyberWidgets::BeginCard("Estado da licença", licenseColumnWidth);
         CyberWidgets::Badge(
-            accessActive ? "SESSÃƒO KEYAUTH ATIVA" : "AÃ‡ÃƒO NECESSÃRIA",
+            accessActive ? "SESSÃO KEYAUTH ATIVA" : "AÇÃO NECESSÁRIA",
             accessActive ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
         ImGui::Dummy(ImVec2(0, S(6.f)));
         CyberWidgets::KeyValueRow("Modo", Loc::Tr("launcher.remote_auth"));
@@ -1010,7 +1010,7 @@ void DrawSettings(ImVec2 display) {
             ? std::to_string(grantedGames) + " de " + std::to_string(integratedGames) + " " + std::string(Loc::Tr("launcher.games")) + " " + std::string(Loc::Tr("launcher.coverage"))
             : std::string(Loc::Tr("launcher.no_key")) + " " + std::string(Loc::Tr("launcher.games")) + " " + std::string(Loc::Tr("launcher.coverage"));
         CyberWidgets::KeyValueRow(Loc::Tr("launcher.coverage"), coverage.c_str());
-        CyberWidgets::TextLine("A sessÃ£o KeyAuth controla o acesso aos jogos desta instalaÃ§Ã£o.",
+        CyberWidgets::TextLine("A sessão KeyAuth controla o acesso aos jogos desta instalação.",
             CyberWidgets::TextTone::Secondary);
         CyberWidgets::EndCard();
 
@@ -1034,8 +1034,8 @@ void DrawSettings(ImVec2 display) {
         CyberWidgets::BeginCard("Licenciamento KeyAuth", 0.f);
         {
             CyberWidgets::InlineMessage(license.remoteAuthenticated
-                ? "A sessÃ£o KeyAuth estÃ¡ ativa. Cada subscriÃ§Ã£o da conta desbloqueia apenas os produtos respetivos."
-                : "Inicia sessÃ£o, cria uma conta ou ativa uma key na pÃ¡gina de autenticaÃ§Ã£o para desbloquear os jogos.",
+                ? "A sessão KeyAuth está ativa. Cada subscrição da conta desbloqueia apenas os produtos respetivos."
+                : "Inicia sessão, cria uma conta ou ativa uma key na página de autenticação para desbloquear os jogos.",
                 license.remoteAuthenticated ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
             if (license.remoteAuthenticated && !license.remoteEntitlements.empty()) {
                 std::string plans;
@@ -1047,13 +1047,13 @@ void DrawSettings(ImVec2 display) {
             }
             if (license.remoteAuthenticated) {
                 ImGui::Dummy(ImVec2(0, S(8.f)));
-                CyberWidgets::TextLine("Adicionar uma licenÃ§a Ã  conta", CyberWidgets::TextTone::Primary);
+                CyberWidgets::TextLine("Adicionar uma licença à conta", CyberWidgets::TextTone::Primary);
                 const bool enter = CyberWidgets::InputField("##settings_remote_license_key", g_license_input,
-                    sizeof(g_license_input), "Nova licenÃ§a", ImGuiInputTextFlags_Password | ImGuiInputTextFlags_EnterReturnsTrue,
+                    sizeof(g_license_input), "Nova licença", ImGuiInputTextFlags_Password | ImGuiInputTextFlags_EnterReturnsTrue,
                     -1.f, true);
                 ImGui::BeginDisabled(g_license_operation_pending);
                 if (CyberWidgets::GoldButton(
-                        g_license_operation_pending ? "A processar...##upgrade_license" : "Adicionar licenÃ§a",
+                        g_license_operation_pending ? "A processar...##upgrade_license" : "Adicionar licença",
                         ImVec2(S(170.f), S(34.f))) || (enter && !g_license_operation_pending)) {
                     std::string key(g_license_input);
                     SecureZeroMemory(g_license_input, sizeof(g_license_input));
@@ -1061,7 +1061,7 @@ void DrawSettings(ImVec2 display) {
                 }
                 ImGui::EndDisabled();
                 CyberWidgets::TextLine(
-                    "A key Ã© associada Ã  conta KeyAuth atual; os acessos existentes mantÃªm-se.",
+                    "A key é associada à conta KeyAuth atual; os acessos existentes mantêm-se.",
                     CyberWidgets::TextTone::Secondary);
             }
         }
@@ -1104,13 +1104,13 @@ void DrawSettings(ImVec2 display) {
         int language = static_cast<int>(app_settings::config.language);
         if (CyberWidgets::Combo(Loc::Tr("launcher.language"), &language, languages.data(), languageCount)) { app_settings::config.language = static_cast<app_settings::Language>(language); changed = true; }
         CyberWidgets::KeyValueRow("Idioma atual", Loc::LanguageName(language));
-        CyberWidgets::KeyValueRow("Idiomas disponÃ­veis", std::to_string(languageCount).c_str());
+        CyberWidgets::KeyValueRow("Idiomas disponíveis", std::to_string(languageCount).c_str());
         CyberWidgets::EndCard();
         CyberWidgets::CardGap();
         CyberWidgets::BeginCard("Cobertura da interface", 0.f);
         CyberWidgets::HealthRow("Launcher e biblioteca", Loc::Tr("launcher.device_detected"), CyberWidgets::HealthStatus::Ok);
-        CyberWidgets::HealthRow("DefiniÃ§Ãµes e diagnÃ³stico", Loc::Tr("launcher.device_detected"), CyberWidgets::HealthStatus::Ok);
-        CyberWidgets::TextLine("Os nomes prÃ³prios de jogos, dispositivos e tecnologias mantÃªm a designaÃ§Ã£o oficial.", CyberWidgets::TextTone::Secondary);
+        CyberWidgets::HealthRow("Definições e diagnóstico", Loc::Tr("launcher.device_detected"), CyberWidgets::HealthStatus::Ok);
+        CyberWidgets::TextLine("Os nomes próprios de jogos, dispositivos e tecnologias mantêm a designação oficial.", CyberWidgets::TextTone::Secondary);
         CyberWidgets::EndCard();
         break;
     }
@@ -1124,7 +1124,7 @@ void DrawSettings(ImVec2 display) {
             ShellExecuteW(nullptr, L"open", logs.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
         }
         ImGui::SameLine();
-        if (CyberWidgets::CyberButton("Criar diagnÃ³stico.txt", ImVec2(S(205.f), S(33.f)))) {
+        if (CyberWidgets::CyberButton("Criar diagnóstico.txt", ImVec2(S(205.f), S(33.f)))) {
             const std::filesystem::path output = OmniGhost::Paths::Executable().parent_path() / L"diagnostico.txt";
             std::ofstream file(output, std::ios::binary | std::ios::trunc);
             const std::string report = BuildDiagnosticsText();
@@ -1134,13 +1134,13 @@ void DrawSettings(ImVec2 display) {
                 PushToast("diagnostico.txt criado junto ao OmniGhost.exe", C_GREEN(), ToastAction::None, nullptr);
                 ShellExecuteW(nullptr, L"open", output.parent_path().c_str(), nullptr, nullptr, SW_SHOWNORMAL);
             } else {
-                PushToast("NÃ£o foi possÃ­vel criar diagnostico.txt", C_RED(), ToastAction::None, nullptr);
+                PushToast("Não foi possível criar diagnostico.txt", C_RED(), ToastAction::None, nullptr);
             }
         }
         CyberWidgets::HealthRow("Sistema operativo", Loc::Tr("launcher.create_diagnostics"), CyberWidgets::HealthStatus::Ok);
         CyberWidgets::HealthRow("Renderizador e janela", Loc::Tr("launcher.create_diagnostics"), CyberWidgets::HealthStatus::Ok);
         CyberWidgets::HealthRow("DMA, input e offsets", Loc::Tr("launcher.create_diagnostics"), CyberWidgets::HealthStatus::Ok);
-        CyberWidgets::HealthRow("Atualizador, build e sessÃ£o", Loc::Tr("launcher.create_diagnostics"), CyberWidgets::HealthStatus::Ok);
+        CyberWidgets::HealthRow("Atualizador, build e sessão", Loc::Tr("launcher.create_diagnostics"), CyberWidgets::HealthStatus::Ok);
         CyberWidgets::EndCard();
         break;
     }
@@ -1184,8 +1184,8 @@ void DrawSettings(ImVec2 display) {
         std::snprintf(resetMessage, sizeof(resetMessage),
             "Repor apenas %s para os valores predefinidos?", resetLabel);
         const auto result = CyberWidgets::ConfirmModal(
-            "##settings_reset_page", "Repor esta pÃ¡gina", resetMessage,
-            "Repor pÃ¡gina", "Cancelar", CyberWidgets::ButtonStyle::Destructive, S(440.f));
+            "##settings_reset_page", "Repor esta página", resetMessage,
+            "Repor página", "Cancelar", CyberWidgets::ButtonStyle::Destructive, S(440.f));
         if (result == CyberWidgets::ModalResult::Cancelled) {
             requestPageReset = false;
         } else if (result == CyberWidgets::ModalResult::Confirmed) {
@@ -1229,33 +1229,33 @@ void DrawAccount(ImVec2 display) {
     CyberWidgets::BeginCardRow(2);
     const float columnWidth = CyberWidgets::CardRowHalfWidth();
     CyberWidgets::BeginCard(Loc::Tr("launcher.profile"), columnWidth);
-    CyberWidgets::Badge("SESSÃƒO PRIVADA", CyberWidgets::TextTone::Success);
+    CyberWidgets::Badge("SESSÃO PRIVADA", CyberWidgets::TextTone::Success);
     ImGui::Dummy(ImVec2(0, S(7.f)));
-    CyberWidgets::KeyValueRow("Utilizador", identity.empty() ? "â€”" : identity.c_str());
+    CyberWidgets::KeyValueRow("Utilizador", identity.empty() ? "—" : identity.c_str());
     CyberWidgets::KeyValueRow(Loc::Tr("launcher.authentication"), "KeyAuth");
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.remember_me"), "SessÃ£o atual");
-    CyberWidgets::TextLine("O acesso aos jogos depende da sessÃ£o KeyAuth.", CyberWidgets::TextTone::Secondary);
+    CyberWidgets::KeyValueRow(Loc::Tr("launcher.remember_me"), "Sessão atual");
+    CyberWidgets::TextLine("O acesso aos jogos depende da sessão KeyAuth.", CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
 
     CyberWidgets::NextCardColumn();
     CyberWidgets::BeginCard(Loc::Tr("launcher.license"), columnWidth);
-    CyberWidgets::Badge(accessActive ? "ACESSO ATIVO" : "AÃ‡ÃƒO NECESSÃRIA",
+    CyberWidgets::Badge(accessActive ? "ACESSO ATIVO" : "AÇÃO NECESSÁRIA",
         accessActive ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
     ImGui::Dummy(ImVec2(0, S(7.f)));
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.state"), license.remoteAuthenticated ? "SessÃ£o KeyAuth vÃ¡lida" : "Sem sessÃ£o KeyAuth");
+    CyberWidgets::KeyValueRow(Loc::Tr("launcher.state"), license.remoteAuthenticated ? "Sessão KeyAuth válida" : "Sem sessão KeyAuth");
     CyberWidgets::KeyValueRow(Loc::Tr("launcher.storage"), "KeyAuth");
-    CyberWidgets::TextLine("O acesso aos jogos depende da sessÃ£o KeyAuth atual.", CyberWidgets::TextTone::Secondary);
+    CyberWidgets::TextLine("O acesso aos jogos depende da sessão KeyAuth atual.", CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
     CyberWidgets::EndCardRow();
 
     ImGui::Dummy(ImVec2(0, S(14.f)));
-    CyberWidgets::BeginCard("AÃ‡Ã•ES DA CONTA", 0.f);
-    CyberWidgets::TextLine("AÃ§Ãµes locais. Nenhuma credencial ou chave Ã© exposta nesta pÃ¡gina.", CyberWidgets::TextTone::Secondary);
+    CyberWidgets::BeginCard("AÇÕES DA CONTA", 0.f);
+    CyberWidgets::TextLine("Ações locais. Nenhuma credencial ou chave é exposta nesta página.", CyberWidgets::TextTone::Secondary);
     ImGui::Dummy(ImVec2(0, S(8.f)));
     if (CyberWidgets::CyberButton(Loc::Tr("launcher.refresh_state"), ImVec2(S(140.f), S(32.f))))
         OmniGhost::Licensing::Refresh();
     ImGui::SameLine();
-    if (CyberWidgets::GoldButton("Gerir licenÃ§as", ImVec2(S(140.f), S(32.f)))) {
+    if (CyberWidgets::GoldButton("Gerir licenças", ImVec2(S(140.f), S(32.f)))) {
         g_settings_page = app_settings::SettingsPage::Licenses;
         ChangeNavigation(static_cast<int>(NavPage::Settings));
     }
@@ -1267,7 +1267,7 @@ void DrawAccount(ImVec2 display) {
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0, S(14.f)));
-    CyberWidgets::TextLine("SESSÃƒO", CyberWidgets::TextTone::Secondary);
+    CyberWidgets::TextLine("SESSÃO", CyberWidgets::TextTone::Secondary);
     if (CyberWidgets::DangerButton(Loc::Tr("launcher.logout"), ImVec2(S(160.f), S(34.f)))) {
         OmniGhost::Licensing::LogoutRemote();
         OmniGhost::Auth::LocalAuthService::Instance().Logout(true);
@@ -1275,3 +1275,4 @@ void DrawAccount(ImVec2 display) {
     }
     EndControlPage();
 }
+

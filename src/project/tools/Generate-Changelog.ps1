@@ -927,3 +927,4 @@ $GeneratedNames = if ($SkipRootChangelog) { 'changelog.json e release-notes.md' 
 Write-ChangelogLog "$GeneratedNames gerados para $Version"
 Write-ChangelogLog "Alterações: $($AllChanges.Count); módulos: $($Modules.Count); produtos: $($AffectedProducts -join ', ')"
 return
+

@@ -1,4 +1,4 @@
-#include "auth_page.h"
+﻿#include "auth_page.h"
 
 #include "../app_version.h"
 #include "../config/app_settings.h"
@@ -1284,3 +1284,4 @@ bool ConsumeCloseRequest() {
 }
 
 }
+

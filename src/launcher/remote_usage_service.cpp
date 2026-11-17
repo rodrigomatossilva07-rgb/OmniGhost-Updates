@@ -1,4 +1,4 @@
-#include "remote_usage_service.h"
+﻿#include "remote_usage_service.h"
 
 #include "launcher_data.h"
 #include "../app_version.h"
@@ -235,3 +235,4 @@ bool TryGetSummary(::Launcher::GameId game, Summary& summary) noexcept {
     return true;
 }
 }
+

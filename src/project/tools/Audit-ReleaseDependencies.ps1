@@ -105,3 +105,4 @@ foreach ($rootName in $ownSourceRoots) {
 if (-not $Quiet) {
     Write-Host "[OmniGhost Audit] SBOM, hashes, maturidade dos jogos e política de runtime validados."
 }
+

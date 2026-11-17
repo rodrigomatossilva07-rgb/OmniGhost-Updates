@@ -362,3 +362,4 @@ catch {
 }
 
 Write-Host '[Comments] Limpeza concluída sem alterar dependências, gerados, dumps ou ficheiros privados.'
+

@@ -1,4 +1,4 @@
-#include "../../widgets.h"
+﻿#include "../../widgets.h"
 #include "../../theme.h"
 #include "../../../launcher/launcher_assets.h"
 #include "config/cs2_config.h"
@@ -379,3 +379,4 @@ void DrawCs2Visuals() {
     CyberWidgets::EndCard();
     ImGui::EndChild();
 }
+

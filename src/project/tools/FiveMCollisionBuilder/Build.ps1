@@ -31,3 +31,4 @@ if ($LASTEXITCODE -ne 0) { throw 'A compilação falhou.' }
 $exe = Join-Path $buildRoot "$Configuration\FiveMCollisionBuilder.exe"
 Write-Host "FiveMCollisionBuilder: $exe"
 
+

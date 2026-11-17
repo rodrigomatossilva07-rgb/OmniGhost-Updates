@@ -1,4 +1,4 @@
-#include "fivem_collision_world.h"
+﻿#include "fivem_collision_world.h"
 
 #include <filesystem>
 #include <iostream>
@@ -41,3 +41,4 @@ int main(int argc, char** argv) {
               << " tamanho " << region.RegionSize() << '\n';
     return 0;
 }
+

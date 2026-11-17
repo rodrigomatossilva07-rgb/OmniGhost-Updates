@@ -1,4 +1,4 @@
-#include "wininet_fallback.h"
+﻿#include "wininet_fallback.h"
 #include "http_policy.h"
 #include "update_log.h"
 #include "../platform/text_encoding.h"

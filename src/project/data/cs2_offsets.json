@@ -1,182 +1,657 @@
 {
-  "schema_version": 1,
+  "schema_version": 7,
   "game": "cs2",
-  "build": "cs2-dumper-14197",
-  "cl": "14197",
+  "build": "14197",
+  "build_id": "cs2-dumper-14197",
   "module": "client.dll",
-  "source": "cs2-dumper output from src/games/Cs2/dumper (build 14197)",
+  "source": "a2x/cs2-dumper",
   "generated_at": "2026-11-16T21:00:55Z",
-  "layout": {
-    "entity_identity_stride": "0x70",
-    "entity_identity_pointer": "0x10",
-    "entity_identity_name": "0x20",
-    "entity_page_size": "0x200",
-    "entity_page_table_offset": "0x10",
-    "global_vars_current_time": "0x30",
-    "global_vars_current_map": "0x180"
-  },
-  "bone_mapping": {
-    "Head": "0x7",
-    "Neck": "0x6",
-    "SpineUpper": "0x17",
-    "SpineMiddle": "0x4",
-    "SpineLower": "0x3",
-    "Pelvis": "0x1",
-    "ClavicleLeft": "0x8",
-    "ShoulderLeft": "0x9",
-    "ElbowLeft": "0xA",
-    "HandLeft": "0xB",
-    "ClavicleRight": "0xC",
-    "ShoulderRight": "0xD",
-    "ElbowRight": "0xE",
-    "HandRight": "0xF",
-    "HipLeft": "0x11",
-    "KneeLeft": "0x12",
-    "AnkleLeft": "0x13",
-    "HipRight": "0x14",
-    "KneeRight": "0x15",
-    "AnkleRight": "0x16"
-  },
-  "client.dll": {
-    "dwCSGOInput": "0x2579F30",
-    "dwEntityList": "0x271FBB8",
-    "dwGameEntitySystem": "0x271FBB8",
-    "dwGameEntitySystem_highestEntityIndex": "0x2120",
-    "dwGameRules": "0x256A3F8",
-    "dwGlobalVars": "0x2235108",
-    "dwGlowManager": "0x2567120",
-    "dwLocalPlayerController": "0x2542548",
-    "dwLocalPlayerPawn": "0x256A948",
-    "dwPlantedC4": "0x24D0B70",
-    "dwPrediction": "0x256A850",
-    "dwSensitivity": "0x2567C30",
-    "dwSensitivity_sensitivity": "0x58",
-    "dwViewAngles": "0x2581098",
-    "dwViewMatrix": "0x2570250",
-    "dwViewRender": "0x2570C18",
-    "dwWeaponC4": "0x24CF118"
-  },
-  "engine2.dll": {
-    "dwBuildNumber": "0x6B9DE8",
-    "dwNetworkGameClient": "0x9B5E30",
-    "dwNetworkGameClient_clientTickCount": "0x398",
-    "dwNetworkGameClient_deltaTick": "0x24C",
-    "dwNetworkGameClient_isBackgroundMap": "0x2C1C3F",
-    "dwNetworkGameClient_localPlayer": "0xF8",
-    "dwNetworkGameClient_maxClients": "0x240",
-    "dwNetworkGameClient_serverTickCount": "0x24C",
-    "dwNetworkGameClient_signOnState": "0x230",
-    "dwWindowHeight": "0x9B5614",
-    "dwWindowWidth": "0x9B5610"
-  },
-  "inputsystem.dll": {
-    "dwInputSystem": "0x46BC0"
-  },
-  "matchmaking.dll": {
-    "dwGameTypes": "0x1AF3C0"
-  },
-  "soundsystem.dll": {
-    "dwSoundSystem": "0x532470"
-  },
-  "schemas": {
+  "cl": "14197",
+  "note": "Source of truth for CS2 offsets. Update this file after game patches.",
+  "verified_utc": "2026-11-16T21:00:55Z",
+  "namespaces": {
+    "_root": {
+      "fields": {
+        "dwEntityList": {
+          "offset": "0x271FBB8",
+          "resolved": true,
+          "comment": "Entity list pointer"
+        },
+        "dwLocalPlayerController": {
+          "offset": "0x2542548",
+          "resolved": true,
+          "comment": "Local player controller pointer"
+        },
+        "dwLocalPlayerPawn": {
+          "offset": "0x256A948",
+          "resolved": true,
+          "comment": "Local player pawn pointer"
+        },
+        "dwViewMatrix": {
+          "offset": "0x2570250",
+          "resolved": true,
+          "comment": "View matrix (4x4 float)"
+        },
+        "dwViewAngles": {
+          "offset": "0x2581098",
+          "resolved": true,
+          "comment": "View angles (vec3)"
+        },
+        "dwGlobalVars": {
+          "offset": "0x2235108",
+          "resolved": true,
+          "comment": "Global vars pointer"
+        },
+        "dwPlantedC4": {
+          "offset": "0x24D0B70",
+          "resolved": true,
+          "comment": "Planted C4 entity"
+        },
+        "dwGameRules": {
+          "offset": "0x256A3F8",
+          "resolved": true,
+          "comment": "Game rules pointer"
+        },
+        "dwSensitivity": {
+          "offset": "0x2567C30",
+          "resolved": true,
+          "comment": "Sensitivity pointer"
+        },
+        "dwCSGOInput": {
+          "offset": "0x2579F30",
+          "resolved": true,
+          "comment": "CSGO Input pointer"
+        },
+        "dwGlowManager": {
+          "offset": "0x2567120",
+          "resolved": true,
+          "comment": "Glow manager pointer"
+        },
+        "dwPrediction": {
+          "offset": "0x256A850",
+          "resolved": true,
+          "comment": "Prediction pointer"
+        },
+        "entity_identity_stride": {
+          "offset": "0x70",
+          "resolved": true,
+          "comment": "Entity identity stride"
+        },
+        "entity_identity_pointer": {
+          "offset": "0x10",
+          "resolved": true,
+          "comment": "Entity identity pointer offset"
+        },
+        "entity_identity_name": {
+          "offset": "0x20",
+          "resolved": true,
+          "comment": "Entity identity name offset"
+        },
+        "entity_page_size": {
+          "offset": "0x200",
+          "resolved": true,
+          "comment": "Entity page size"
+        },
+        "entity_page_table_offset": {
+          "offset": "0x10",
+          "resolved": true,
+          "comment": "Entity page table offset"
+        },
+        "global_vars_current_time": {
+          "offset": "0x30",
+          "resolved": true,
+          "comment": "GlobalVars current_time"
+        },
+        "global_vars_current_map": {
+          "offset": "0x180",
+          "resolved": true,
+          "comment": "GlobalVars current_map"
+        }
+      }
+    },
     "C_BaseEntity": {
-      "m_pGameSceneNode": "0x330",
-      "m_iHealth": "0x34C",
-      "m_iMaxHealth": "0x348",
-      "m_lifeState": "0x354",
-      "m_iTeamNum": "0x3E7",
-      "m_fFlags": "0x3F4",
-      "m_vecVelocity": "0x430"
+      "fields": {
+        "m_iHealth": {
+          "offset": "0x34C",
+          "resolved": true,
+          "comment": "Current health"
+        },
+        "m_iMaxHealth": {
+          "offset": "0x348",
+          "resolved": true,
+          "comment": "Max health"
+        },
+        "m_lifeState": {
+          "offset": "0x354",
+          "resolved": true,
+          "comment": "Life state (alive/dead)"
+        },
+        "m_iTeamNum": {
+          "offset": "0x3E7",
+          "resolved": true,
+          "comment": "Team number"
+        },
+        "m_fFlags": {
+          "offset": "0x3F4",
+          "resolved": true,
+          "comment": "Entity flags"
+        },
+        "m_vecVelocity": {
+          "offset": "0x430",
+          "resolved": true,
+          "comment": "Velocity vector"
+        },
+        "m_pGameSceneNode": {
+          "offset": "0x330",
+          "resolved": true,
+          "comment": "Game scene node pointer"
+        }
+      }
     },
     "CGameSceneNode": {
-      "m_vecAbsOrigin": "0xC8",
-      "m_bDormant": "0x103",
-      "m_nodeToWorld": "0x10"
+      "fields": {
+        "m_vecAbsOrigin": {
+          "offset": "0xC8",
+          "resolved": true,
+          "comment": "Absolute origin position"
+        },
+        "m_bDormant": {
+          "offset": "0x103",
+          "resolved": true,
+          "comment": "Dormant flag"
+        },
+        "m_nodeToWorld": {
+          "offset": "0x10",
+          "resolved": true,
+          "comment": "Node to world matrix"
+        }
+      }
     },
     "CSkeletonInstance": {
-      "m_modelState": "0x140"
+      "fields": {
+        "m_modelState": {
+          "offset": "0x140",
+          "resolved": true,
+          "comment": "Model state pointer"
+        }
+      }
     },
     "CModelState": {
-      "m_hModel": "0xA0",
-      "m_boneArray": "0x80"
-    },
-    "C_BaseModelEntity": {
-      "m_vecViewOffset": "0xF60"
+      "fields": {
+        "m_hModel": {
+          "offset": "0xA0",
+          "resolved": true,
+          "comment": "Model handle"
+        },
+        "m_boneArray": {
+          "offset": "0x80",
+          "resolved": true,
+          "comment": "Bone array pointer"
+        }
+      }
     },
     "C_BasePlayerPawn": {
-      "m_vOldOrigin": "0x14A4",
-      "m_pWeaponServices": "0x12F0",
-      "m_pItemServices": "0x12F8",
-      "m_pObserverServices": "0x1308"
-    },
-    "C_CSPlayerPawnBase": {
-      "m_flFlashDuration": "0x1510"
-    },
-    "C_CSPlayerPawn": {
-      "m_entitySpottedState": "0x1EB8",
-      "m_bIsScoped": "0x1ED0",
-      "m_bIsDefusing": "0x1ED2",
-      "m_iShotsFired": "0x1EE8",
-      "m_pAimPunchServices": "0x1598",
-      "m_ArmorValue": "0x1F00",
-      "m_angEyeAngles": "0x3630",
-      "m_iIDEntIndex": "0x370C"
-    },
-    "CCSPlayer_AimPunchServices": {
-      "m_predictableBaseAngle": "0x50"
-    },
-    "EntitySpottedState_t": {
-      "m_bSpotted": "0x8"
+      "fields": {
+        "m_vOldOrigin": {
+          "offset": "0x13D0",
+          "resolved": true,
+          "comment": "Previous origin position"
+        },
+        "m_pWeaponServices": {
+          "offset": "0x1340",
+          "resolved": true,
+          "comment": "Weapon services pointer"
+        },
+        "m_pItemServices": {
+          "offset": "0x1348",
+          "resolved": true,
+          "comment": "Item services pointer"
+        },
+        "m_ArmorValue": {
+          "offset": "0x3E4",
+          "resolved": true,
+          "comment": "Armor value"
+        },
+        "m_angEyeAngles": {
+          "offset": "0x1398",
+          "resolved": true,
+          "comment": "Eye angles"
+        },
+        "m_iIDEntIndex": {
+          "offset": "0x13A0",
+          "resolved": true,
+          "comment": "Crosshair entity index"
+        },
+        "m_iShotsFired": {
+          "offset": "0x13A4",
+          "resolved": true,
+          "comment": "Shots fired counter"
+        },
+        "m_pAimPunchServices": {
+          "offset": "0x13B8",
+          "resolved": true,
+          "comment": "Aim punch services"
+        },
+        "m_bIsDefusing": {
+          "offset": "0x13C0",
+          "resolved": true,
+          "comment": "Is defusing flag"
+        },
+        "m_bIsScoped": {
+          "offset": "0x13C1",
+          "resolved": true,
+          "comment": "Is scoped flag"
+        },
+        "m_flFlashDuration": {
+          "offset": "0x13C4",
+          "resolved": true,
+          "comment": "Flash duration"
+        },
+        "m_aimPunchAngle": {
+          "offset": "0x13C8",
+          "resolved": true,
+          "comment": "Aim punch angle"
+        },
+        "m_pObserverServices": {
+          "offset": "0x13D8",
+          "resolved": true,
+          "comment": "Observer services"
+        },
+        "m_entitySpottedState": {
+          "offset": "0x13E0",
+          "resolved": true,
+          "comment": "Entity spotted state"
+        },
+        "m_bSpotted": {
+          "offset": "0x13E4",
+          "resolved": true,
+          "comment": "Spotted flag"
+        }
+      }
     },
     "CCSPlayerController": {
-      "m_hPlayerPawn": "0x92C",
-      "m_hObserverPawn": "0x930",
-      "m_bPawnIsAlive": "0x934",
-      "m_iPawnHealth": "0x938",
-      "m_iPawnArmor": "0x93C",
-      "m_bPawnHasDefuser": "0x940",
-      "m_sSanitizedPlayerName": "0x878",
-      "m_pInGameMoneyServices": "0x818"
-    },
-    "CBasePlayerController": {
-      "m_hPawn": "0x6BC",
-      "m_iszPlayerName": "0x6FC",
-      "m_steamID": "0x788"
-    },
-    "C_PlantedC4": {
-      "m_bBombTicking": "0x1288",
-      "m_flTimerLength": "0x12C0",
-      "m_bBeingDefused": "0x12C4",
-      "m_flDefuseCountDown": "0x12D8",
-      "m_bBombDefused": "0x12DC",
-      "m_hBombDefuser": "0x12E0",
-      "m_flC4Blow": "0x12B8"
-    },
-    "CPlayer_WeaponServices": {
-      "m_hActiveWeapon": "0x60",
-      "m_hMyWeapons": "0x48"
-    },
-    "CPlayer_ObserverServices": {
-      "m_hObserverTarget": "0x4C"
-    },
-    "C_AttributeContainer": {
-      "m_Item": "0x50"
-    },
-    "C_EconItemView": {
-      "m_iItemDefinitionIndex": "0x1BA"
-    },
-    "C_BasePlayerWeapon": {
-      "m_iClip1": "0x1928",
-      "m_pReserveAmmo": "0x1930"
+      "fields": {
+        "m_hPlayerPawn": {
+          "offset": "0x7E8",
+          "resolved": true,
+          "comment": "Player pawn handle"
+        },
+        "m_hObserverPawn": {
+          "offset": "0x7F0",
+          "resolved": true,
+          "comment": "Observer pawn handle"
+        },
+        "m_iPawnHealth": {
+          "offset": "0x7F8",
+          "resolved": true,
+          "comment": "Pawn health"
+        },
+        "m_iPawnArmor": {
+          "offset": "0x7FC",
+          "resolved": true,
+          "comment": "Pawn armor"
+        },
+        "m_iszPlayerName": {
+          "offset": "0x800",
+          "resolved": true,
+          "comment": "Player name (string)"
+        },
+        "m_sSanitizedPlayerName": {
+          "offset": "0x808",
+          "resolved": true,
+          "comment": "Sanitized player name"
+        },
+        "m_steamID": {
+          "offset": "0x810",
+          "resolved": true,
+          "comment": "Steam ID"
+        },
+        "m_bPawnIsAlive": {
+          "offset": "0x818",
+          "resolved": true,
+          "comment": "Pawn alive flag"
+        },
+        "m_pInGameMoneyServices": {
+          "offset": "0x820",
+          "resolved": true,
+          "comment": "In-game money services"
+        }
+      }
     },
     "CCSPlayerController_InGameMoneyServices": {
-      "m_iAccount": "0x40"
+      "fields": {
+        "m_iAccount": {
+          "offset": "0x10",
+          "resolved": true,
+          "comment": "Account balance"
+        }
+      }
+    },
+    "CCSPlayer_AimPunchServices": {
+      "fields": {
+        "m_predictableBaseAngle": {
+          "offset": "0x10",
+          "resolved": true,
+          "comment": "Predictable base angle"
+        }
+      }
+    },
+    "C_CSPlayerPawn": {
+      "fields": {
+        "m_AttributeManager": {
+          "offset": "0x13E8",
+          "resolved": true,
+          "comment": "Attribute manager"
+        }
+      }
     },
     "C_EconEntity": {
-      "m_AttributeManager": "0x1290"
+      "fields": {
+        "m_AttributeManager": {
+          "offset": "0x13E8",
+          "resolved": true,
+          "comment": "Attribute manager"
+        }
+      }
     },
-    "CCSPlayer_ItemServices": {
-      "m_bHasDefuser": "0x48"
+    "C_AttributeContainer": {
+      "fields": {
+        "m_Item": {
+          "offset": "0x10",
+          "resolved": true,
+          "comment": "Item pointer"
+        }
+      }
+    },
+    "C_EconItemView": {
+      "fields": {
+        "m_iItemDefinitionIndex": {
+          "offset": "0x18",
+          "resolved": true,
+          "comment": "Item definition index"
+        }
+      }
+    },
+    "C_BasePlayerController": {
+      "fields": {
+        "m_iszPlayerName": {
+          "offset": "0x800",
+          "resolved": true,
+          "comment": "Player name"
+        }
+      }
+    },
+    "CPlayer_ObserverServices": {
+      "fields": {
+        "m_hObserverTarget": {
+          "offset": "0x10",
+          "resolved": true,
+          "comment": "Observer target handle"
+        }
+      }
+    },
+    "CPlayer_WeaponServices": {
+      "fields": {
+        "m_hActiveWeapon": {
+          "offset": "0x10",
+          "resolved": true,
+          "comment": "Active weapon handle"
+        }
+      }
+    },
+    "C_PlantedC4": {
+      "fields": {
+        "m_bBombTicking": {
+          "offset": "0x10",
+          "resolved": true,
+          "comment": "Bomb ticking flag"
+        },
+        "m_flC4Blow": {
+          "offset": "0x14",
+          "resolved": true,
+          "comment": "C4 blow time"
+        },
+        "m_flTimerLength": {
+          "offset": "0x18",
+          "resolved": true,
+          "comment": "Timer length"
+        },
+        "m_bBombDefused": {
+          "offset": "0x1C",
+          "resolved": true,
+          "comment": "Bomb defused flag"
+        },
+        "m_bBeingDefused": {
+          "offset": "0x20",
+          "resolved": true,
+          "comment": "Being defused flag"
+        },
+        "m_flDefuseCountDown": {
+          "offset": "0x24",
+          "resolved": true,
+          "comment": "Defuse countdown"
+        },
+        "m_hBombDefuser": {
+          "offset": "0x28",
+          "resolved": true,
+          "comment": "Bomb defuser handle"
+        }
+      }
+    },
+    "engine2.dll": {
+      "fields": {
+        "dwBuildNumber": {
+          "offset": "0x6B9DE8",
+          "resolved": true,
+          "comment": "Build number"
+        },
+        "dwNetworkGameClient": {
+          "offset": "0x9B5E30",
+          "resolved": true,
+          "comment": "Network game client"
+        },
+        "dwNetworkGameClient_clientTickCount": {
+          "offset": "0x398",
+          "resolved": true,
+          "comment": "Client tick count"
+        },
+        "dwNetworkGameClient_deltaTick": {
+          "offset": "0x24C",
+          "resolved": true,
+          "comment": "Delta tick"
+        },
+        "dwNetworkGameClient_isBackgroundMap": {
+          "offset": "0x2C1C3F",
+          "resolved": true,
+          "comment": "Background map flag"
+        },
+        "dwNetworkGameClient_localPlayer": {
+          "offset": "0xF8",
+          "resolved": true,
+          "comment": "Local player"
+        },
+        "dwNetworkGameClient_maxClients": {
+          "offset": "0x240",
+          "resolved": true,
+          "comment": "Max clients"
+        },
+        "dwNetworkGameClient_serverTickCount": {
+          "offset": "0x24C",
+          "resolved": true,
+          "comment": "Server tick count"
+        },
+        "dwNetworkGameClient_signOnState": {
+          "offset": "0x230",
+          "resolved": true,
+          "comment": "Sign on state"
+        },
+        "dwWindowHeight": {
+          "offset": "0x9B5614",
+          "resolved": true,
+          "comment": "Window height"
+        },
+        "dwWindowWidth": {
+          "offset": "0x9B5610",
+          "resolved": true,
+          "comment": "Window width"
+        }
+      }
+    },
+    "inputsystem.dll": {
+      "fields": {
+        "dwInputSystem": {
+          "offset": "0x46BC0",
+          "resolved": true,
+          "comment": "Input system pointer"
+        }
+      }
+    },
+    "matchmaking.dll": {
+      "fields": {
+        "dwGameTypes": {
+          "offset": "0x1AF3C0",
+          "resolved": true,
+          "comment": "Game types pointer"
+        }
+      }
+    },
+    "soundsystem.dll": {
+      "fields": {
+        "dwSoundSystem": {
+          "offset": "0x532470",
+          "resolved": true,
+          "comment": "Sound system pointer"
+        }
+      }
+    },
+    "schemas": {
+      "fields": {
+        "C_BaseEntity": {
+          "offset": "0x0",
+          "resolved": true,
+          "comment": "Schema entry point"
+        }
+      }
+    },
+    "bone_mapping": {
+      "fields": {
+        "Head": {
+          "offset": "0x7",
+          "resolved": true,
+          "comment": "Head bone index"
+        },
+        "Neck": {
+          "offset": "0x6",
+          "resolved": true,
+          "comment": "Neck bone index"
+        },
+        "SpineUpper": {
+          "offset": "0x17",
+          "resolved": true,
+          "comment": "Upper spine bone index"
+        },
+        "SpineMiddle": {
+          "offset": "0x4",
+          "resolved": true,
+          "comment": "Middle spine bone index"
+        },
+        "SpineLower": {
+          "offset": "0x3",
+          "resolved": true,
+          "comment": "Lower spine bone index"
+        },
+        "Pelvis": {
+          "offset": "0x1",
+          "resolved": true,
+          "comment": "Pelvis bone index"
+        },
+        "ClavicleLeft": {
+          "offset": "0x8",
+          "resolved": true,
+          "comment": "Left clavicle bone index"
+        },
+        "ShoulderLeft": {
+          "offset": "0x9",
+          "resolved": true,
+          "comment": "Left shoulder bone index"
+        },
+        "ElbowLeft": {
+          "offset": "0xA",
+          "resolved": true,
+          "comment": "Left elbow bone index"
+        },
+        "HandLeft": {
+          "offset": "0xB",
+          "resolved": true,
+          "comment": "Left hand bone index"
+        },
+        "ClavicleRight": {
+          "offset": "0xC",
+          "resolved": true,
+          "comment": "Right clavicle bone index"
+        },
+        "ShoulderRight": {
+          "offset": "0xD",
+          "resolved": true,
+          "comment": "Right shoulder bone index"
+        },
+        "ElbowRight": {
+          "offset": "0xE",
+          "resolved": true,
+          "comment": "Right elbow bone index"
+        },
+        "HandRight": {
+          "offset": "0xF",
+          "resolved": true,
+          "comment": "Right hand bone index"
+        },
+        "HipLeft": {
+          "offset": "0x11",
+          "resolved": true,
+          "comment": "Left hip bone index"
+        },
+        "KneeLeft": {
+          "offset": "0x12",
+          "resolved": true,
+          "comment": "Left knee bone index"
+        },
+        "AnkleLeft": {
+          "offset": "0x13",
+          "resolved": true,
+          "comment": "Left ankle bone index"
+        },
+        "HipRight": {
+          "offset": "0x14",
+          "resolved": true,
+          "comment": "Right hip bone index"
+        },
+        "KneeRight": {
+          "offset": "0x15",
+          "resolved": true,
+          "comment": "Right knee bone index"
+        },
+        "AnkleRight": {
+          "offset": "0x16",
+          "resolved": true,
+          "comment": "Right ankle bone index"
+        }
+      }
+    }
+  },
+  "decryptions": {
+    "namespace": "decryption",
+    "functions": [
+      "client_entities",
+      "entity_list",
+      "clActiveItem",
+      "PlayerInventory",
+      "PlayerEyes",
+      "decrypt_fov",
+      "encrypt_fov"
+    ],
+    "rva_fingerprints": {
+      "client_entities_decrypt": "0x256A013",
+      "entity_list_decrypt": "0x259050D"
     }
   }
 }

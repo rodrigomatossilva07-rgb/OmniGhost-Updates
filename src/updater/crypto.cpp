@@ -1,4 +1,4 @@
-#include "crypto.h"
+﻿#include "crypto.h"
 #include "../platform/file_integrity.h"
 #include <Windows.h>
 #include <bcrypt.h>
@@ -44,3 +44,4 @@ bool RandomTokenHex(std::size_t byteCount, std::wstring& token, std::string& err
 }
 
 }
+

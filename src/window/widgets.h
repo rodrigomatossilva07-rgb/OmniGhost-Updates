@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "src/project/third_party/ImGui/imgui.h"
 #include "menu_tab.h"
 #include <cstddef>
@@ -270,3 +270,4 @@ private:
     std::chrono::steady_clock::time_point startTime_;
     bool minDurationMet_ = false;
 };
+

@@ -247,3 +247,4 @@ if ($failed.Count -gt 0) {
 
 Write-Host "[OmniGhost Cleanup] Limpeza imediata concluída ($removed alvo(s)); .cache será removida após o MSBuild libertar o log."
 
+

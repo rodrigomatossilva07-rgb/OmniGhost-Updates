@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "imgui.h"
 #include <array>
@@ -350,3 +350,5 @@ void DrawPreview(ImDrawList* dl, const ImVec2& origin, float width, float height
                  const char* previewLabel = "PRÉ-VISUALIZAÇÃO ESP");
 
 }
+
+

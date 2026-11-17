@@ -50,3 +50,4 @@ if (-not [string]::IsNullOrWhiteSpace($ReportPath)) {
 }
 
 Write-Host "[OmniGhost Localization] $($entries.Count) literais UI legados (máximo $MaximumDirectLiterals); nenhuma regressão conhecida."
+

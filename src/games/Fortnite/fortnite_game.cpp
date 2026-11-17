@@ -1,4 +1,4 @@
-#include "fortnite_game.h"
+﻿#include "fortnite_game.h"
 #include "src/project/third_party/DMALibrary/Memory/Memory.h"
 #include "platform/offset_source.h"
 #include "gameplay/snapshot_exchange.h"
@@ -1380,3 +1380,4 @@ const char* StatusText() {
 }
 
 }
+

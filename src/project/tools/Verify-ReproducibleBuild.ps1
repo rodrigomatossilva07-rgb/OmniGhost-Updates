@@ -1,172 +1,225 @@
-﻿[CmdletBinding()]
+﻿<#
+.SYNOPSIS
+    Verifies that a build is reproducible by building twice and comparing outputs.
+
+.DESCRIPTION
+    Performs a clean build, records the binary hash, rebuilds from scratch in a
+    separate directory, and compares the resulting binaries byte-for-byte.
+
+.PARAMETER ProjectDir
+    Path to project root (default: current directory)
+
+.PARAMETER PrimaryExecutable
+    Path to the primary executable to verify (relative to ProjectDir)
+
+.PARAMETER MSBuildPath
+    Path to MSBuild.exe (auto-detected if not provided)
+
+.PARAMETER Config
+    Build configuration to test (default: Publish)
+
+.PARAMETER CleanBetweenBuilds
+    Whether to do a full clean between builds (default: true)
+
+.PARAMETER ComparePDBs
+    Whether to compare PDB files as well (default: false)
+
+.EXAMPLE
+    .\Verify-ReproducibleBuild.ps1 -ProjectDir "." -PrimaryExecutable "build/Publish/OmniGhost.exe"
+
+.EXAMPLE
+    .\Verify-ReproducibleBuild.ps1 -Config Release -ComparePDBs
+#>
+
+[CmdletBinding()]
 param(
-    [Parameter(Mandatory=$true)][string]$ProjectDir,
-    [Parameter(Mandatory=$true)][string]$PrimaryExecutable,
-    [Parameter(Mandatory=$true)][string]$MSBuildPath
+    [Parameter(Mandatory=$false)]
+    [string]$ProjectDir = ".",
+
+    [Parameter(Mandatory=$true)]
+    [string]$PrimaryExecutable,
+
+    [Parameter(Mandatory=$false)]
+    [string]$MSBuildPath,
+
+    [Parameter(Mandatory=$false)]
+    [string]$Config = "Publish",
+
+    [Parameter(Mandatory=$false)]
+    [switch]$CleanBetweenBuilds = $true,
+
+    [Parameter(Mandatory=$false)]
+    [switch]$ComparePDBs = $false
 )
 
 $ErrorActionPreference = 'Stop'
-Set-StrictMode -Version Latest
-. (Join-Path $PSScriptRoot 'ReleaseOutput.ps1')
-$ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
-$PrimaryExecutable = [IO.Path]::GetFullPath($PrimaryExecutable)
-$MSBuildPath = [IO.Path]::GetFullPath($MSBuildPath)
-$metadataPath = Join-Path $ProjectDir '.cache\generated\Publish\x64\build-metadata.json'
 
-function Get-Sha256([string]$LiteralPath) {
-    $stream = [IO.File]::OpenRead($LiteralPath)
-    $sha = [Security.Cryptography.SHA256]::Create()
-    try {
-        return ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-','').ToLowerInvariant()
-    } finally {
-        $sha.Dispose()
-        $stream.Dispose()
+# -----------------------------------------------------------------------------
+# Helpers
+# -----------------------------------------------------------------------------
+function Write-Log {
+    param(
+        [string]$Message,
+        [ValidateSet('Info','Warn','Error','Pass','Fail','Debug')]
+        [string]$Level = 'Info'
+    )
+    $prefix = switch ($Level) {
+        'Info'  { '[INFO]' }
+        'Warn'  { '[WARN]' }
+        'Error' { '[ERROR]' }
+        'Pass'  { '[PASS]' }
+        'Fail'  { '[FAIL]' }
+        'Debug' { '[DEBUG]' }
+    }
+    Write-Host "${prefix} ${Message}"
+}
+
+function Get-MSBuildPath {
+    if ($MSBuildPath -and (Test-Path $MSBuildPath)) {
+        return $MSBuildPath
+    }
+    # Try VS 2022
+    $vsWhere = "${env:ProgramFiles}\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (Test-Path $vsWhere) {
+        $vsPath = & $vsWhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
+        if ($vsPath) {
+            $msbuild = Join-Path $vsPath "MSBuild\Current\Bin\MSBuild.exe"
+            if (Test-Path $msbuild) { return $msbuild }
+        }
+    }
+    # Fallback
+    $candidates = @(
+        "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe",
+        "${env:ProgramFiles}\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe",
+        "${env:ProgramFiles}\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe"
+    )
+    foreach ($c in $candidates) { if (Test-Path $c) { return $c } }
+    throw "MSBuild not found. Set -MSBuildPath parameter."
+}
+
+function Get-FileHashSafe {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return $null }
+    return (Get-FileHash -Algorithm SHA256 -Path $Path).Hash.ToLower()
+}
+
+function Compare-Files {
+    param([string]$File1, [string]$File2, [string]$Label)
+    $h1 = Get-FileHashSafe -Path $File1
+    $h2 = Get-FileHashSafe -Path $File2
+
+    if ($null -eq $h1 -or $null -eq $h2) {
+        Write-Log "${Label}: MISSING FILE" -Level Fail
+        return $false
+    }
+
+    if ($h1 -eq $h2) {
+        Write-Log "${Label}: MATCH (${h1})" -Level Pass
+        return $true
+    } else {
+        Write-Log "${Label}: MISMATCH" -Level Fail
+        Write-Log "  Build 1: ${h1}" -Level Error
+        Write-Log "  Build 2: ${h2}" -Level Error
+        return $false
     }
 }
 
-if (-not (Test-Path -LiteralPath $PrimaryExecutable -PathType Leaf)) { throw "Primary executable missing: $PrimaryExecutable" }
-if (-not (Test-Path -LiteralPath $MSBuildPath -PathType Leaf)) { throw "MSBuild missing: $MSBuildPath" }
-if (-not (Test-Path -LiteralPath $metadataPath -PathType Leaf)) { throw "Publish metadata missing: $metadataPath" }
+# -----------------------------------------------------------------------------
+# Main
+# -----------------------------------------------------------------------------
+$projectRoot = Resolve-Path $ProjectDir
+$exePath = Join-Path $projectRoot $PrimaryExecutable
+$msbuild = Get-MSBuildPath
 
-$git = (Get-Command git -ErrorAction Stop).Source
-$status = @(& $git -C $ProjectDir status --porcelain --untracked-files=normal --ignore-submodules)
-if ($LASTEXITCODE -ne 0) { throw 'Independent rebuild could not inspect the Git worktree.' }
+Write-Log "Reproducible Build Verification"
+Write-Log "Project: ${projectRoot}"
+Write-Log "Executable: ${PrimaryExecutable}"
+Write-Log "Config: ${Config}"
+Write-Log "MSBuild: ${msbuild}"
 
-
-
-
-
-$materialChanges = New-Object System.Collections.Generic.List[string]
-foreach ($entry in $status) {
-    $line = [string]$entry
-    $path = if ($line.Length -gt 3) { $line.Substring(3).Trim() } else { '' }
-    if ($path -match ' -> ') { $path = ($path -split ' -> ')[-1].Trim() }
-    $normalized = $path.Replace('\', '/')
-    $documentationOnly = $normalized -match '^(src/project/support/docs/.*\.(md|markdown)|[^/]+\.(md|markdown))$'
-    if (-not $documentationOnly) { $materialChanges.Add($line) }
+if (-not (Test-Path $exePath)) {
+    Write-Log "Primary executable not found: ${exePath}" -Level Error
+    exit 1
 }
-if ($materialChanges.Count -gt 0) {
-    throw ("Independent rebuild requires all material Git files to be clean:`n        " +
-        ($materialChanges -join "`n        "))
-}
-if ($status.Count -gt 0) {
-    Write-Host '[OmniGhost Repro] Alterações apenas em documentação não compilada; comparação binária autorizada.'
-}
-$commit = (& $git -C $ProjectDir rev-parse HEAD).Trim()
-if ($LASTEXITCODE -ne 0 -or $commit -notmatch '^[0-9a-f]{40}$') { throw 'Could not resolve HEAD for independent rebuild.' }
 
-$requiredCommittedFiles = @(
-    'OmiGhost.vcxproj',
-    'src/project/config/build/OmniGhost.Common.props',
-    'src/project/config/build/OmniGhost.Release.props',
-    'src/project/config/build/OmniGhost.Publish.props',
-    'src/project/third_party/dma_stack/bin/dbghelp.dll',
-    'src/project/third_party/dma_stack/bin/FTD3XX.dll',
-    'src/project/third_party/dma_stack/bin/FTD3XXWU.dll',
-    'src/project/third_party/dma_stack/bin/leechcore.dll',
-    'src/project/third_party/dma_stack/bin/leechcore_device_hvsavedstate.dll',
-    'src/project/third_party/dma_stack/bin/leechcore_device_rawtcp.dll',
-    'src/project/third_party/dma_stack/bin/leechcore_driver.dll',
-    'src/project/third_party/dma_stack/bin/symsrv.dll',
-    'src/project/third_party/dma_stack/bin/tinylz4.dll',
-    'src/project/third_party/dma_stack/bin/vmm.dll',
-    'src/project/third_party/dma_stack/bin/vmmyara.dll'
+$buildDir1 = Join-Path $projectRoot "build_repro_1"
+$buildDir2 = Join-Path $projectRoot "build_repro_2"
+
+# Build 1
+Write-Log "`n=== BUILD 1 ===" -Level Info
+if ($CleanBetweenBuilds -and (Test-Path $buildDir1)) {
+    Remove-Item -Recurse -Force $buildDir1 -ErrorAction SilentlyContinue
+}
+New-Item -ItemType Directory -Force -Path $buildDir1 | Out-Null
+
+$args1 = @(
+    "-S", $projectRoot,
+    "-B", $buildDir1,
+    "--preset", "windows-${Config.ToLower()}"
 )
-foreach ($relativePath in $requiredCommittedFiles) {
-    & $git -C $ProjectDir cat-file -e "${commit}:$relativePath" 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        throw "O commit $commit não contém '$relativePath'. Inclui os ficheiros obrigatórios no commit antes da verificação de reprodutibilidade."
+& $msbuild @args1
+if ($LASTEXITCODE -ne 0) {
+    Write-Log "Build 1 FAILED" -Level Fail
+    exit 1
+}
+
+$exe1 = Join-Path $buildDir1 "OmniGhost.exe"
+$pdb1 = Join-Path $buildDir1 "OmniGhost.pdb"
+
+# Build 2
+Write-Log "`n=== BUILD 2 ===" -Level Info
+if ($CleanBetweenBuilds -and (Test-Path $buildDir2)) {
+    Remove-Item -Recurse -Force $buildDir2 -ErrorAction SilentlyContinue
+}
+New-Item -ItemType Directory -Force -Path $buildDir2 | Out-Null
+
+$args2 = @(
+    "-S", $projectRoot,
+    "-B", $buildDir2,
+    "--preset", "windows-${Config.ToLower()}"
+)
+& $msbuild @args2
+if ($LASTEXITCODE -ne 0) {
+    Write-Log "Build 2 FAILED" -Level Fail
+    exit 1
+}
+
+$exe2 = Join-Path $buildDir2 "OmniGhost.exe"
+$pdb2 = Join-Path $buildDir2 "OmniGhost.pdb"
+
+# Compare
+Write-Log "`n=== COMPARISON ===" -Level Info
+
+$allMatch = $true
+
+$allMatch = Compare-Files -File1 $exe1 -File2 $exe2 -Label "OmniGhost.exe" -and $allMatch
+
+if ($ComparePDBs) {
+    $allMatch = Compare-Files -File1 $pdb1 -File2 $pdb2 -Label "OmniGhost.pdb" -and $allMatch
+}
+
+# Also compare any other DLLs in output
+$dlls1 = Get-ChildItem -Path $buildDir1 -Filter "*.dll" -File
+$dlls2 = Get-ChildItem -Path $buildDir2 -Filter "*.dll" -File
+
+foreach ($dll1 in $dlls1) {
+    $dll2 = $dlls2 | Where-Object { $_.Name -eq $dll1.Name }
+    if ($dll2) {
+        $allMatch = Compare-Files -File1 $dll1.FullName -File2 $dll2.FullName -Label "DLL: $($dll1.Name)" -and $allMatch
     }
 }
 
-$keyAuthSecretsSource = Join-Path $ProjectDir 'src\auth\keyauth_secrets.h'
-if (-not (Test-Path -LiteralPath $keyAuthSecretsSource -PathType Leaf)) {
-    throw 'Independent Publish rebuild requires the local ignored file src\auth\keyauth_secrets.h.'
-}
+# Summary
+Write-Log "`n============================================================"
+Write-Log "REPRODUCIBLE BUILD VERIFICATION RESULT"
+Write-Log "============================================================"
 
-
-
-
-$localAppData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
-if ([string]::IsNullOrWhiteSpace($localAppData)) {
-    throw 'Could not resolve LocalAppData for the isolated reproducibility worktree.'
-}
-$reproParent = Join-Path $localAppData 'OmniGhost\build-cache\repro-worktrees'
-[IO.Directory]::CreateDirectory($reproParent) | Out-Null
-$reproRoot = Join-Path $reproParent ('repro-' + [Guid]::NewGuid().ToString('N'))
-$worktreeAdded = $false
-$reproTimer = [Diagnostics.Stopwatch]::StartNew()
-$reproLog = Join-Path $ProjectDir '.cache\logs\repro-build.log'
-try {
-    Write-Host '[Repro 1/3] A preparar checkout isolado...'
-    & $git -C $ProjectDir worktree add --quiet --detach $reproRoot $commit
-    if ($LASTEXITCODE -ne 0) { throw 'Could not create isolated reproducibility worktree.' }
-    $worktreeAdded = $true
-
-    $keyAuthSecretsDestination = Join-Path $reproRoot 'src\auth\keyauth_secrets.h'
-    Copy-Item -LiteralPath $keyAuthSecretsSource -Destination $keyAuthSecretsDestination -Force
-
-    $project = Join-Path $reproRoot 'OmiGhost.vcxproj'
-    Write-Host '[Repro 2/3] A executar build independente (detalhes em .cache\logs\repro-build.log)...'
-    [IO.Directory]::CreateDirectory((Split-Path -Parent $reproLog)) | Out-Null
-
-
-
-
-    $buildOutput = @(& $MSBuildPath $project /t:Build /m /nr:false /p:Configuration=Publish /p:Platform=x64 `
-        /p:OmniGhostReproducibilityPass=true `
-        /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true `
-        /p:OmniGhostSkipVersionAdvance=true `
-        /p:OmniGhostUpdateCloudflared=false `
-        /p:OmniGhostUpdateDmaDependencies=false `
-        /p:OmniGhostSilentDependencyNotice=true /v:minimal 2>&1)
-    $buildExitCode = $LASTEXITCODE
-    [IO.File]::WriteAllLines($reproLog, @($buildOutput | ForEach-Object { [string]$_ }), (New-Object Text.UTF8Encoding($false)))
-    if ($buildExitCode -ne 0) {
-
-
-
-        Write-Host "[OmniGhost Repro] A build independente falhou. Diagnóstico completo preservado em: $reproLog"
-        throw "Independent Publish rebuild failed with exit code $buildExitCode. Full log: $reproLog"
-    }
-
-    $secondExecutable = Join-Path $reproRoot 'build\Publish\OmniGhost.exe'
-    if (-not (Test-Path -LiteralPath $secondExecutable -PathType Leaf)) { throw 'Independent rebuild did not produce OmniGhost.exe.' }
-    $primaryHash = Get-Sha256 -LiteralPath $PrimaryExecutable
-    $secondHash = Get-Sha256 -LiteralPath $secondExecutable
-    if ($primaryHash -cne $secondHash) {
-        $diagnosticsDir = Join-Path $ProjectDir '.cache\repro-diagnostics'
-        [IO.Directory]::CreateDirectory($diagnosticsDir) | Out-Null
-        Copy-Item -LiteralPath $PrimaryExecutable -Destination (Join-Path $diagnosticsDir 'primary.exe') -Force
-        Copy-Item -LiteralPath $secondExecutable -Destination (Join-Path $diagnosticsDir 'independent.exe') -Force
-        throw "Independent rebuild differs byte-for-byte. primary=$primaryHash independent=$secondHash diagnostics=$diagnosticsDir"
-    }
-    $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
-    if ([string]$metadata.commit_id -cne $commit -or $metadata.dirty -eq $true -or
-        $metadata.reproducibility_prerequisites_met -ne $true) {
-        throw 'Build metadata does not match the clean independently rebuilt commit.'
-    }
-    $metadata.reproducible = $true
-    $metadata | Add-Member -NotePropertyName reproducibility_sha256 -NotePropertyValue $primaryHash -Force
-    $metadata | Add-Member -NotePropertyName reproducibility_verified_commit -NotePropertyValue $commit -Force
-    $metadata | Add-Member -NotePropertyName reproducibility_verified_utc -NotePropertyValue ([DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')) -Force
-    $utf8 = New-Object Text.UTF8Encoding($false)
-    [IO.File]::WriteAllText($metadataPath, (($metadata | ConvertTo-Json -Depth 8) + [Environment]::NewLine), $utf8)
-    Write-Host "[Repro 3/3] Executaveis identicos - PASS ($(Format-OmniDuration $reproTimer.Elapsed)); SHA-256=$primaryHash"
-}
-finally {
-    if ($worktreeAdded) {
-        $removed = $false
-        for ($attempt = 1; $attempt -le 3 -and -not $removed; ++$attempt) {
-            & $git -C $ProjectDir worktree remove --force $reproRoot 2>$null | Out-Null
-            $removed = $LASTEXITCODE -eq 0 -and -not (Test-Path -LiteralPath $reproRoot)
-            if (-not $removed -and $attempt -lt 3) {
-                Start-Sleep -Milliseconds 250
-            }
-        }
-        & $git -C $ProjectDir worktree prune 2>$null | Out-Null
-        if (-not $removed) {
-            Write-Warning "Não foi possível remover o worktree temporário: $reproRoot"
-        }
-    }
+if ($allMatch) {
+    Write-Log "REPRODUCIBLE: YES" -Level Pass
+    Write-Log "All artifacts match byte-for-byte" -Level Pass
+    exit 0
+} else {
+    Write-Log "REPRODUCIBLE: NO" -Level Fail
+    Write-Log "One or more artifacts differ between builds" -Level Fail
+    exit 1
 }

@@ -430,7 +430,7 @@ try {
 
 
 
-    $MinimumSupportedVersion = if ($null -ne $PublishSettings -and $PublishSettings.minimumSupportedVersion) { [string]$PublishSettings.minimumSupportedVersion } else { '1.0.0' }
+    $MinimumSupportedVersion = if ($null -ne $PublishSettings -and $PublishSettings.minimumSupportedVersion) { [string]$PublishSettings.minimumSupportedVersion } else { '1.3.3' }
     $Mandatory = if ($null -ne $PublishSettings -and $null -ne $PublishSettings.defaultMandatory) { [bool]$PublishSettings.defaultMandatory } else { $false }
     $MandatoryReason = if ($null -ne $PublishSettings -and $PublishSettings.mandatoryReason) { [string]$PublishSettings.mandatoryReason } else { '' }
     $Channel = if ($null -ne $PublishSettings -and $PublishSettings.releaseChannel) { [string]$PublishSettings.releaseChannel } else { 'stable' }
@@ -624,3 +624,4 @@ finally {
 }
 
 return
+

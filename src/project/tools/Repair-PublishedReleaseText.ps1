@@ -315,3 +315,4 @@ foreach ($Required in @('changelog.json', 'release-notes.md')) {
 
 Write-RepairLog 'Descrição e assets corrigidos com sucesso.'
 Write-RepairLog "URL: $($Remote.url)"
+

@@ -1,4 +1,4 @@
-#include "offsets.h"
+﻿#include "offsets.h"
 
 #include "globals.h"
 #include "src/project/third_party/DMALibrary/Memory/Memory.h"
@@ -600,3 +600,4 @@ bool HasAnyCriticalOffsets() {
 }
 
 }
+

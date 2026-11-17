@@ -106,3 +106,4 @@ if (($HeaderVersion -ne $Version) -or ($ResourceVersion -ne $Version) -or ($Mani
     Write-MetadataLog "Validação concluída: versão $Version sincronizada."
 }
 exit 0
+

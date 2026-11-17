@@ -1,4 +1,4 @@
-#include "http_policy.h"
+﻿#include "http_policy.h"
 
 #include <algorithm>
 #include "platform/strprotect/strprotect.h"
@@ -100,3 +100,4 @@ void SetConfiguration(const Configuration& config) {
     s_config = config;
 }
 }
+

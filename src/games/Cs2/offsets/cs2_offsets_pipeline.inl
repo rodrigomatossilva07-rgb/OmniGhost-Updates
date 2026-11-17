@@ -1,5 +1,4 @@
-
-bool ResolveDataPath(std::string& out_dir) {
+﻿bool ResolveDataPath(std::string& out_dir) {
     const std::string exe = ExeDir();
     const std::vector<fs::path> search_bases = {
         fs::path(exe),
@@ -24,7 +23,6 @@ bool ResolveDataPath(std::string& out_dir) {
     std::cout << "[CS2] data/cs2_offsets.json nao encontrado: " << out_dir << std::endl;
     return false;
 }
-
 
 
 static void LogOptionalOffsetWarnings(const Offsets& loaded) {
@@ -56,53 +54,51 @@ bool LoadOffsetsFromJson(const char* path) {
     (void)path;
     return LoadEmbeddedOffsets();
 #else
+    using namespace OmniGhost::OffsetSource;
     const bool explicit_path = path && *path;
     const Offsets previous = offsets;
-    std::string file;
-    if (path && *path) {
-        file = path;
-    } else {
-        std::string dir;
-        ResolveDataPath(dir);
-        std::cout << "[CS2] Resolved data path: " << dir << std::endl;
-        file = (fs::path(dir) / "cs2_offsets.json").string();
-    }
 
-    std::cout << "[CS2] Loading offsets from: " << file << std::endl;
-    std::string data;
-    if (!ReadTextFile(file, data)) {
-SetStatus("cs2_offsets.json nao encontrado (coloca em data/ ao lado do exe)");
-        std::cout << "[CS2] " << GetStatus() << "\n    procurou: " << file << std::endl;
+    const LoadResult loaded = LoadSnapshot(GameId::CS2, path);
+    if (!loaded.ok) {
+        std::cerr << "[CS2] offsets load failed: " << loaded.detail << "\n";
+        SetStatus(std::string("Offsets CS2 falhou: ") + loaded.detail);
+        offsets_source = GetStatus();
+        if (explicit_path)
+            offsets = previous;
         return false;
     }
 
-    offsets.dwEntityList = 0;
-    offsets.dwLocalPlayerPawn = 0;
-    offsets.dwLocalPlayerController = 0;
-    offsets.dwViewMatrix = 0;
-    offsets.dwViewAngles = 0;
-    offsets.dwGlobalVars = 0;
-    offsets.dwBuildNumber = 0;
-    offsets.dwPlantedC4 = 0;
+    offsets = Offsets{};
+    auto set = [&](std::initializer_list<const char*> keys, uintptr_t& dst, bool required = true) {
+        std::uint64_t v = 0;
+        if (TryGetAny(loaded.snapshot, keys, v) && v != 0)
+            dst = static_cast<uintptr_t>(v);
+        return (v != 0) || !required;
+    };
 
+    bool required = true;
 
-    auto sub = data.find("\"client.dll\"");
-    const std::string slice = (sub != std::string::npos) ? data.substr(sub) : data;
+    // _root offsets
+    required &= set({"_root.dwEntityList", "client.dll.dwEntityList", "dwEntityList"}, offsets.dwEntityList);
+    required &= set({"_root.dwLocalPlayerPawn", "client.dll.dwLocalPlayerPawn", "dwLocalPlayerPawn"}, offsets.dwLocalPlayerPawn);
+    required &= set({"_root.dwLocalPlayerController", "client.dll.dwLocalPlayerController", "dwLocalPlayerController"}, offsets.dwLocalPlayerController);
+    required &= set({"_root.dwViewMatrix", "client.dll.dwViewMatrix", "dwViewMatrix"}, offsets.dwViewMatrix);
+    required &= set({"_root.dwViewAngles", "client.dll.dwViewAngles", "dwViewAngles"}, offsets.dwViewAngles);
+    required &= set({"_root.dwGlobalVars", "client.dll.dwGlobalVars", "dwGlobalVars"}, offsets.dwGlobalVars);
+    required &= set({"_root.dwPlantedC4", "client.dll.dwPlantedC4", "dwPlantedC4"}, offsets.dwPlantedC4);
+    required &= set({"_root.dwBuildNumber", "engine2.dll.dwBuildNumber", "dwBuildNumber"}, offsets.dwBuildNumber);
 
-    JsonU64(slice, "dwEntityList", offsets.dwEntityList);
-    JsonU64(slice, "dwLocalPlayerPawn", offsets.dwLocalPlayerPawn);
-    JsonU64(slice, "dwLocalPlayerController", offsets.dwLocalPlayerController);
-    JsonU64(slice, "dwViewMatrix", offsets.dwViewMatrix);
-    JsonU64(slice, "dwViewAngles", offsets.dwViewAngles);
-    JsonU64(slice, "dwGlobalVars", offsets.dwGlobalVars);
-    JsonU64(slice, "dwPlantedC4", offsets.dwPlantedC4);
-    JsonU64(data, "entity_identity_stride", offsets.entity_identity_stride);
-    JsonU64(data, "entity_identity_pointer", offsets.entity_identity_pointer);
-    JsonU64(data, "entity_identity_name", offsets.entity_identity_name);
-    JsonU64(data, "entity_page_size", offsets.entity_page_size);
-    JsonU64(data, "entity_page_table_offset", offsets.entity_page_table_offset);
-    JsonU64(data, "global_vars_current_time", offsets.global_vars_current_time);
-    JsonU64(data, "global_vars_current_map", offsets.global_vars_current_map);
+    // Layout offsets
+    required &= set({"layout.entity_identity_stride"}, offsets.entity_identity_stride);
+    required &= set({"layout.entity_identity_pointer"}, offsets.entity_identity_pointer);
+    required &= set({"layout.entity_identity_name"}, offsets.entity_identity_name);
+    required &= set({"layout.entity_page_size"}, offsets.entity_page_size);
+    required &= set({"layout.entity_page_table_offset"}, offsets.entity_page_table_offset);
+    set({"layout.global_vars_current_time"}, offsets.global_vars_current_time, false);
+    set({"layout.global_vars_current_map"}, offsets.global_vars_current_map, false);
+
+    // Bone mapping
+    g_boneMapping = BoneMapping{};
     bool bone_mapping_loaded = true;
     {
         static constexpr const char* kBoneNames[kBoneSlotCount] = {
@@ -111,85 +107,75 @@ SetStatus("cs2_offsets.json nao encontrado (coloca em data/ ao lado do exe)");
             "ClavicleRight", "ShoulderRight", "ElbowRight", "HandRight",
             "HipLeft", "KneeLeft", "AnkleLeft", "HipRight", "KneeRight", "AnkleRight"
         };
-        g_boneMapping = BoneMapping{};
         for (std::size_t i = 0; i < kBoneSlotCount; ++i) {
-            uintptr_t value = 0;
-            const bool ok = JsonClassU64(data, "bone_mapping", kBoneNames[i], value) && value < 28;
+            std::uint64_t value = 0;
+            std::string path = std::string("bone_mapping.") + kBoneNames[i];
+            const bool ok = loaded.snapshot.TryGet(path, value) && value < 28;
             bone_mapping_loaded &= ok;
             if (ok)
                 g_boneMapping.jointIndex[i] = static_cast<int>(value);
         }
     }
 
-    auto eng = data.find("\"engine2.dll\"");
-    if (eng != std::string::npos) {
-        const std::string es = data.substr(eng);
-        JsonU64(es, "dwBuildNumber", offsets.dwBuildNumber);
-    }
+    // Schema offsets (C_BaseEntity, CGameSceneNode, etc.)
+    set({"C_BaseEntity.m_iHealth"}, offsets.m_iHealth, false);
+    set({"C_BaseEntity.m_iTeamNum"}, offsets.m_iTeamNum, false);
+    set({"C_BaseEntity.m_pGameSceneNode"}, offsets.m_pGameSceneNode, false);
+    set({"C_BaseEntity.m_fFlags"}, offsets.m_fFlags, false);
+    set({"C_BaseEntity.m_vecVelocity"}, offsets.m_vecVelocity, false);
+    set({"C_BasePlayerPawn.m_vOldOrigin"}, offsets.m_vOldOrigin, false);
+    set({"CCSPlayerController.m_hPlayerPawn"}, offsets.m_hPlayerPawn, false);
+    set({"CCSPlayerController.m_hObserverPawn"}, offsets.m_hObserverPawn, false);
+    set({"C_BasePlayerPawn.m_pObserverServices"}, offsets.m_pObserverServices, false);
+    set({"CPlayer_ObserverServices.m_hObserverTarget"}, offsets.m_hObserverTarget, false);
+    set({"CCSPlayerController.m_iPawnHealth"}, offsets.m_iPawnHealth, false);
+    set({"CCSPlayerController.m_iPawnArmor"}, offsets.m_iPawnArmor, false);
+    set({"CBasePlayerController.m_iszPlayerName"}, offsets.m_iszPlayerName, false);
+    set({"CBasePlayerController.m_steamID"}, offsets.m_steamID, false);
+    set({"CCSPlayerController.m_sSanitizedPlayerName"}, offsets.m_sSanitizedPlayerName, false);
+    set({"CCSPlayerController.m_bPawnIsAlive"}, offsets.m_bPawnIsAlive, false);
+    set({"CCSPlayerController.m_pInGameMoneyServices"}, offsets.m_pInGameMoneyServices, false);
+    set({"CCSPlayerController_InGameMoneyServices.m_iAccount"}, offsets.m_iAccount, false);
+    set({"C_CSPlayerPawn.m_ArmorValue"}, offsets.m_ArmorValue, false);
+    set({"C_CSPlayerPawn.m_angEyeAngles"}, offsets.m_angEyeAngles, false);
+    set({"C_CSPlayerPawn.m_iIDEntIndex"}, offsets.m_iIDEntIndex, false);
+    set({"C_CSPlayerPawn.m_iShotsFired"}, offsets.m_iShotsFired, false);
+    set({"C_CSPlayerPawn.m_pAimPunchServices"}, offsets.m_pAimPunchServices, false);
+    set({"CCSPlayer_AimPunchServices.m_predictableBaseAngle"}, offsets.m_predictableBaseAngle, false);
+    set({"C_CSPlayerPawn.m_bIsDefusing"}, offsets.m_bIsDefusing, false);
+    set({"C_CSPlayerPawn.m_bIsScoped"}, offsets.m_bIsScoped, false);
+    set({"C_CSPlayerPawnBase.m_flFlashDuration"}, offsets.m_flFlashDuration, false);
+    set({"CGameSceneNode.m_vecAbsOrigin"}, offsets.m_vecAbsOrigin, false);
+    set({"CGameSceneNode.m_bDormant"}, offsets.m_bDormant, false);
+    set({"CSkeletonInstance.m_modelState"}, offsets.m_modelState, false);
+    uintptr_t boneArrayInModelState = 0;
+    set({"CModelState.m_boneArray"}, boneArrayInModelState, true);
 
+    offsets.BoneArray = offsets.m_modelState && boneArrayInModelState
+        ? offsets.m_modelState + boneArrayInModelState : 0;
 
+    set({"C_PlantedC4.m_bBombTicking"}, offsets.m_bBombTicking, false);
+    set({"C_PlantedC4.m_flC4Blow"}, offsets.m_flC4Blow, false);
+    set({"C_PlantedC4.m_flTimerLength"}, offsets.m_flTimerLength, false);
+    set({"C_PlantedC4.m_bBombDefused"}, offsets.m_bBombDefused, false);
+    set({"C_PlantedC4.m_bBeingDefused"}, offsets.m_bBeingDefused, false);
+    set({"C_PlantedC4.m_flDefuseCountDown"}, offsets.m_flDefuseCountDown, false);
+    set({"C_PlantedC4.m_hBombDefuser"}, offsets.m_hBombDefuser, false);
+    set({"C_BasePlayerPawn.m_pWeaponServices"}, offsets.m_pWeaponServices, false);
+    set({"C_BasePlayerPawn.m_pItemServices"}, offsets.m_pItemServices, false);
+    set({"CCSPlayer_ItemServices.m_bHasDefuser"}, offsets.m_bHasDefuser, false);
+    set({"CPlayer_WeaponServices.m_hActiveWeapon"}, offsets.m_hActiveWeapon, false);
+    set({"C_EconEntity.m_AttributeManager"}, offsets.m_AttributeManager, false);
+    set({"C_AttributeContainer.m_Item"}, offsets.m_Item, false);
+    set({"C_EconItemView.m_iItemDefinitionIndex"}, offsets.m_iItemDefinitionIndex, false);
+    set({"C_BasePlayerWeapon.m_iClip1"}, offsets.m_iClip1, false);
+    set({"C_BasePlayerWeapon.m_pReserveAmmo"}, offsets.m_pReserveAmmo, false);
+    set({"C_CSPlayerPawn.m_entitySpottedState"}, offsets.m_entitySpottedState, false);
+    set({"EntitySpottedState_t.m_bSpotted"}, offsets.m_bSpotted, false);
 
-    auto grab_cpp = [&](const char* key, uintptr_t& out) {
-        if (out) return;
-        const std::string k(key);
-        size_t p = 0;
-        while ((p = data.find(k, p)) != std::string::npos) {
-
-            if (p > 0) {
-                const char c = data[p - 1];
-                if (std::isalnum((unsigned char)c) || c == '_' || c == '"') {
-                    p += k.size();
-                    continue;
-                }
-            }
-            size_t eq = data.find('=', p + k.size());
-            size_t semi = data.find(';', p + k.size());
-            if (eq == std::string::npos || semi == std::string::npos || eq > semi || eq - p > 96) {
-                p += k.size();
-                continue;
-            }
-            size_t hx = data.find("0x", eq);
-            if (hx == std::string::npos || hx > semi) {
-                p += k.size();
-                continue;
-            }
-            size_t e = hx + 2;
-            while (e < data.size() && std::isxdigit((unsigned char)data[e])) ++e;
-            try {
-                out = (uintptr_t)std::stoull(data.substr(hx, e - hx), nullptr, 16);
-            } catch (const std::exception& ex) {
-                std::cerr << "[CS2] LoadOffsetsFromJson: Failed to parse hex value at offset " << hx << ": " << ex.what() << "\n";
-                out = 0;
-            } catch (...) {
-                std::cerr << "[CS2] LoadOffsetsFromJson: Unknown exception parsing hex value at offset " << hx << "\n";
-                out = 0;
-            }
-            return;
-        }
-    };
-    grab_cpp("dwEntityList", offsets.dwEntityList);
-    grab_cpp("dwLocalPlayerPawn", offsets.dwLocalPlayerPawn);
-    grab_cpp("dwLocalPlayerController", offsets.dwLocalPlayerController);
-    grab_cpp("dwViewMatrix", offsets.dwViewMatrix);
-    grab_cpp("dwViewAngles", offsets.dwViewAngles);
-    grab_cpp("dwGlobalVars", offsets.dwGlobalVars);
-    grab_cpp("dwPlantedC4", offsets.dwPlantedC4);
-    grab_cpp("dwBuildNumber", offsets.dwBuildNumber);
-
-
-    {
-        uintptr_t v = 0;
-        if (!offsets.dwEntityList && JsonU64(data, "client.dwEntityList", v)) offsets.dwEntityList = v;
-        v = 0; if (!offsets.dwLocalPlayerPawn && JsonU64(data, "client.dwLocalPlayerPawn", v)) offsets.dwLocalPlayerPawn = v;
-        v = 0; if (!offsets.dwViewMatrix && JsonU64(data, "client.dwViewMatrix", v)) offsets.dwViewMatrix = v;
-    }
-
-    LoadSchemaOffsets(data);
     std::string validation_error;
-    offsets.loaded = bone_mapping_loaded && offsets.Validate(&validation_error);
+    offsets.loaded = required && bone_mapping_loaded && offsets.Validate(&validation_error);
     if (offsets.loaded) LogOptionalOffsetWarnings(offsets);
-    if (!bone_mapping_loaded && validation_error.empty())
-        validation_error = "bone_mapping incompleto";
 
     const bool loaded_from_file = offsets.loaded;
     if (loaded_from_file) {
@@ -200,8 +186,8 @@ SetStatus("cs2_offsets.json nao encontrado (coloca em data/ ao lado do exe)");
             (unsigned long long)offsets.dwLocalPlayerPawn,
             (unsigned long long)offsets.dwViewMatrix);
 SetStatus(buf);
-        offsets_source = file;
-        std::cout << "[CS2] Loaded: " << file << std::endl;
+        offsets_source = loaded.storage + " " + loaded.detail;
+        std::cout << "[CS2] Loaded: " << loaded.detail << " (storage=" << loaded.storage << ")" << std::endl;
         std::cout << "[CS2] Schema  m_hPlayerPawn=0x" << std::hex << offsets.m_hPlayerPawn
                   << " m_iHealth=0x" << offsets.m_iHealth
                   << " m_iTeamNum=0x" << offsets.m_iTeamNum
@@ -272,8 +258,6 @@ bool LoadEmbeddedOffsets() {
     }
 
 
-
-
     read("schemas.C_BaseEntity.m_iHealth", offsets.m_iHealth, false);
     read("schemas.C_BaseEntity.m_iTeamNum", offsets.m_iTeamNum, false);
     read("schemas.C_BaseEntity.m_pGameSceneNode", offsets.m_pGameSceneNode, false);
@@ -307,8 +291,6 @@ bool LoadEmbeddedOffsets() {
     read("schemas.CSkeletonInstance.m_modelState", offsets.m_modelState, false);
     uintptr_t boneArrayInModelState = 0;
     read("schemas.CModelState.m_boneArray", boneArrayInModelState, true);
-
-
 
 
     offsets.BoneArray = offsets.m_modelState && boneArrayInModelState
@@ -533,12 +515,12 @@ SetStatus("Falha ao anexar cs2.exe (DMA aberto mas processo nao ligado)");
         } catch (const std::exception& ex) {
             std::cerr << "[CS2] ResolveModuleBases attempt " << attempt << " exception: " << ex.what() << std::endl;
         } catch (...) {
-            std::cerr << "[CS2] ResolveModuleBases attempt " << attempt << " unknown exception caught and logged" << std::endl;
+            std::cerr << "[CS2] ResolveModuleBases attempt " << attempt << " unknown exception caught and logged" << std::endl.
         }
         if (attempt % 5 == 0)
             std::cout << "[CS2] client.dll ainda nao resolvido (" << attempt << ")" << std::endl;
 SetStatus("A aguardar client.dll...");
-        Sleep(500);
+        Sleep(500).
 
         if (attempt > 0 && (attempt % 10) == 0) {
             try {
@@ -546,7 +528,7 @@ SetStatus("A aguardar client.dll...");
             } catch (const std::exception& ex) {
                 std::cerr << "[CS2] Re-bind attempt " << attempt << " exception: " << ex.what() << std::endl;
             } catch (...) {
-                std::cerr << "[CS2] Re-bind attempt " << attempt << " unknown exception caught and logged" << std::endl;
+                std::cerr << "[CS2] Re-bind attempt " << attempt << " unknown exception caught and logged" << std::endl.
             }
         }
     }
@@ -584,7 +566,7 @@ SetStatus("Sem offsets validos");
               << "  EL=0x" << std::hex << offsets.dwEntityList
               << "  LPC=0x" << offsets.dwLocalPlayerController
               << "  LPP=0x" << offsets.dwLocalPlayerPawn
-              << std::dec << std::endl;
+              << std::dec << std::endl.
 
 
     if (!OmniGhost::Gameplay::WeaponNameRegistry::Instance().LoadFromJson("data/weapons.json")) {
@@ -596,7 +578,6 @@ SetStatus("Sem offsets validos");
 
     if (runtime.engine_base && offsets.dwBuildNumber)
         QReadT(runtime.engine_base + offsets.dwBuildNumber, runtime.build_number);
-
 
 
     if (!ProbeViewMatrix()) {
