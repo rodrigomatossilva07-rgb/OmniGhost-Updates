@@ -7,6 +7,7 @@
 #include "kmbox_net.h"
 #include "../platform/thread_utils.h"
 #include "../platform/unique_socket.h"
+#include "../platform/constants.h"
 
 #include <algorithm>
 #include <array>
@@ -176,7 +177,7 @@ bool Request(std::uint32_t command, const void* payload, std::size_t payloadSize
             g_consecutiveFailures.store(0, std::memory_order_relaxed);
             return true;
         }
-        std::array<std::uint8_t, 1024> response{};
+        std::array<std::uint8_t, Constants::kXLargeBufferSize> response{};
         sockaddr_in source{};
         int sourceLength = sizeof(source);
         const int received = recvfrom(g_commandSocket.get(),
@@ -206,7 +207,7 @@ bool Request(std::uint32_t command, const void* payload, std::size_t payloadSize
 
 void MonitorLoop(std::stop_token stopToken) {
     OmniGhost::Platform::SetCurrentThreadName(L"OmniGhost.KMBoxMonitor");
-    std::array<std::uint8_t, 1024> buffer{};
+    std::array<std::uint8_t, Constants::kXLargeBufferSize> buffer{};
     while (!stopToken.stop_requested() && g_monitorRunning.load(std::memory_order_relaxed)) {
         sockaddr_in source{};
         int sourceLength = sizeof(source);
@@ -238,7 +239,7 @@ bool StartMonitor() {
     if (!g_monitorSocket)
         return false;
 
-    DWORD timeout = 100;
+    DWORD timeout = Constants::kDefaultTimeoutMs.count();
     setsockopt(g_monitorSocket.get(), SOL_SOCKET, SO_RCVTIMEO,
                reinterpret_cast<const char*>(&timeout), sizeof(timeout));
 
@@ -388,8 +389,8 @@ bool Move(int x, int y) {
     if (!IsConnected()) return false;
     MousePayload payload{};
     payload.buttons = g_buttons.load(std::memory_order_relaxed);
-    payload.x = std::clamp(x, -32767, 32767);
-    payload.y = std::clamp(y, -32767, 32767);
+    payload.x = std::clamp(x, Constants::kInt16Min, Constants::kInt16Max);
+    payload.y = std::clamp(y, Constants::kInt16Min, Constants::kInt16Max);
 
     return Request(kCommandMouseMove, &payload, sizeof(payload), 0, false, false);
 }

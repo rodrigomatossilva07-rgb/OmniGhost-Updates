@@ -9,6 +9,7 @@
 #include "../platform/thread_utils.h"
 #include "../platform/text_encoding.h"
 #include "../platform/unique_handle.h"
+#include "../platform/constants.h"
 
 #include <algorithm>
 #include <atomic>
@@ -127,10 +128,10 @@ std::string ProbeVersion() {
     if (!WriteCommand(OGS_LIT("km.version()\r\n"))) return {};
 
     std::string response;
-    response.reserve(256);
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(900);
-    while (std::chrono::steady_clock::now() < deadline && response.size() < 1024) {
-        char buffer[128]{};
+    response.reserve(Constants::kMediumBufferSize);
+    const auto deadline = std::chrono::steady_clock::now() + Constants::kMAKCUTimout;
+    while (std::chrono::steady_clock::now() < deadline && response.size() < Constants::kXLargeBufferSize) {
+        char buffer[Constants::kSmallBufferSize]{};
         DWORD read = 0;
         if (!ReadFile(g_serial.get(), buffer, sizeof(buffer), &read, nullptr))
             return {};
@@ -144,7 +145,7 @@ std::string ProbeVersion() {
                 lower.find(">>>") != std::string::npos)
                 return response;
         } else {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            std::this_thread::sleep_for(Constants::kShortTimeout);
         }
     }
     return {};
@@ -163,7 +164,7 @@ void ParseButtonCallbacks(std::vector<std::uint8_t>& pending) {
             g_buttonMask.store(mask, std::memory_order_relaxed);
         lastFrameEnd = index + 4;
     }
-    if (pending.size() > 256) {
+    if (pending.size() > Constants::kMediumBufferSize) {
 
 
 
@@ -197,9 +198,9 @@ void ParseButtonCallbacks(std::vector<std::uint8_t>& pending) {
 void ReaderLoop(std::stop_token stopToken) {
     OmniGhost::Platform::SetCurrentThreadName(L"OmniGhost.FerrumReader");
     std::vector<std::uint8_t> pending;
-    pending.reserve(256);
+    pending.reserve(Constants::kMediumBufferSize);
     while (!stopToken.stop_requested() && g_readerRunning.load(std::memory_order_relaxed)) {
-        std::uint8_t buffer[128]{};
+        std::uint8_t buffer[Constants::kSmallBufferSize]{};
         DWORD read = 0;
         if (!ReadFile(g_serial.get(), buffer, sizeof(buffer), &read, nullptr)) {
             if (g_readerRunning.load()) {
