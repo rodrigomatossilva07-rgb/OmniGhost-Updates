@@ -44,11 +44,9 @@
 #include "platform/shutdown_coordinator.h"
 #include "platform/text_encoding.h"
 #include "platform/window_instance_guard.h"
-#include "platform/hot_reload_offsets.h"
 #include "platform/logging.h"
 #include "security/security_manager.h"
 #include "security/anti_tamper.h"
-#include "config/config_hot_reload.h"
 #include "window/performance_mode.h"
 #include "window/widgets.h"
 #include "window/ui_feedback.h"
@@ -547,31 +545,9 @@ int RunOmniGhost(int argc, wchar_t** argv) {
     app_settings::Initialize();
     config_manager::Initialize();
 
-    // Initialize hot-reload for offset JSON files
-    OmniGhost::HotReload::OffsetReloader::Config hotReloadConfig;
-    hotReloadConfig.pollInterval = std::chrono::seconds(5);
-    hotReloadConfig.enabled = true;
-    hotReloadConfig.requireValidation = true;
-    hotReloadConfig.onReloadSuccess = [](const std::string& msg) {
-        OGS_LOG_INFO("[HotReload] Offsets reloaded: {}", msg);
-    };
-    hotReloadConfig.onReloadFailure = [](const std::string& err) {
-        OGS_LOG_ERROR("[HotReload] Reload failed: {}", err);
-    };
-    const bool hotReloadStarted = OmniGhost::HotReload::InitializeHotReload("src/project/data", hotReloadConfig);
-    if (hotReloadStarted) {
-        OGS_LOG_INFO("[HotReload] Offset hot-reload enabled for all games");
-    } else {
-        OGS_LOG_WARN("[HotReload] No offset JSON files found, hot-reload disabled");
-    }
-
-    // Initialize config hot-reload
-    if (OmniGhost::Config::InitializeConfigHotReload()) {
-        OmniGhost::Config::ConfigHotReloadManager::Instance().StartAll();
-        OGS_LOG_INFO("[ConfigHotReload] Config hot-reload enabled");
-    } else {
-        OGS_LOG_WARN("[ConfigHotReload] Failed to initialize config hot-reload");
-    }
+    // Offsets são carregados do EXE (embedded resources) via OmniGhost::EmbeddedOffsets::Load()
+    // O build gera os resources via src/project/tools/Build-EmbeddedOffsets.ps1
+    OGS_LOG_INFO("[Offsets] Usando offsets embedded no EXE (sem hot-reload externo)");
 
     Overlay application;
 
@@ -590,16 +566,6 @@ int RunOmniGhost(int argc, wchar_t** argv) {
     (void)shutdownCoordinator.Register(
         OmniGhost::Platform::ShutdownComponent::Ui, 100,
         [&application] { application.Shutdown(); });
-
-    // Register hot-reload shutdown
-    (void)shutdownCoordinator.Register(
-        OmniGhost::Platform::ShutdownComponent::Core, 50,
-        [] { OmniGhost::HotReload::ShutdownHotReload(); });
-
-    // Register config hot-reload shutdown
-    (void)shutdownCoordinator.Register(
-        OmniGhost::Platform::ShutdownComponent::Core, 50,
-        [] { OmniGhost::Config::ShutdownConfigHotReload(); });
 
 
     OmniGhost::CrashHandler::MarkStartupComplete();
