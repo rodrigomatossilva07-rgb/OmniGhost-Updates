@@ -9,7 +9,7 @@
 // Version is synchronized from src/project/config/release/version.txt by sync_version.ps1
 // DO NOT EDIT MANUALLY - use the sync script instead.
 namespace OmniGhost {
-inline constexpr char Version[] = "1.3.5";
+inline constexpr char Version[] = "1.3.6";
 inline constexpr char BuildChannel[] = OMNIGHOST_BUILD_CHANNEL;
 inline constexpr wchar_t MainExecutable[] = L"OmniGhost.exe";
 }
