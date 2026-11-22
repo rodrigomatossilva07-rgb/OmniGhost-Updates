@@ -79,6 +79,10 @@ if (MSVC)
             "/I${_omnighost_windows_sdk_include}/um"
             "/I${_omnighost_windows_sdk_include}/winrt"
             "/I${_omnighost_windows_sdk_include}/cppwinrt")
+        # Extract Windows SDK version from the path (e.g., .../Include/10.0.22621.0 -> 10.0.22621.0)
+        get_filename_component(_omnighost_windows_sdk_version "${_omnighost_windows_sdk_include}" NAME)
+        set(OMNIGHOST_WINDOWS_SDK_VERSION "${_omnighost_windows_sdk_version}" CACHE INTERNAL "Detected Windows SDK version")
+        message(STATUS "Windows SDK version: ${OMNIGHOST_WINDOWS_SDK_VERSION}")
     else()
         message(FATAL_ERROR "No installed Windows SDK contains the UCRT headers.")
     endif()
@@ -241,6 +245,19 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_SOURCE_DIR}/build/debug")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/build/release")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEVELOPMENT "${CMAKE_SOURCE_DIR}/build/development")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_PUBLISH "${CMAKE_SOURCE_DIR}/build/publish")
+
+# Map CMake build types to release channels for build metadata
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(OMNIGHOST_RELEASE_CHANNEL "development")
+elseif (CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(OMNIGHOST_RELEASE_CHANNEL "beta")
+elseif (CMAKE_BUILD_TYPE STREQUAL "Development")
+    set(OMNIGHOST_RELEASE_CHANNEL "development")
+elseif (CMAKE_BUILD_TYPE STREQUAL "Publish")
+    set(OMNIGHOST_RELEASE_CHANNEL "stable")
+else()
+    set(OMNIGHOST_RELEASE_CHANNEL "unknown")
+endif()
 
 # =============================================================================
 # Reproducible Build Support
@@ -531,7 +548,20 @@ if (WIN32)
             COMMENT "Generating embedded resource catalog"
         )
 
-        add_dependencies(OmniGhost GenerateEmbeddedOffsets GenerateEmbeddedRuntime GenerateEmbeddedResources)
+        # Generate build metadata (required for Publish configuration)
+        add_custom_target(GenerateBuildMetadata
+            COMMAND "${OMNIGHOST_POWERSHELL_EXECUTABLE}" -NoProfile -ExecutionPolicy Bypass
+                -File "${CMAKE_CURRENT_SOURCE_DIR}/src/project/tools/Generate-BuildMetadata.ps1"
+                -ProjectDir "${CMAKE_CURRENT_SOURCE_DIR}"
+                -Configuration "${CMAKE_BUILD_TYPE}"
+                -Architecture "x64"
+                -ReleaseChannel "${OMNIGHOST_RELEASE_CHANNEL}"
+                -WindowsSdkVersion "${OMNIGHOST_WINDOWS_SDK_VERSION}"
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+            COMMENT "Generating build metadata"
+        )
+
+        add_dependencies(OmniGhost GenerateEmbeddedOffsets GenerateEmbeddedRuntime GenerateEmbeddedResources GenerateBuildMetadata)
         target_include_directories(OmniGhost PRIVATE "${OMNIGHOST_GENERATED_DIR}")
     else()
         message(FATAL_ERROR "PowerShell is required to generate OmniGhost embedded resources.")
