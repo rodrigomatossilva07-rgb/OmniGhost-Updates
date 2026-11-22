@@ -6,15 +6,10 @@
 #define OMNIGHOST_BUILD_CHANNEL "Stable"
 #endif
 
-// Release builds keep the public semantic version. Development receives its
-// own prerelease version from CMake (for example 1.3.5-dev.1), preventing a
-// private package from being mistaken for a stable release.
-#ifndef OMNIGHOST_BUILD_VERSION
-#define OMNIGHOST_BUILD_VERSION "1.3.4"
-#endif
-
+// Version is synchronized from src/project/config/release/version.txt by sync_version.ps1
+// DO NOT EDIT MANUALLY - use the sync script instead.
 namespace OmniGhost {
-inline constexpr char Version[] = OMNIGHOST_BUILD_VERSION;
+inline constexpr char Version[] = "1.3.4";
 inline constexpr char BuildChannel[] = OMNIGHOST_BUILD_CHANNEL;
 inline constexpr wchar_t MainExecutable[] = L"OmniGhost.exe";
 }
