@@ -339,7 +339,7 @@ int LoadOffsetsFromJsonImpl(const char* explicit_path) {
             if (slash != std::string::npos) dir.resize(slash);
             candidates.push_back(dir + "\\data\\fivem_offsets.json");
         }
-    } catch (...) {}
+    } catch (...) { /* ignored: best-effort module path resolution */ }
 
     std::string data;
     for (const auto& c : candidates) {
