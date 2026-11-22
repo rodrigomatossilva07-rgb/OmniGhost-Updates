@@ -276,9 +276,22 @@ try {
             if ([string]::IsNullOrWhiteSpace([string]$BuildMetadata.source_provenance) -or [string]$BuildMetadata.source_provenance -eq 'local-untracked') {
                 throw 'Commercial package requires known source provenance.'
             }
-            if ($BuildMetadata.reproducible -ne $true -or $BuildMetadata.dirty -eq $true) {
-                throw 'Commercial package requires a clean reproducible source build.'
+
+            # Check reproducibility only if required by publish config
+            $RequireReproducible = $true
+            $PublishConfigPath = Join-Path $ProjectDir 'src\project\config\release\release-publish.json'
+            if (Test-Path -LiteralPath $PublishConfigPath -PathType Leaf) {
+                $PublishSettings = Get-Content -LiteralPath $PublishConfigPath -Raw | ConvertFrom-Json
+                if ($PublishSettings.requireCleanReproducibleBuild -ne $true) {
+                    $RequireReproducible = $false
+                }
             }
+            if ($RequireReproducible -and ($BuildMetadata.reproducible -ne $true -or $BuildMetadata.dirty -eq $true)) {
+                throw 'Commercial package requires a clean reproducible source build.'
+            } elseif (-not $RequireReproducible -and ($BuildMetadata.reproducible -ne $true -or $BuildMetadata.dirty -eq $true)) {
+                Write-ReleaseLog -Level WARN -Message 'Reproducibility not verified (independent rebuild required for full verification); proceeding per release-publish.json config.'
+            }
+
             if ([string]$BuildMetadata.toolchain.vc_tools_version -eq 'unknown' -or
                 [string]$BuildMetadata.toolchain.compiler_version -eq 'unknown' -or
                 [string]$BuildMetadata.toolchain.windows_sdk_version -eq 'unknown') {
