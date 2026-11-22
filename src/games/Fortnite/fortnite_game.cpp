@@ -1352,10 +1352,10 @@ void DrawESP() {
 
     if (runtime.w2s_ok && config.show_local_marker) {
         const ImU32 col = IM_COL32(
-            (int)(config.col_local[0] * 255),
-            (int)(config.col_local[1] * 255),
-            (int)(config.col_local[2] * 255),
-            (int)(config.col_local[3] * 255));
+            static_cast<int>(config.col_local[0] * 255),
+            static_cast<int>(config.col_local[1] * 255),
+            static_cast<int>(config.col_local[2] * 255),
+            static_cast<int>(config.col_local[3] * 255));
         const ImVec2 p(runtime.screen_x, runtime.screen_y);
         dl->AddCircleFilled(p, 5.f, col, 12);
         dl->AddCircle(p, 8.f, col, 12, 1.5f);

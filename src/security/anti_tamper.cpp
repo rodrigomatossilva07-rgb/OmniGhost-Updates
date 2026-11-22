@@ -1,610 +1,546 @@
-#include "anti_tamper.h"
+// Anti-Tamper Implementation
+// Runtime integrity verification of code sections and critical data
 
-#include <Windows.h>
-#include <TlHelp32.h>
-#include <Psapi.h>
-#include <intrin.h>
-#include <bcrypt.h>
+#include "anti_tamper.h"
 #include <vector>
 #include <string>
-#include <sstream>
-#include <iomanip>
 #include <algorithm>
-#include <mutex>
-#include <atomic>
 #include <chrono>
-#include <filesystem>
+#include <mutex>
 
-#pragma comment(lib, "bcrypt.lib")
+#if OMNIGHOST_PLATFORM_WINDOWS
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#include <psapi.h>
+#include <tlhelp32.h>
+#include <intrin.h>
+#pragma comment(lib, "psapi.lib")
+#pragma comment(lib, "version.lib")
+#endif
 
-namespace OmniGhost::Security {
-
-// =============================================================================
-// MemoryGuard Implementation
-// =============================================================================
-
-MemoryGuard::MemoryGuard(void* address, std::size_t size, DWORD protect)
-    : address_(address), size_(size), originalProtect_(0), protected_(false) {
-    if (address && size > 0) {
-        Protect(address, size, protect);
-    }
-}
-
-MemoryGuard::~MemoryGuard() {
-    Unprotect();
-}
-
-MemoryGuard::MemoryGuard(MemoryGuard&& other) noexcept
-    : address_(other.address_), size_(other.size_),
-      originalProtect_(other.originalProtect_), protected_(other.protected_) {
-    other.address_ = nullptr;
-    other.size_ = 0;
-    other.originalProtect_ = 0;
-    other.protected_ = false;
-}
-
-MemoryGuard& MemoryGuard::operator=(MemoryGuard&& other) noexcept {
-    if (this != &other) {
-        Unprotect();
-        address_ = other.address_;
-        size_ = other.size_;
-        originalProtect_ = other.originalProtect_;
-        protected_ = other.protected_;
-        other.address_ = nullptr;
-        other.size_ = 0;
-        other.originalProtect_ = 0;
-        other.protected_ = false;
-    }
-    return *this;
-}
-
-bool MemoryGuard::Protect(void* address, std::size_t size, DWORD protect) {
-    if (protected_) {
-        Unprotect();
-    }
-
-    DWORD oldProtect = 0;
-    if (!VirtualProtect(address, size, protect, &oldProtect)) {
-        return false;
-    }
-
-    address_ = address;
-    size_ = size;
-    originalProtect_ = oldProtect;
-    protected_ = true;
-    return true;
-}
-
-void MemoryGuard::Unprotect() {
-    if (protected_ && address_ && size_ > 0 && originalProtect_ != 0) {
-        DWORD dummy = 0;
-        VirtualProtect(address_, size_, originalProtect_, &dummy);
-        protected_ = false;
-    }
-}
+namespace omnighost::security {
 
 // =============================================================================
-// MemoryGuardRegistry Implementation
+// Static Data
 // =============================================================================
 
-std::size_t MemoryGuardRegistry::RegisterRegion(void* address, std::size_t size,
-                                                DWORD protect, std::string_view name) {
-    std::lock_guard<std::mutex> lock(mutex_);
+static std::mutex g_tamper_mutex;
+static std::vector<ProtectedRegion> g_regions;
+static AntiTamperConfig g_config;
+static IntegrityViolationCallback g_violation_callback = nullptr;
+static bool g_initialized = false;
+static std::vector<uint8_t> g_original_text_section;
+static std::vector<uint8_t> g_original_imports;
+static std::vector<std::string> g_original_modules;
+static uint64_t g_last_check_time = 0;
+static uint32_t g_violation_count = 0;
+static IntegrityReport g_last_report = {IntegrityStatus::Valid, 0, 0, 0, nullptr, 0};
 
-    MemoryGuard guard;
-    if (!guard.Protect(address, size, protect)) {
-        return static_cast<std::size_t>(-1);
-    }
+// =============================================================================
+// CRC32 Implementation
+// =============================================================================
 
-    const std::size_t id = guards_.size();
-    guards_.push_back(std::move(guard));
-    return id;
-}
+uint32_t CRC32::compute(const void* data, size_t length, uint32_t crc) {
+    const uint8_t* bytes = static_cast<const uint8_t*>(data);
+    uint32_t crc = ~crc;
 
-bool MemoryGuardRegistry::UnregisterRegion(std::size_t guardId) {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    if (guardId >= guards_.size()) {
-        return false;
-    }
-
-    guards_[guardId].Unprotect();
-    // Mark as invalid by setting address to null
-    guards_[guardId] = MemoryGuard();
-    return true;
-}
-
-bool MemoryGuardRegistry::VerifyAll() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    if (!protectionEnabled_.load()) {
-        return true;
-    }
-
-    for (const auto& guard : guards_) {
-        if (guard.IsProtected()) {
-            // Verify protection is still in place
-            MEMORY_BASIC_INFORMATION mbi{};
-            if (VirtualQuery(guard.Address(), &mbi, sizeof(mbi)) == sizeof(mbi)) {
-                if ((mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS | PAGE_READONLY)) == 0) {
-                    // Protection may have been changed
-                    return false;
-                }
-            }
+    for (size_t i = 0; i < length; ++i) {
+        crc ^= bytes[i];
+        for (int j = 0; j < 8; ++j) {
+            crc = (crc >> 1) ^ (static_cast<uint32_t>(-(crc & 1)) & POLYNOMIAL);
         }
-    }
-    return true;
-}
-
-bool MemoryGuardRegistry::VerifyRegion(std::size_t guardId) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    if (guardId >= guards_.size()) {
-        return false;
-    }
-
-    const auto& guard = guards_[guardId];
-    if (!guard.IsProtected()) {
-        return false;
-    }
-
-    MEMORY_BASIC_INFORMATION mbi{};
-    if (VirtualQuery(guard.Address(), &mbi, sizeof(mbi)) != sizeof(mbi)) {
-        return false;
-    }
-
-    return (mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS | PAGE_READONLY)) != 0;
-}
-
-std::vector<MemoryGuardRegistry::RegionInfo> MemoryGuardRegistry::GetAllRegions() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    std::vector<RegionInfo> result;
-    result.reserve(guards_.size());
-
-    for (std::size_t i = 0; i < guards_.size(); ++i) {
-        const auto& guard = guards_[i];
-        RegionInfo info;
-        info.id = i;
-        info.address = guard.Address();
-        info.size = guard.Size();
-        info.protection = guard.OriginalProtection();
-        info.valid = guard.IsProtected();
-        result.push_back(info);
-    }
-
-    return result;
-}
-
-void MemoryGuardRegistry::SetProtectionEnabled(bool enabled) {
-    protectionEnabled_.store(enabled);
-}
-
-// =============================================================================
-// TimingCheck Implementation
-// =============================================================================
-
-bool TimingCheck::CheckRDTSC(uint64_t thresholdCycles) {
-    // Serialize with CPUID
-    int cpuInfo[4] = {0};
-    __cpuid(cpuInfo, 0);
-
-    uint64_t start = __rdtsc();
-
-    // Small workload
-    volatile int sum = 0;
-    for (int i = 0; i < 1000; ++i) {
-        sum += i;
-    }
-    __cpuid(cpuInfo, 0);  // Serialize
-
-    uint64_t end = __rdtsc();
-    uint64_t delta = end - start;
-
-    return delta > thresholdCycles;
-}
-
-bool TimingCheck::CheckQPC(uint64_t thresholdMicroseconds) {
-    LARGE_INTEGER freq;
-    QueryPerformanceFrequency(&freq);
-
-    LARGE_INTEGER start, end;
-    QueryPerformanceCounter(&start);
-
-    // Small workload
-    volatile int sum = 0;
-    for (int i = 0; i < 1000; ++i) {
-        sum += i;
-    }
-
-    QueryPerformanceCounter(&end);
-
-    uint64_t delta = static_cast<uint64_t>((end.QuadPart - start.QuadPart) * 1000000 / freq.QuadPart);
-    return delta > thresholdMicroseconds;
-}
-
-bool TimingCheck::CheckDebuggerPresent() {
-    // Check IsDebuggerPresent
-    if (IsDebuggerPresent()) {
-        return true;
-    }
-
-    // Check NtGlobalFlag (PEB)
-    // This is more advanced - check for debug flags in PEB
-    return false;
-}
-
-bool TimingCheck::CheckHardwareBreakpoints() {
-    // Check for hardware breakpoints via GetThreadContext
-    // This requires thread context access
-    CONTEXT ctx = {};
-    ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
-
-    HANDLE thread = GetCurrentThread();
-    if (GetThreadContext(thread, &ctx)) {
-        // DR0-DR3 contain hardware breakpoint addresses
-        // DR7 contains control register
-        if (ctx.Dr0 != 0 || ctx.Dr1 != 0 || ctx.Dr2 != 0 || ctx.Dr3 != 0) {
-            if ((ctx.Dr7 & 0xFF) != 0) {  // Any breakpoint enabled
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-bool TimingCheck::RunAllChecks(uint64_t rdtscThreshold, uint64_t qpcThreshold) {
-    if (CheckRDTSC(rdtscThreshold)) return true;
-    if (CheckQPC(qpcThreshold)) return true;
-    if (CheckDebuggerPresent()) return true;
-    if (CheckHardwareBreakpoints()) return true;
-    return false;
-}
-
-TimingCheck::TimingStats TimingCheck::GetTimingStats() {
-    TimingStats stats;
-
-    // RDTSC
-    int cpuInfo[4] = {0};
-    __cpuid(cpuInfo, 0);
-    uint64_t start = __rdtsc();
-    volatile int sum = 0;
-    for (int i = 0; i < 1000; ++i) sum += i;
-    __cpuid(cpuInfo, 0);
-    uint64_t end = __rdtsc();
-    stats.rdtscDelta = end - start;
-
-    // QPC
-    LARGE_INTEGER freq, qpcStart, qpcEnd;
-    QueryPerformanceFrequency(&freq);
-    QueryPerformanceCounter(&qpcStart);
-    sum = 0;
-    for (int i = 0; i < 1000; ++i) sum += i;
-    QueryPerformanceCounter(&qpcEnd);
-    stats.qpcDelta = static_cast<uint64_t>((qpcEnd.QuadPart - qpcStart.QuadPart) * 1000000 / freq.QuadPart);
-
-    stats.debuggerDetected = RunAllChecks();
-    stats.details = "RDTSC: " + std::to_string(stats.rdtscDelta) + " cycles, QPC: " +
-                    std::to_string(stats.qpcDelta) + " us";
-
-    return stats;
-}
-
-// =============================================================================
-// ModuleIntegrity Implementation
-// =============================================================================
-
-void ModuleIntegrity::AddModule(std::string_view moduleName,
-                                std::uintptr_t baseAddress,
-                                std::size_t size,
-                                std::string_view expectedSHA256) {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    ModuleIntegrityInfo info;
-    info.moduleName = moduleName;
-    info.baseAddress = baseAddress;
-    info.size = size;
-    info.expectedSHA256 = expectedSHA256;
-    modules_.push_back(info);
-}
-
-void ModuleIntegrity::AddModuleByName(std::string_view moduleName, std::string_view expectedSHA256) {
-    auto modInfo = GetModuleInfo(moduleName);
-    if (modInfo) {
-        AddModule(moduleName, modInfo->baseAddress, modInfo->size, expectedSHA256);
-    }
-}
-
-bool ModuleIntegrity::VerifyAll(std::vector<ModuleIntegrityInfo>& results) {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    results.clear();
-    results.reserve(modules_.size());
-
-    bool allVerified = true;
-    for (auto& module : modules_) {
-        ModuleIntegrityInfo result;
-        if (VerifyModule(module.moduleName, result)) {
-            result.verified = true;
-        } else {
-            result.verified = false;
-            allVerified = false;
-        }
-        results.push_back(result);
-    }
-
-    return allVerified;
-}
-
-bool ModuleIntegrity::VerifyModule(std::string_view moduleName, ModuleIntegrityInfo& result) {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    auto it = std::find_if(modules_.begin(), modules_.end(),
-                           [&](const auto& m) { return m.moduleName == moduleName; });
-
-    if (it == modules_.end()) {
-        result.error = "Module not registered";
-        return false;
-    }
-
-    const auto& module = *it;
-    result.moduleName = module.moduleName;
-    result.baseAddress = module.baseAddress;
-    result.size = module.size;
-    result.expectedSHA256 = module.expectedSHA256;
-
-    // Calculate actual SHA256
-    if (!CalculateSHA256(module.baseAddress, module.size, result.actualSHA256)) {
-        result.error = "Failed to calculate SHA256";
-        return false;
-    }
-
-    // Calculate CRC32
-    result.crc32 = CalculateCRC32(module.baseAddress, module.size);
-
-    // Compare with expected if provided
-    if (!module.expectedSHA256.empty()) {
-        if (!Platform::ConstantTimeEquals(module.expectedSHA256, result.actualSHA256)) {
-            result.error = "SHA256 mismatch";
-            return false;
-        }
-    }
-
-    result.verified = true;
-    return true;
-}
-
-bool ModuleIntegrity::CalculateSHA256(std::uintptr_t address, std::size_t size, std::string& hash) {
-    if (address == 0 || size == 0) {
-        return false;
-    }
-
-    BCRYPT_ALG_HANDLE algorithm = nullptr;
-    BCRYPT_HASH_HANDLE hashHandle = nullptr;
-
-    if (BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) < 0) {
-        return false;
-    }
-
-    auto cleanup = [&]() {
-        if (hashHandle) BCryptDestroyHash(hashHandle);
-        if (algorithm) BCryptCloseAlgorithmProvider(algorithm, 0);
-    };
-
-    DWORD objectLength = 0, resultLength = 0, hashLength = 0;
-    if (BCryptGetProperty(algorithm, BCRYPT_OBJECT_LENGTH,
-            reinterpret_cast<PUCHAR>(&objectLength), sizeof(objectLength), &resultLength, 0) < 0 ||
-        BCryptGetProperty(algorithm, BCRYPT_HASH_LENGTH,
-            reinterpret_cast<PUCHAR>(&hashLength), sizeof(hashLength), &resultLength, 0) < 0 ||
-        objectLength == 0 || hashLength == 0) {
-        cleanup();
-        return false;
-    }
-
-    std::vector<unsigned char> object(objectLength);
-    std::vector<unsigned char> digest(hashLength);
-
-    if (BCryptCreateHash(algorithm, &hashHandle, object.data(), objectLength, nullptr, 0, 0) < 0) {
-        cleanup();
-        return false;
-    }
-
-    // Hash the memory region in chunks
-    const std::size_t chunkSize = 64 * 1024;
-    std::uintptr_t current = address;
-    std::size_t remaining = size;
-
-    while (remaining > 0) {
-        const std::size_t toHash = (std::min)(chunkSize, remaining);
-        if (BCryptHashData(hashHandle,
-                reinterpret_cast<PUCHAR>(current), static_cast<ULONG>(toHash), 0) < 0) {
-            cleanup();
-            return false;
-        }
-        current += toHash;
-        remaining -= toHash;
-    }
-
-    if (BCryptFinishHash(hashHandle, digest.data(), static_cast<ULONG>(hashLength), 0) < 0) {
-        cleanup();
-        return false;
-    }
-
-    std::ostringstream out;
-    out << std::hex << std::setfill('0');
-    for (unsigned char byte : digest) {
-        out << std::setw(2) << static_cast<int>(byte);
-    }
-    hash = out.str();
-
-    cleanup();
-    return true;
-}
-
-uint32_t ModuleIntegrity::CalculateCRC32(std::uintptr_t address, std::size_t size) {
-    // Simple CRC32 implementation (IEEE 802.3 polynomial)
-    static const uint32_t crcTable[256] = {
-        0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA, 0x076DC419, 0x706AF48F, 0xE963A535, 0x9E6495A3,
-        0x0EDB8832, 0x79DCB8A4, 0xE0D5E91E, 0x97D2D988, 0x09B64C2B, 0x7EB17CBD, 0xE7B82D07, 0x90BF1D91,
-        0x1DB71064, 0x6AB020F2, 0xF3B97148, 0x84BE41DE, 0x1ADAD47D, 0x6DDDE4EB, 0xF4D4B551, 0x83D385C7,
-        0x136C9856, 0x646BA8C0, 0xFD62F97A, 0x8A65C9EC, 0x14015C4F, 0x63066CD9, 0xFA0F3D63, 0x8D080DF5,
-        0x3B6E20C8, 0x4C69105E, 0xD56041E4, 0xA2677172, 0x3C03E4D1, 0x4B04D447, 0xD20D85FD, 0xA50AB56B,
-        0x35B5A8FA, 0x42B2986C, 0xDBBBC9D6, 0xACBCF940, 0x32D86CE3, 0x45DF5C75, 0xDCD60DCF, 0xABD13D59,
-        0x26D930AC, 0x51DE003A, 0xC8D75180, 0xBFD06112, 0x25B4339F, 0x52B72307, 0xCBBE92BD, 0xBCB7822B,
-        0x224D5354, 0x554A63C2, 0xCC431278, 0xBC4422EE, 0x2C8E1F9B, 0x5B8D2F03, 0xC2847EB9, 0xB5874E2F,
-        0x56D8D758, 0x21DBA7CE, 0xB8D2F674, 0xCFD5C6E2, 0x5497D574, 0x2394E5E6, 0xBADF745C, 0xCDDC44CA,
-        0x611E37BC, 0x1619072A, 0x8F105690, 0xF8172602, 0x649C4D5D, 0x139B7DCB, 0x8A922C75, 0xF1951CE3,
-        0x6B727E4E, 0x1C754ED6, 0x857CFD4C, 0xF27B8DD4, 0x6D3ED10B, 0x1A39E19D, 0x83307027, 0xF43700B1,
-        0x68D20F2A, 0x1FD53FB2, 0x86DCAE08, 0xFBDF9E9E, 0x654B6B07, 0x124C5B9F, 0x8B45E825, 0xFC42D8B3,
-        0x6F0B79DE, 0x180C4948, 0x810518F2, 0xF6022864, 0x69613BDF, 0x1E660B4B, 0x876FBAF1, 0xF06ACA67,
-        0x4E891A98, 0x398E2A0E, 0xA0857BB4, 0xD7824B22, 0x41CE3473, 0x36C904E5, 0xAFC1955F, 0xD8C6A5C9,
-        0x49073C5C, 0x3E040CEE, 0xA70F5F54, 0xD0086FC6, 0x4E6D9D0D, 0x396AE99B, 0xA0633821, 0xD76008B7,
-        0x400491E0, 0x3707A176, 0xAE0EF0CC, 0xD90DC05A, 0x436B52AF, 0x346C6239, 0xAD653383, 0xDA620315,
-        0x4C05829E, 0x3B02B20A, 0xA20B23B0, 0xD50C1322, 0x4F61C6BB, 0x3866F62D, 0xA16F6797, 0xD66C5701,
-        0x576E4D90, 0x20693D06, 0xB9608CBC, 0xCE67BC2A, 0x5A625B4D, 0x2D656BDF, 0xB46C3A65, 0xC36B0AFF,
-        0x5C2F7688, 0x2B28461E, 0xB221D7A4, 0xC526E732, 0x50E73A9B, 0x27E00A0D, 0xBEE75BB7, 0xC6E06B2F,
-        0x5505D6B6, 0x2202E620, 0xBB0B57B6, 0xCC0C672E, 0x580FF355, 0x2F0CC3C3, 0xB6059259, 0xC106A2CF,
-        0x5FCF1164, 0x28C821F6, 0xB1C1B06C, 0xC6C680FA, 0x53C2D03D, 0x24C5E0AB, 0xBDCE9131, 0xCACC81A7,
-        0x528D9A1A, 0x258AAAC2, 0xBC833B78, 0xCB840BE6, 0x5E815E1F, 0x29866E87, 0xB08FFD33, 0xC788CDE5,
-        0x7A81E49A, 0x0D86D40C, 0x948F65B6, 0xE3885520, 0x7BEE6E51, 0x0CEF5EC9, 0x95E6CF73, 0xE2E1FFEB,
-        0x7F0C4F74, 0x080B7FEE, 0x9102E654, 0xE605F6C2, 0x7968313F, 0x0E6F41A7, 0x9769D51D, 0xE06EC58B,
-        0x776B105C, 0x006C20CA, 0x99655D70, 0xEE626DE6, 0x74E57B3D, 0x03E24BA5, 0x9AEB1B3F, 0xED882BAF,
-        0x71C95A86, 0x06CE6A10, 0x9FC1FBA4, 0xE8C6CB3C, 0x78431CE5, 0x0F442C7D, 0x964DBD07, 0xE14AED9F,
-        0x7ECD34D2, 0x09CA0444, 0x90C395FE, 0xE7C4A56A, 0x78C3F5F3, 0x0FC0C565, 0x96C974DF, 0xE1CE444B,
-        0x7386F55E, 0x0481C5C8, 0x9D8A5472, 0xEA8D64E4, 0x700A7417, 0x070D4481, 0x9E04353B, 0xE90305AD,
-        0x76C01EFA, 0x01C72E6C, 0x98CE5ED6, 0xEF896E40, 0x7F4E35D3, 0x08490545, 0x914090FF, 0xE647A069,
-        0x7DCE1330, 0x0ACD23A6, 0x93C4B21C, 0xE4C3828A, 0x72471F15, 0x05402F83, 0x9C49BF39, 0xE54E8FAF,
-        0x7B09BFBE, 0x0C0E8B2A, 0x95071A90, 0xE2002A06, 0x7EA71199, 0x09A0210F, 0x90A9B0B5, 0xE7AE8023,
-        0x74EF658E, 0x03E85518, 0x9AE1C4A2, 0xEDE6F434, 0x78692CEB, 0x0F6E1C7D, 0x9667AD07, 0xE1609D91,
-        0x70E80D66, 0x07EF3DFC, 0x9EFC6E46, 0xE8FB5EDA, 0x7C8F0ED3, 0x0B883E45, 0x9281AFFB, 0xE5869F6D,
-        0x73466F1A, 0x04415F8C, 0x9D482E36, 0xEA4F1EAA, 0x7A2C7E7F, 0x0D2B4E09, 0x9422DFF3, 0xE325EFA5
-    };
-
-    uint32_t crc = 0xFFFFFFFF;
-    const unsigned char* data = reinterpret_cast<const unsigned char*>(address);
-
-    for (std::size_t i = 0; i < size; ++i) {
-        crc = (crc >> 8) ^ crcTable[(crc ^ data[i]) & 0xFF];
     }
 
     return ~crc;
 }
 
-const std::vector<ModuleIntegrityInfo>& ModuleIntegrity::GetRegisteredModules() const noexcept {
-    return modules_;
-}
-
-void ModuleIntegrity::Clear() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    modules_.clear();
-}
-
 // =============================================================================
-// Startup Integrity Verification
+// Platform-Specific Helpers
 // =============================================================================
 
-bool RunStartupIntegrityChecks() {
-    // 1. Timing checks
-    if (!RunTimingChecks()) {
+#if OMNIGHOST_PLATFORM_WINDOWS
+
+static bool get_module_bounds(const char* module_name, uintptr_t& base, size_t& size) {
+    HMODULE module = GetModuleHandleA(module_name);
+    if (!module) return false;
+
+    MODULEINFO info;
+    if (!GetModuleInformation(GetCurrentProcess(), module, &info, sizeof(info))) {
         return false;
     }
 
-    // 2. Install memory guards
-    InstallCriticalMemoryGuards();
+    base = reinterpret_cast<uintptr_t>(info.lpBaseOfDll);
+    size = info.SizeOfImage;
+    return true;
+}
 
-    // 3. Module integrity (if any registered)
-    ModuleIntegrity& integrity = ModuleIntegrity::Instance();
-    std::vector<ModuleIntegrityInfo> results;
-    if (!integrity.GetRegisteredModules().empty()) {
-        if (!integrity.VerifyAll(results)) {
-            return false;
+static bool get_section_bounds(const char* section_name, uintptr_t& base, size_t& size) {
+    HMODULE module = GetModuleHandle(nullptr);
+    if (!module) return false;
+
+    PIMAGE_DOS_HEADER dos = reinterpret_cast<PIMAGE_DOS_HEADER>(module);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE) return false;
+
+    PIMAGE_NT_HEADERS nt = reinterpret_cast<PIMAGE_NT_HEADERS>(reinterpret_cast<uintptr_t>(module) + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE) return false;
+
+    PIMAGE_SECTION_HEADER section = IMAGE_FIRST_SECTION(nt);
+    for (WORD i = 0; i < nt->FileHeader.NumberOfSections; ++i, ++section) {
+        char name[9] = {0};
+        memcpy(name, section->Name, 8);
+        if (strcmp(name, section_name) == 0) {
+            base = reinterpret_cast<uintptr_t>(module) + section->VirtualAddress;
+            size = section->Misc.VirtualSize;
+            return true;
         }
     }
+    return false;
+}
+
+static bool get_import_table(uintptr_t& base, size_t& size) {
+    HMODULE module = GetModuleHandle(nullptr);
+    if (!module) return false;
+
+    PIMAGE_DOS_HEADER dos = reinterpret_cast<PIMAGE_DOS_HEADER>(module);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE) return false;
+
+    PIMAGE_NT_HEADERS nt = reinterpret_cast<PIMAGE_NT_HEADERS>(reinterpret_cast<uintptr_t>(module) + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE) return false;
+
+    PIMAGE_DATA_DIRECTORY import_dir = &nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+    if (import_dir->VirtualAddress == 0 || import_dir->Size == 0) return false;
+
+    base = reinterpret_cast<uintptr_t>(module) + import_dir->VirtualAddress;
+    size = import_dir->Size;
+    return true;
+}
+
+static std::vector<std::string> get_loaded_modules() {
+    std::vector<std::string> modules;
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, GetCurrentProcessId());
+    if (snapshot == INVALID_HANDLE_VALUE) return modules;
+
+    MODULEENTRY32 me = { sizeof(MODULEENTRY32) };
+    if (Module32First(snapshot, &me)) {
+        do {
+            modules.emplace_back(me.szModule);
+        } while (Module32Next(snapshot, &me));
+    }
+    CloseHandle(snapshot);
+    return modules;
+}
+
+static uintptr_t get_text_section_base() {
+    uintptr_t base = 0, size = 0;
+    get_section_bounds(".text", base, size);
+    return base;
+}
+
+static size_t get_text_section_size() {
+    uintptr_t base = 0, size = 0;
+    get_section_bounds(".text", base, size);
+    return size;
+}
+
+#endif // OMNIGHOST_PLATFORM_WINDOWS
+
+// =============================================================================
+// Integrity Report
+// =============================================================================
+
+static void report_violation(const IntegrityReport& report) {
+    std::lock_guard<std::mutex> lock(g_tamper_mutex);
+    g_violation_count++;
+    g_last_report = report;
+
+    if (g_config.log_violation) {
+        // Log to debug output
+        char buffer[512];
+        snprintf(buffer, sizeof(buffer),
+            "[ANTI-TAMPER] Violation: %s at 0x%p (expected: 0x%08X, actual: 0x%08X)\n",
+            report.violation_type ? report.violation_type : "Unknown",
+            reinterpret_cast<void*>(report.violation_address),
+            static_cast<uint32_t>(report.expected_crc),
+            static_cast<uint32_t>(report.actual_crc));
+        OutputDebugStringA(buffer);
+    }
+
+    if (g_config.callback_on_violation && g_violation_callback) {
+        g_violation_callback(report);
+    }
+
+    if (g_config.terminate_on_violation) {
+        OMNIGHOST_UNREACHABLE();
+    }
+}
+
+// =============================================================================
+// Region CRC Computation
+// =============================================================================
+
+static uint32_t compute_region_crc(const ProtectedRegion& region) {
+    return CRC32::compute(reinterpret_cast<const void*>(region.start_address), region.size);
+}
+
+static bool verify_region_crc(const ProtectedRegion& region) {
+    uint32_t actual_crc = compute_region_crc(region);
+    if (actual_crc != region.expected_crc) {
+        IntegrityReport report = {
+            IntegrityStatus::Modified,
+            region.expected_crc,
+            actual_crc,
+            region.start_address,
+            "Region CRC mismatch",
+            static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count())
+        };
+        report_violation(report);
+        return false;
+    }
+    return true;
+}
+
+// =============================================================================
+// AntiTamper Class Implementation
+// =============================================================================
+
+AntiTamper::AntiTamper() = default;
+AntiTamper::~AntiTamper() = default;
+
+bool AntiTamper::initialize(const AntiTamperConfig& config) {
+    std::lock_guard<std::mutex> lock(g_tamper_mutex);
+
+    if (g_initialized) return true;
+
+    g_config = config;
+    g_initialized = true;
+    g_violation_count = 0;
+    g_last_check_time = 0;
+
+    // Capture original text section
+    #if OMNIGHOST_PLATFORM_WINDOWS
+    uintptr_t text_base = get_text_section_base();
+    size_t text_size = get_text_section_size();
+    if (text_base && text_size > 0) {
+        g_original_text_section.resize(text_size);
+        memcpy(g_original_text_section.data(), reinterpret_cast<void*>(text_base), text_size);
+    }
+
+    // Capture imports
+    uintptr_t import_base = 0, import_size = 0;
+    if (get_import_table(import_base, import_size)) {
+        g_original_imports.resize(import_size);
+        memcpy(g_original_imports.data(), reinterpret_cast<void*>(import_base), import_size);
+    }
+
+    // Capture loaded modules
+    g_original_modules = get_loaded_modules();
+    #endif
+
+    // Scan and register default regions
+    scan_memory_regions();
 
     return true;
 }
 
-bool RunPeriodicIntegrityChecks() {
-    // Verify memory guards
-    if (!MemoryGuardRegistry::Instance().VerifyAll()) {
-        return false;
-    }
+void AntiTamper::shutdown() {
+    std::lock_guard<std::mutex> lock(g_tamper_mutex);
+    g_initialized = false;
+    g_regions.clear();
+    g_original_text_section.clear();
+    g_original_imports.clear();
+    g_original_modules.clear();
+}
 
-    // Quick timing check
-    if (TimingCheck::RunAllChecks(50000, 5000)) {  // Higher thresholds for periodic
-        return false;
-    }
+void AntiTamper::set_config(const AntiTamperConfig& config) {
+    std::lock_guard<std::mutex> lock(g_tamper_mutex);
+    g_config = config;
+}
 
+const AntiTamperConfig& AntiTamper::get_config() const {
+    return g_config;
+}
+
+bool AntiTamper::add_protected_region(const ProtectedRegion& region) {
+    std::lock_guard<std::mutex> lock(g_tamper_mutex);
+
+    // Compute initial CRC
+    ProtectedRegion new_region = region;
+    new_region.expected_crc = compute_region_crc(region);
+
+    // Check for duplicate
+    auto it = std::find_if(g_regions.begin(), g_regions.end(),
+        [&region](const ProtectedRegion& r) { return strcmp(r.name, region.name) == 0; });
+
+    if (it != g_regions.end()) {
+        *it = new_region;
+    } else {
+        g_regions.push_back(new_region);
+    }
     return true;
 }
 
-void InstallCriticalMemoryGuards() {
-    auto& registry = MemoryGuardRegistry::Instance();
+bool AntiTamper::remove_protected_region(const char* name) {
+    std::lock_guard<std::mutex> lock(g_tamper_mutex);
+    auto it = std::find_if(g_regions.begin(), g_regions.end(),
+        [name](const ProtectedRegion& r) { return strcmp(r.name, name) == 0; });
+    if (it != g_regions.end()) {
+        g_regions.erase(it);
+        return true;
+    }
+    return false;
+}
 
-    // Protect critical code sections
-    // Note: In a real implementation, you'd protect specific functions/data
-    // For now, we register the main module's .text section as read-only
+bool AntiTamper::update_region_crc(const char* name) {
+    std::lock_guard<std::mutex> lock(g_tamper_mutex);
+    auto it = std::find_if(g_regions.begin(), g_regions.end(),
+        [name](const ProtectedRegion& r) { return strcmp(r.name, name) == 0; });
+    if (it != g_regions.end()) {
+        it->expected_crc = compute_region_crc(*it);
+        return true;
+    }
+    return false;
+}
 
-    std::uintptr_t base = GetCurrentModuleBase();
-    if (base != 0) {
-        // Get module size from PE headers
-        const IMAGE_DOS_HEADER* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
-        if (dos->e_magic == IMAGE_DOS_SIGNATURE) {
-            const IMAGE_NT_HEADERS64* nt = reinterpret_cast<const IMAGE_NT_HEADERS64*>(base + dos->e_lfanew);
-            if (nt->Signature == IMAGE_NT_SIGNATURE) {
-                // Protect .text section (code)
-                // In practice, you'd iterate sections and protect specific ones
-                // This is a simplified example
+bool AntiTamper::verify_all_regions() {
+    std::lock_guard<std::mutex> lock(g_tamper_mutex);
+
+    bool all_valid = true;
+    for (const auto& region : g_regions) {
+        if (!verify_region_crc(region)) {
+            all_valid = false;
+            if (g_config.terminate_on_violation) return false;
+        }
+    }
+    return all_valid;
+}
+
+bool AntiTamper::verify_region(const char* name) {
+    std::lock_guard<std::mutex> lock(g_tamper_mutex);
+    auto it = std::find_if(g_regions.begin(), g_regions.end(),
+        [name](const ProtectedRegion& r) { return strcmp(r.name, name) == 0; });
+    if (it != g_regions.end()) {
+        return verify_region_crc(*it);
+    }
+    return false;
+}
+
+bool AntiTamper::verify_region(const ProtectedRegion& region) {
+    return verify_region_crc(region);
+}
+
+bool AntiTamper::full_integrity_check() {
+    std::lock_guard<std::mutex> lock(g_tamper_mutex);
+
+    bool all_valid = true;
+
+    // Verify all registered regions
+    all_valid &= verify_all_regions();
+
+    // Verify text section
+    #if OMNIGHOST_PLATFORM_WINDOWS
+    if (g_config.protect_text_section) {
+        uintptr_t text_base = get_text_section_base();
+        size_t text_size = get_text_section_size();
+        if (text_base && text_size > 0 && text_size == g_original_text_section.size()) {
+            uint32_t current_crc = CRC32::compute(reinterpret_cast<void*>(text_base), text_size);
+            uint32_t original_crc = CRC32::compute(g_original_text_section.data(), g_original_text_section.size());
+            if (current_crc != original_crc) {
+                IntegrityReport report = {
+                    IntegrityStatus::Modified,
+                    original_crc,
+                    current_crc,
+                    text_base,
+                    "Text section modified",
+                    static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count())
+                };
+                report_violation(report);
+                all_valid = false;
             }
         }
     }
-}
 
-bool RunTimingChecks() {
-    return !TimingCheck::RunAllChecks();
-}
-
-// =============================================================================
-// Helper Functions
-// =============================================================================
-
-std::uintptr_t GetCurrentModuleBase() {
-    HMODULE hModule = nullptr;
-    GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                      reinterpret_cast<LPCSTR>(&GetCurrentModuleBase), &hModule);
-    return reinterpret_cast<std::uintptr_t>(hModule);
-}
-
-std::optional<ModuleInfo> GetModuleInfo(std::string_view moduleName) {
-    HMODULE hModule = GetModuleHandleA(moduleName.data());
-    if (!hModule) {
-        return std::nullopt;
+    // Verify imports
+    if (g_config.verify_imports) {
+        uintptr_t import_base = 0, import_size = 0;
+        if (get_import_table(import_base, import_size) && import_size == g_original_imports.size()) {
+            uint32_t current_crc = CRC32::compute(reinterpret_cast<void*>(import_base), import_size);
+            uint32_t original_crc = CRC32::compute(g_original_imports.data(), g_original_imports.size());
+            if (current_crc != original_crc) {
+                IntegrityReport report = {
+                    IntegrityStatus::Modified,
+                    original_crc,
+                    current_crc,
+                    import_base,
+                    "Import table modified",
+                    static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count())
+                };
+                report_violation(report);
+                all_valid = false;
+            }
+        }
     }
 
-    MODULEINFO modInfo{};
-    if (!GetModuleInformation(GetCurrentProcess(), hModule, &modInfo, sizeof(modInfo))) {
-        return std::nullopt;
+    // Verify loaded modules
+    if (g_config.check_module_list) {
+        auto current_modules = get_loaded_modules();
+        if (current_modules.size() != g_original_modules.size()) {
+            IntegrityReport report = {
+                IntegrityStatus::Modified,
+                static_cast<uint64_t>(g_original_modules.size()),
+                static_cast<uint64_t>(current_modules.size()),
+                0,
+                "Module list changed",
+                static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::system_clock::now().time_since_epoch()).count())
+            };
+            report_violation(report);
+            all_valid = false;
+        } else {
+            for (size_t i = 0; i < g_original_modules.size(); ++i) {
+                if (g_original_modules[i] != current_modules[i]) {
+                    IntegrityReport report = {
+                        IntegrityStatus::Modified,
+                        0, 0, 0,
+                        "Module list order changed",
+                        static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::system_clock::now().time_since_epoch()).count())
+                    };
+                    report_violation(report);
+                    all_valid = false;
+                    break;
+                }
+            }
+        }
     }
 
-    char path[MAX_PATH];
-    GetModuleFileNameA(hModule, path, MAX_PATH);
+    // Verify heap integrity
+    #if OMNIGHOST_PLATFORM_WINDOWS
+    if (g_config.protect_heap) {
+        if (!HeapValidate(GetProcessHeap(), 0, nullptr)) {
+            IntegrityReport report = {
+                IntegrityStatus::MemoryCorrupted,
+                0, 0, 0,
+                "Heap corruption detected",
+                static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::system_clock::now().time_since_epoch()).count())
+            };
+            report_violation(report);
+            all_valid = false;
+        }
+    }
+    #endif
+    #endif
 
-    ModuleInfo info;
-    info.baseAddress = reinterpret_cast<std::uintptr_t>(hModule);
-    info.size = modInfo.SizeOfImage;
-    info.name = moduleName;
-    info.path = path;
+    return true;
+}
 
-    return info;
+void AntiTamper::set_violation_callback(IntegrityViolationCallback cb) {
+    std::lock_guard<std::mutex> lock(g_tamper_mutex);
+    g_violation_callback = cb;
+}
+
+bool AntiTamper::is_initialized() const {
+    return g_initialized;
+}
+
+size_t AntiTamper::get_region_count() const {
+    return g_regions.size();
+}
+
+uint64_t AntiTamper::get_last_check_time() const {
+    return g_last_check_time;
+}
+
+uint32_t AntiTamper::get_violation_count() const {
+    return g_violation_count;
+}
+
+void AntiTamper::force_check() {
+    full_integrity_check();
+}
+
+bool AntiTamper::scan_memory_regions() {
+    #if OMNIGHOST_PLATFORM_WINDOWS
+    // Register default critical regions
+    ProtectedRegion text_region = {".text", 0, 0, 0, ProtectedRegion::FLAG_EXECUTABLE | ProtectedRegion::FLAG_READABLE | ProtectedRegion::FLAG_CRITICAL};
+    if (get_section_bounds(".text", text_region.start_address, text_region.size)) {
+        text_region.expected_crc = compute_region_crc(text_region);
+        g_regions.push_back(text_region);
+    }
+
+    ProtectedRegion rdata_region = {".rdata", 0, 0, 0, ProtectedRegion::FLAG_READABLE | ProtectedRegion::FLAG_CRITICAL};
+    if (get_section_bounds(".rdata", rdata_region.start_address, rdata_region.size)) {
+        rdata_region.expected_crc = compute_region_crc(rdata_region);
+        g_regions.push_back(rdata_region);
+    }
+
+    // Import table
+    uintptr_t import_base = 0, import_size = 0;
+    if (get_import_table(import_base, import_size)) {
+        ProtectedRegion import_region = {".idata", import_base, import_size, 0, ProtectedRegion::FLAG_READABLE | ProtectedRegion::FLAG_CRITICAL};
+        import_region.expected_crc = compute_region_crc(import_region);
+        g_regions.push_back(import_region);
+    }
+    #endif
+    return true;
+}
+
+bool AntiTamper::verify_text_section() {
+    return true; // Handled in full_integrity_check
+}
+
+bool AntiTamper::verify_imports() {
+    return true; // Handled in full_integrity_check
+}
+
+bool AntiTamper::verify_modules() {
+    return true; // Handled in full_integrity_check
+}
+
+bool AntiTamper::verify_heap_integrity() {
+    #if OMNIGHOST_PLATFORM_WINDOWS
+    return HeapValidate(GetProcessHeap(), 0, nullptr);
+    #else
+    return true;
+    #endif
+}
+
+void AntiTamper::report_violation(const IntegrityReport& report) {
+    ::report_violation(report);
 }
 
 // =============================================================================
-// Singleton instances
+// Global Functions
 // =============================================================================
 
-ModuleIntegrity& ModuleIntegrity::Instance() noexcept {
-    static ModuleIntegrity instance;
-    return instance;
+bool quick_integrity_check() {
+    static AntiTamper& tamper = AntiTamper::instance();
+    return tamper.verify_all_regions();
 }
 
-} // namespace OmniGhost::Security
+bool full_integrity_check() {
+    static AntiTamper& tamper = AntiTamper::instance();
+    return tamper.full_integrity_check();
+}
+
+bool register_protected_region(const ProtectedRegion& region) {
+    static AntiTamper& tamper = AntiTamper::instance();
+    return tamper.add_protected_region(region);
+}
+
+bool verify_region(const char* name) {
+    static AntiTamper& tamper = AntiTamper::instance();
+    return tamper.verify_region(name);
+}
+
+const IntegrityReport* get_last_report() {
+    static std::mutex mutex;
+    std::lock_guard<std::mutex> lock(g_tamper_mutex);
+    return &g_last_report;
+}
+
+} // namespace omnighost::security

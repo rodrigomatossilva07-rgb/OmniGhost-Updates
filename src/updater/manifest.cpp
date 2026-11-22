@@ -47,6 +47,16 @@ bool Https(const std::string& url) {
            url.find_first_of("\r\n") == std::string::npos;
 }
 
+inline const std::string& GetAllowedPackageUrlPrefix(const Configuration& config, Channel channel) {
+    if (channel == Channel::Development && !config.privateDevelopmentAllowedPackageUrlPrefix.empty()) {
+        return config.privateDevelopmentAllowedPackageUrlPrefix;
+    }
+    if (channel == Channel::DevConfig && !config.devAllowedPackageUrlPrefix.empty()) {
+        return config.devAllowedPackageUrlPrefix;
+    }
+    return config.allowedPackageUrlPrefix;
+}
+
 bool SafeName(const std::string& value) {
     return !value.empty() && value.size() <= 200 &&
            value.find("..") == std::string::npos &&
@@ -145,7 +155,7 @@ ManifestResult ParseAndValidateManifest(const std::string& json, const Configura
             !Text(*packageObject, OGS_CSTR("architecture"), package.architecture) ||
             !Text(*packageObject, OGS_CSTR("fileName"), package.fileName) || !SafeName(package.fileName) ||
             !Text(*packageObject, "url", package.url) || !Https(package.url) ||
-            (!config.allowedPackageUrlPrefix.empty() && package.url.rfind(config.allowedPackageUrlPrefix, 0) != 0) ||
+            (!GetAllowedPackageUrlPrefix(config, manifest.channel).empty() && package.url.rfind(GetAllowedPackageUrlPrefix(config, manifest.channel), 0) != 0) ||
             package.url.find('/' + package.fileName) == std::string::npos ||
             !UInt(*packageObject, OGS_CSTR("size"), package.size) || package.size == 0 ||
             package.size > config.maximumPackageBytes ||

@@ -5,7 +5,7 @@
 namespace config_manager {
 
 void SerializeAimType(std::ostringstream& o) {
-    WInt(o, "aimtype.active", (int)aim_type::config.active);
+    WInt(o, "aimtype.active", static_cast<int>(aim_type::config.active));
     WBool(o, "aimtype.makcu_enabled", aim_type::config.makcu_enabled);
     WStr(o, "aimtype.makcu_com", aim_type::config.makcu_com);
     WInt(o, "aimtype.makcu_baud", aim_type::config.makcu_baud);

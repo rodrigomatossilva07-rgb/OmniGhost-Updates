@@ -6,7 +6,7 @@
 
 
 
-#include <embedded_runtime_manifest.h>
+#include "embedded_runtime_manifest.h"
 #include "embedded_resources.h"
 
 #ifndef WIN32_LEAN_AND_MEAN

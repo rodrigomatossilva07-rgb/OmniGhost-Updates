@@ -167,7 +167,7 @@ void DrawConfigs(Overlay* self)
         std::vector<const char*> langs;
         langs.reserve(Loc::LanguageCount());
         for (int i = 0; i < Loc::LanguageCount(); ++i)
-            langs.push_back(Loc::LanguageName(i));
+            langs.push_back(Loc::LanguageName(static_cast<Loc::Language>(i)));
         int lang = static_cast<int>(app_settings::config.language);
         if (CyberWidgets::Combo(Loc::Tr("cfg.language"), &lang, langs.data(), static_cast<int>(langs.size()))) {
             app_settings::config.language = static_cast<app_settings::Language>(lang);
@@ -199,13 +199,7 @@ void DrawConfigs(Overlay* self)
         app_settings::config.ui_scale = uiScaleValues[std::clamp(uiScaleIndex, 0, 9)];
         saveSettings();
     }
-    CyberWidgets::HelpMarker(Loc::Tr("cfg.ui_scale_hint"),
-    "The scale is combined with monitor DPI. At 125%, 150% or 200% Windows, OmniGhost keeps text and controls sharp.",
-    "Die Skalierung wird mit dem Monitor-DPI kombiniert. Bei 125%, 150% oder 200% Windows behält OmniGhost scharfen Text und Steuerelemente.",
-    "La escala se combina con el DPI del monitor. Al 125%, 150% o 200% de Windows, OmniGhost mantiene texto y controles nítidos.",
-    "L'échelle est combinée avec le DPI du moniteur. À 125%, 150% ou 200% Windows, OmniGhost garde le texte et les contrôles nets.",
-    "La scala è combinata con il DPI del monitor. Al 125%, 150% o 200% Windows, OmniGhost mantiene testo e controlli nitidi.",
-    "Масштаб комбинируется с DPI монитора. На 125%, 150% или 200% Windows, OmniGhost сохраняет четкий текст и элементы управления."));
+    CyberWidgets::HelpMarker(Loc::Tr("cfg.ui_scale_hint"));
 
 
 
@@ -317,12 +311,6 @@ void DrawConfigs(Overlay* self)
         CyberWidgets::Separator();
         CyberWidgets::SectionTitle("DMA");
         CyberWidgets::TextLine(Loc::Tr("cfg.reinit_dma"),
-    "Restart connection without closing Control Center.",
-    "Verbindung neu starten ohne Control Center zu schließen.",
-    "Reiniciar conexión sin cerrar Control Center.",
-    "Redémarrer la connexion sans fermer Control Center.",
-    "Riavvia la connessione senza chiudere Control Center.",
-    "Перезапустить соединение без закрытия Control Center."),
                                CyberWidgets::TextTone::Secondary);
     const int cs2ReinitState = g_activeGame == ActiveGame::CS2
         ? CS2::PollReinitDma() : 0;
@@ -353,24 +341,12 @@ void DrawConfigs(Overlay* self)
             msg = ok ? "FiveM Reinit DMA OK" : "FiveM Reinit DMA falhou";
         } else if (g_activeGame == ActiveGame::Warzone) {
             mem.InvalidateProcess();
-            msg = Loc::Tr("cfg.dma_reinit_ok"),
-    "Warzone: process bind cleared; return to launcher to reattach",
-    "Warzone: Prozessbindung gelöscht; zurück zum Launcher für erneutes Anhängen",
-    "Warzone: enlace de proceso limpio; volver al launcher para volver a adjuntar",
-    "Warzone: liaison de processus nettoyée; retour au launcher pour rattacher",
-    "Warzone: associazione processo pulita; torna al launcher per riallegare",
-    "Warzone: привязка процесса очищена; вернитесь в лаунчер для повторного подключения");
+            msg = Loc::Tr("cfg.dma_reinit_ok");
             ok = true;
         } else {
 
             mem.InvalidateProcess();
-            msg = Loc::Tr("cfg.dma_reinit_fail"),
-    "Process association cleared — switch to a game with DMA engine",
-    "Prozesszuordnung gelöscht — wechseln Sie zu einem Spiel mit DMA-Engine",
-    "Asociación de proceso limpia — cambie a un juego con motor DMA",
-    "Association de processus nettoyée — passez à un jeu avec moteur DMA",
-    "Associazione processo pulita — passa a un gioco con motore DMA",
-    "Связь процесса очищена — переключитесь на игру с DMA-движком");
+            msg = Loc::Tr("cfg.dma_reinit_fail");
             ok = true;
         }
         CyberWidgets::Notify(msg.c_str(),

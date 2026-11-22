@@ -4,6 +4,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <mutex>
+#include <shared_mutex>
 #include <filesystem>
 #include <optional>
 
@@ -113,6 +114,9 @@ private:
 inline const char* Tr(std::string_view key) noexcept {
     return LocalizationManager::Instance().Tr(key);
 }
+
+// Compatibility alias for existing UI pages that use translation identifiers.
+inline const char* TrID(std::string_view key) noexcept { return Tr(key); }
 
 inline std::string TrFmt(std::string_view key, auto&&... args) {
     return LocalizationManager::Instance().TrFmt(key, std::forward<decltype(args)>(args)...);

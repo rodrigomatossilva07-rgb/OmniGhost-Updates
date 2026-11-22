@@ -113,9 +113,9 @@ const char* StemFromDef(int def) {
 
 std::wstring Widen(const std::string& s) {
     if (s.empty()) return L"";
-    int n = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), (int)s.size(), nullptr, 0);
+    int n = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), static_cast<int>(s.size()), nullptr, 0);
     std::wstring w(n, 0);
-    MultiByteToWideChar(CP_UTF8, 0, s.c_str(), (int)s.size(), w.data(), n);
+    MultiByteToWideChar(CP_UTF8, 0, s.c_str(), static_cast<int>(s.size()), w.data(), n);
     return w;
 }
 
@@ -149,7 +149,7 @@ bool LoadPngRgba(const std::wstring& path, std::vector<uint8_t>& out, int& w, in
 
     UINT uw = 0, uh = 0;
     conv->GetSize(&uw, &uh);
-    w = (int)uw; h = (int)uh;
+    w = static_cast<int>(uw); h = static_cast<int>(uh);
 
 
     constexpr UINT kMaxIconDim = 4096;
@@ -160,7 +160,7 @@ bool LoadPngRgba(const std::wstring& path, std::vector<uint8_t>& out, int& w, in
         return false;
     }
 
-    out.resize((size_t)w * (size_t)h * 4);
+    out.resize(static_cast<size_t>(w) * static_cast<size_t>(h) * 4);
     hr = conv->CopyPixels(nullptr, (UINT)(w * 4), (UINT)out.size(), out.data());
     conv->Release(); frame->Release(); decoder->Release(); factory->Release();
     return SUCCEEDED(hr);

@@ -377,6 +377,11 @@ public:
         return *this;
     }
 
+    template <typename Interface>
+    ServiceBuilder& AddInstance(std::unique_ptr<Interface> instance) {
+        return AddInstance<Interface>(std::shared_ptr<Interface>(std::move(instance)));
+    }
+
     ServiceContainer& Build() { return container_; }
 
 private:

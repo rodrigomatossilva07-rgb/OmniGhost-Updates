@@ -5,7 +5,6 @@
 #include "embedded_resources.rc2"
 
 IDI_OMNIGHOST_ICON ICON "OmniGhost.ico"
-1 24 "app.manifest"
 #endif
 
 #ifndef OMNIGHOST_VERSION_MAJOR

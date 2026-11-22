@@ -42,8 +42,8 @@ bool Vec3::world_to_screen(const DirectX::SimpleMath::Matrix& view_matrix, Vec2&
 	screen_pos.y *= screen_pos.z;
 
 
-	float sw = (float)width;
-	float sh = (float)height;
+	float sw = static_cast<float>(width);
+	float sh = static_cast<float>(height);
 	if (ImGui::GetCurrentContext()) {
 		const ImVec2 ds = ImGui::GetIO().DisplaySize;
 		if (ds.x > 1.f && ds.y > 1.f) {

@@ -1,6 +1,7 @@
 #include "iconfig_manager.h"
 #include "config_manager.h"
 #include "config_manager_factory.h"
+#include "app_settings.h"
 #include "platform/expected.h"
 #include "platform/logging.h"
 
@@ -35,7 +36,7 @@ public:
     Expected<void> LoadGlobal() override {
         OGS_LOG_INFO("[ConfigManagerImpl] Loading global config...");
         std::string error;
-        if (!config_manager::LoadGlobal(&error)) {
+        if (!app_settings::LoadGlobal(&error)) {
             return Failure<void>(ErrorCode::IOError, error);
         }
         return Success();
@@ -44,7 +45,7 @@ public:
     Expected<void> SaveGlobal() override {
         OGS_LOG_INFO("[ConfigManagerImpl] Saving global config...");
         std::string error;
-        if (!config_manager::SaveGlobal(&error)) {
+        if (!app_settings::SaveGlobal(&error)) {
             return Failure<void>(ErrorCode::IOError, error);
         }
         return Success();
@@ -53,7 +54,7 @@ public:
     Expected<void> ExportGlobal(const std::filesystem::path& path) override {
         OGS_LOG_INFO("[ConfigManagerImpl] Exporting global config to: {}", path.string());
         std::string error;
-        if (!config_manager::ExportGlobal(path, &error)) {
+        if (!app_settings::ExportGlobal(path, &error)) {
             return Failure<void>(ErrorCode::IOError, error);
         }
         return Success();
@@ -62,7 +63,7 @@ public:
     Expected<void> ImportGlobal(const std::filesystem::path& path) override {
         OGS_LOG_INFO("[ConfigManagerImpl] Importing global config from: {}", path.string());
         std::string error;
-        if (!config_manager::ImportGlobal(path, &error)) {
+        if (!app_settings::ImportGlobal(path, &error)) {
             return Failure<void>(ErrorCode::IOError, error);
         }
         return Success();
@@ -106,7 +107,7 @@ public:
 
     Expected<void> DeserializeAll(std::string_view json) override {
         OGS_LOG_INFO("[ConfigManagerImpl] Deserializing config...");
-        if (!config_manager::DeserializeAll(json)) {
+        if (!config_manager::DeserializeAll(std::string(json))) {
             return Failure<void>(ErrorCode::ParseError, "Failed to deserialize config");
         }
         return Success();
@@ -119,17 +120,44 @@ public:
     const char* ActiveConfigName() const noexcept override {
         return config_manager::ActiveConfigName();
     }
+
+    Expected<bool> IsDevConfigAvailable() const override {
+        return Success(config_manager::IsDevConfigAvailable());
+    }
+
+    Expected<std::vector<std::string>> ListDevConfigs() const override {
+        return Success(config_manager::ListDevConfigs());
+    }
+
+    Expected<void> DownloadDevConfig(std::string_view configName) override {
+        if (config_manager::DownloadDevConfig(std::string(configName))) {
+            return Success();
+        }
+        return Failure<void>(ErrorCode::PermissionDenied, config_manager::GetLastStatus());
+    }
+
+    Expected<void> UploadDevConfig(std::string_view configName) override {
+        if (config_manager::UploadDevConfig(std::string(configName))) {
+            return Success();
+        }
+        return Failure<void>(ErrorCode::PermissionDenied, config_manager::GetLastStatus());
+    }
+
+    Expected<void> DeleteDevConfig(std::string_view configName) override {
+        if (config_manager::DeleteDevConfig(std::string(configName))) {
+            return Success();
+        }
+        return Failure<void>(ErrorCode::PermissionDenied, config_manager::GetLastStatus());
+    }
 };
 
 // =============================================================================
 // Factory implementation
 // =============================================================================
 
-class ConfigManagerFactory final : public IConfigManagerFactory {
-public:
-    Expected<std::unique_ptr<IConfigManager>> Create() override {
-        return Success(std::make_unique<ConfigManagerImpl>());
-    }
-};
+Expected<std::unique_ptr<IConfigManager>> ConfigManagerFactory::Create() {
+    std::unique_ptr<IConfigManager> manager = std::make_unique<ConfigManagerImpl>();
+    return Success(std::move(manager));
+}
 
 } // namespace OmniGhost::Config

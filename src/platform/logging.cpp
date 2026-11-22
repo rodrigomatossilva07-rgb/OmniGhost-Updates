@@ -43,7 +43,7 @@ bool LoggerManager::Initialize(const Config& config) {
     // File sink
     if (config_.fileEnabled) {
         std::filesystem::path logDir = config_.logDirectory.empty()
-            ? OmniGhost::Paths::LogDirectory()
+            ? OmniGhost::Paths::Logs()
             : config_.logDirectory;
 
         std::error_code ec;
@@ -199,7 +199,7 @@ std::shared_ptr<spdlog::logger> LoggerManager::GetLogger(std::string_view name) 
     if (!initialized_) {
         // Try to initialize with defaults if not initialized
         Config defaultConfig;
-        defaultConfig.logDirectory = OmniGhost::Paths::LogDirectory();
+        defaultConfig.logDirectory = OmniGhost::Paths::Logs();
         Initialize(defaultConfig);
     }
 

@@ -1,8 +1,8 @@
 ﻿#include "config_profiles.h"
 
 #include "config_core.h"
-#include "app_paths.h"
-#include "logging.h"
+#include "platform/app_paths.h"
+#include "../platform/logging.h"
 
 #include <fstream>
 #include <algorithm>

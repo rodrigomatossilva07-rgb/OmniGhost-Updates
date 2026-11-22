@@ -46,12 +46,12 @@ const char* LocalizationManager::Tr(std::string_view key) const noexcept {
         return key.data();  // Fallback to key itself
     }
     
-    auto keyIt = langIt->second.find(key);
+    auto keyIt = langIt->second.find(std::string(key));
     if (keyIt == langIt->second.end()) {
         // Try default language (Portuguese)
         auto defaultIt = m_translations.find(Language::Portuguese);
         if (defaultIt != m_translations.end()) {
-            auto defKeyIt = defaultIt->second.find(key);
+            auto defKeyIt = defaultIt->second.find(std::string(key));
             if (defKeyIt != defaultIt->second.end()) {
                 return defKeyIt->second.c_str();
             }
@@ -91,7 +91,7 @@ bool LocalizationManager::HasKey(std::string_view key) const noexcept {
     std::shared_lock lock(m_mutex);
     
     for (const auto& [lang, dict] : m_translations) {
-        if (dict.find(key) != dict.end()) {
+        if (dict.find(std::string(key)) != dict.end()) {
             return true;
         }
     }

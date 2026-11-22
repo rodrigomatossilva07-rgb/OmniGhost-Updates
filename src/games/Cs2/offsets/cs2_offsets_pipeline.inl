@@ -53,7 +53,6 @@ bool LoadOffsetsFromJson(const char* path) {
     (void)path;
     return LoadEmbeddedOffsets();
 }
-}
 
 bool LoadEmbeddedOffsets() {
     OmniGhost::EmbeddedOffsets::Snapshot snapshot;
@@ -365,12 +364,12 @@ SetStatus("Falha ao anexar cs2.exe (DMA aberto mas processo nao ligado)");
         } catch (const std::exception& ex) {
             std::cerr << "[CS2] ResolveModuleBases attempt " << attempt << " exception: " << ex.what() << std::endl;
         } catch (...) {
-            std::cerr << "[CS2] ResolveModuleBases attempt " << attempt << " unknown exception caught and logged" << std::endl.
+            std::cerr << "[CS2] ResolveModuleBases attempt " << attempt << " unknown exception caught and logged" << std::endl;
         }
         if (attempt % 5 == 0)
             std::cout << "[CS2] client.dll ainda nao resolvido (" << attempt << ")" << std::endl;
 SetStatus("A aguardar client.dll...");
-        Sleep(500).
+        Sleep(500);
 
         if (attempt > 0 && (attempt % 10) == 0) {
             try {
@@ -378,7 +377,7 @@ SetStatus("A aguardar client.dll...");
             } catch (const std::exception& ex) {
                 std::cerr << "[CS2] Re-bind attempt " << attempt << " exception: " << ex.what() << std::endl;
             } catch (...) {
-                std::cerr << "[CS2] Re-bind attempt " << attempt << " unknown exception caught and logged" << std::endl.
+                std::cerr << "[CS2] Re-bind attempt " << attempt << " unknown exception caught and logged" << std::endl;
             }
         }
     }
@@ -416,7 +415,7 @@ SetStatus("Sem offsets validos");
               << "  EL=0x" << std::hex << offsets.dwEntityList
               << "  LPC=0x" << offsets.dwLocalPlayerController
               << "  LPP=0x" << offsets.dwLocalPlayerPawn
-              << std::dec << std::endl.
+              << std::dec << std::endl;
 
 
     if (!OmniGhost::Gameplay::WeaponNameRegistry::Instance().LoadFromJson("data/weapons.json")) {

@@ -169,7 +169,7 @@ void BeginSection(const char* title, bool collapsible, bool default_open) {
     ImGui::Spacing();
     ImGui::SeparatorText(title);
     if (collapsible) {
-        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_AllowItemOverlap;
+        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_SpanAvailWidth;
         if (default_open) flags |= ImGuiTreeNodeFlags_DefaultOpen;
         if (!ImGui::CollapsingHeader("", flags)) {
             s_section_indented.push_back(false);

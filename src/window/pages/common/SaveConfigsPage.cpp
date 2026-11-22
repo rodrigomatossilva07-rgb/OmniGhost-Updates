@@ -3,6 +3,8 @@
 #include "../../platform/strprotect/strprotect.h"
 #include "../../localization.h"
 #include "../../../globals.h"
+#include "../../../licensing/license_service.h"
+#include "../../../app_version.h"
 #include "config/app_settings.h"
 #include "src/games/Cs2/config/cs2_config.h"
 #include "aimbot/aimbot.h"
@@ -232,6 +234,225 @@ void DrawAimPreview() {
     }
 
     ImGui::InvisibleButton("##aim_profile_preview", ImVec2(previewWidth, previewHeight));
+}
+
+// DEV Config Hub (admin only, Development builds) - Enhanced with versioning & notifications
+void DrawDevConfigHub() {
+    static char devSearch[81]{};
+    static char devNewName[81]{};
+    static char devTitle[81]{};
+    static char devDescription[256]{};
+    static char devChangelog[512]{};
+    static char devTags[128]{};
+    static bool devLoaded = false;
+    static bool showUploadForm = false;
+    static std::vector<config_manager::DevConfigInfo> devConfigs;
+    static int pendingUpdatesCount = 0;
+    
+    // Check for updates on first load
+    static bool checkedUpdates = false;
+    if (!checkedUpdates && OmniGhost::Licensing::IsAdmin() && config_manager::IsDevConfigAvailable()) {
+        config_manager::CheckDevConfigUpdates();
+        auto updates = config_manager::GetPendingDevConfigUpdates();
+        pendingUpdatesCount = static_cast<int>(updates.size());
+        checkedUpdates = true;
+    }
+    
+    CyberWidgets::BeginCard("DEV Configs (Admin)", 0.f);
+    
+    // Header with update indicator
+    if (pendingUpdatesCount > 0) {
+        CyberWidgets::TextLineF(CyberWidgets::TextTone::Accent, 
+            "⚠ %d config(s) DEV com atualização disponível! Clique em 'Verificar Updates' para detalhes.", pendingUpdatesCount);
+    } else {
+        CyberWidgets::TextLine("Configs de desenvolvimento para teste antes do publish. Visíveis apenas para admins.", CyberWidgets::TextTone::Secondary);
+    }
+    
+    // Action buttons row
+    if (CyberWidgets::GoldButton("Atualizar Lista", ImVec2(130.f, 32.f))) {
+        devConfigs = config_manager::ListDevConfigsDetailed();
+        devLoaded = true;
+        CyberWidgets::Notify(config_manager::last_status.c_str(), devLoaded ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
+    }
+    ImGui::SameLine();
+    if (CyberWidgets::CyberButton("Verificar Updates", ImVec2(140.f, 32.f))) {
+        config_manager::CheckDevConfigUpdates();
+        auto updates = config_manager::GetPendingDevConfigUpdates();
+        pendingUpdatesCount = static_cast<int>(updates.size());
+        if (pendingUpdatesCount > 0) {
+            CyberWidgets::Notify(("Encontradas " + std::to_string(pendingUpdatesCount) + " atualizações DEV").c_str(), CyberWidgets::ToastType::Info);
+        } else {
+            CyberWidgets::Notify("Nenhuma atualização DEV disponível", CyberWidgets::ToastType::Success);
+        }
+    }
+    ImGui::SameLine();
+    if (CyberWidgets::CyberButton(showUploadForm ? "Cancelar Envio" : "Nova Config DEV", ImVec2(140.f, 32.f))) {
+        showUploadForm = !showUploadForm;
+        if (!showUploadForm) {
+            devNewName[0] = 0; devTitle[0] = 0; devDescription[0] = 0; devChangelog[0] = 0; devTags[0] = 0;
+        }
+    }
+    
+    CyberWidgets::InputField("##dev_search", devSearch, sizeof(devSearch), "Filtrar por nome, autor ou tags", 0, -1.f);
+    CyberWidgets::CardGap(8.f);
+    
+    // Upload form
+    if (showUploadForm) {
+        CyberWidgets::BeginCard("Enviar Nova Config DEV", 0.f);
+        CyberWidgets::TextLine("Preencha os dados da config DEV:", CyberWidgets::TextTone::Secondary);
+        
+        CyberWidgets::InputField("Nome (id)", devNewName, sizeof(devNewName), "Ex: dev-aim-v1, dev-esp-test (letras, números, -_)");
+        CyberWidgets::InputField("Título", devTitle, sizeof(devTitle), "Título amigável para exibição");
+        CyberWidgets::InputField("Descrição", devDescription, sizeof(devDescription), "Descrição breve do que a config faz");
+        CyberWidgets::InputField("Changelog", devChangelog, sizeof(devChangelog), "O que mudou nesta versão");
+        CyberWidgets::InputField("Tags (separadas por vírgula)", devTags, sizeof(devTags), "Ex: aim,legit,rage,esp,visual");
+        
+        if (CyberWidgets::GoldButton("Enviar Config Atual como DEV", ImVec2(220.f, 32.f))) {
+            if (devNewName[0] == 0) {
+                CyberWidgets::Notify("Nome é obrigatório", CyberWidgets::ToastType::Error);
+            } else {
+                // Parse tags
+                std::vector<std::string> tags;
+                std::string tagStr(devTags);
+                std::stringstream ss(tagStr);
+                std::string tag;
+                while (std::getline(ss, tag, ',')) {
+                    // Trim whitespace
+                    tag.erase(0, tag.find_first_not_of(" \t"));
+                    tag.erase(tag.find_last_not_of(" \t") + 1);
+                    if (!tag.empty()) tags.push_back(tag);
+                }
+                
+                const bool ok = config_manager::UploadDevConfigVersioned(
+                    devNewName, devTitle, devDescription, devChangelog, tags
+                );
+                if (ok) {
+                    devNewName[0] = 0; devTitle[0] = 0; devDescription[0] = 0; devChangelog[0] = 0; devTags[0] = 0;
+                    showUploadForm = false;
+                    devConfigs = config_manager::ListDevConfigsDetailed();
+                }
+                CyberWidgets::Notify(config_manager::last_status.c_str(), ok ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
+            }
+        }
+        ImGui::SameLine();
+        if (CyberWidgets::CyberButton("Cancelar", ImVec2(100.f, 32.f))) {
+            showUploadForm = false;
+            devNewName[0] = 0; devTitle[0] = 0; devDescription[0] = 0; devChangelog[0] = 0; devTags[0] = 0;
+        }
+        CyberWidgets::EndCard();
+        CyberWidgets::CardGap(8.f);
+    }
+    
+    // Config list
+    if (devLoaded) {
+        CyberWidgets::BeginSurfaceList("##dev_config_list", 350.f);
+        for (std::size_t index = 0; index < devConfigs.size(); ++index) {
+            const auto& info = devConfigs[index];
+            if (devSearch[0] != 0) {
+                std::string searchLower = devSearch;
+                std::transform(searchLower.begin(), searchLower.end(), searchLower.begin(), ::tolower);
+                std::string nameLower = info.name;
+                std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+                std::string authorLower = info.author;
+                std::transform(authorLower.begin(), authorLower.end(), authorLower.begin(), ::tolower);
+                
+                bool matches = nameLower.find(searchLower) != std::string::npos ||
+                               authorLower.find(searchLower) != std::string::npos ||
+                               info.title.find(searchLower) != std::string::npos;
+                
+                for (const auto& tag : info.tags) {
+                    std::string tagLower = tag;
+                    std::transform(tagLower.begin(), tagLower.end(), tagLower.begin(), ::tolower);
+                    if (tagLower.find(searchLower) != std::string::npos) {
+                        matches = true; break;
+                    }
+                }
+                if (!matches) continue;
+            }
+            
+            ImGui::PushID(static_cast<int>(index));
+            CyberWidgets::BeginCard(info.name.c_str());
+            
+            // Badges
+            if (info.official) CyberWidgets::Badge("OFICIAL", CyberWidgets::TextTone::Accent);
+            else CyberWidgets::Badge("DEV", CyberWidgets::TextTone::Accent);
+            
+            if (info.has_update) {
+                ImGui::SameLine();
+                CyberWidgets::Badge("UPDATE!", CyberWidgets::TextTone::Warning);
+            }
+            
+            // Version info
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, 
+                "v%s (int v%d) · EXE: %s · %s · %d downloads",
+                info.version.c_str(), info.version_int, info.exe_version.c_str(),
+                info.author.empty() ? "autor desconhecido" : info.author.c_str(), info.downloads);
+            
+            if (!info.title.empty()) CyberWidgets::TextLine(info.title.c_str());
+            if (!info.description.empty()) CyberWidgets::TextLine(info.description.c_str(), CyberWidgets::TextTone::Secondary);
+            if (!info.changelog.empty()) CyberWidgets::TextLine(("Changelog: " + info.changelog).c_str(), CyberWidgets::TextTone::Accent);
+            if (!info.tags.empty()) {
+                std::string tagStr;
+                for (const auto& tag : info.tags) { if (!tagStr.empty()) tagStr += ", "; tagStr += tag; }
+                CyberWidgets::TextLine(("Tags: " + tagStr).c_str(), CyberWidgets::TextTone::Secondary);
+            }
+            if (!info.updated_at.empty()) {
+                CyberWidgets::TextLine(("Atualizado: " + info.updated_at).c_str(), CyberWidgets::TextTone::Secondary);
+            }
+            
+            // Compatibility check
+            bool compatible = true;
+            std::string compatMsg;
+            if (info.exe_version != OmniGhost::Version) {
+                compatible = false;
+                compatMsg = "⚠ EXE compatível: " + info.exe_version + " (atual: " + OmniGhost::Version + ")";
+            }
+            if (compatible) {
+                CyberWidgets::TextLine("✓ Compatível com versão atual", CyberWidgets::TextTone::Success);
+            } else {
+                CyberWidgets::TextLine(compatMsg.c_str(), CyberWidgets::TextTone::Warning);
+            }
+            
+            // Action buttons
+            if (info.has_update) {
+                if (CyberWidgets::GoldButton("Atualizar", ImVec2(100.f, 30.f))) {
+                    const bool ok = config_manager::DownloadDevConfigVersioned(info.name, info.version_int);
+                    if (ok) {
+                        config_manager::MarkDevConfigUpdateNotified(info.name);
+                        devConfigs = config_manager::ListDevConfigsDetailed();
+                        pendingUpdatesCount = std::max(0, pendingUpdatesCount - 1);
+                    }
+                    CyberWidgets::Notify(config_manager::last_status.c_str(), ok ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
+                }
+                ImGui::SameLine();
+            } else {
+                if (CyberWidgets::GoldButton("Baixar", ImVec2(100.f, 30.f))) {
+                    const bool ok = config_manager::DownloadDevConfigVersioned(info.name);
+                    CyberWidgets::Notify(config_manager::last_status.c_str(), ok ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
+                }
+                ImGui::SameLine();
+            }
+            
+            if (CyberWidgets::CyberButton("Deletar", ImVec2(100.f, 30.f))) {
+                const bool ok = config_manager::DeleteDevConfig(info.name);
+                if (ok) {
+                    devConfigs.erase(devConfigs.begin() + index);
+                    --index;
+                }
+                CyberWidgets::Notify(config_manager::last_status.c_str(), ok ? CyberWidgets::ToastType::Warning : CyberWidgets::ToastType::Error);
+            }
+            
+            CyberWidgets::EndCard();
+            ImGui::PopID();
+        }
+        if (devConfigs.empty()) {
+            CyberWidgets::TextLine("Nenhuma config DEV encontrada.", CyberWidgets::TextTone::Secondary);
+        }
+        CyberWidgets::EndSurfaceList();
+    }
+    
+    CyberWidgets::EndCard();
+    CyberWidgets::CardGap();
 }
 
 void DrawCommunityConfigHub() {
@@ -535,6 +756,13 @@ void DrawSaveConfigs()
     }
     CyberWidgets::EndCard();
 
+    // DEV Configs section (Development build + Admin only)
+#if defined(OMNIGHOST_DEV_BUILD)
+    if (OmniGhost::Licensing::IsAdmin()) {
+        DrawDevConfigHub();
+    }
+#endif
+
     DrawCommunityConfigHub();
 
     CyberWidgets::BeginCard(Loc::Tr("save.list"));
@@ -542,7 +770,7 @@ void DrawSaveConfigs()
         CyberWidgets::TextTone::Secondary);
     CyberWidgets::BeginSurfaceList("##config_list", 240.0f);
     int moveFrom = -1, moveTo = -1;
-    for (int i = 0; i < (int)config_manager::saved_list.size(); ++i) {
+    for (int i = 0; i < static_cast<int>(config_manager::saved_list.size()); ++i) {
         const auto& cfg = config_manager::saved_list[i];
         ImGui::PushID(i);
         const ImVec2 row = ImGui::GetCursorScreenPos();

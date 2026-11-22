@@ -25,7 +25,8 @@ static bool PassiveDmaPnpProbe() {
 
 
     const bool present = mem.ProbeDeviceAvailability();
-    OGS_LOG_INFO("[STARTUP][Hardware] active_probe=SKIPPED passive_pnp={} note=PnP_is_diagnostic_only_not_functional_session", `n                 present ? "DETECTED" : "NOT_FOUND");
+    OGS_LOG_INFO("[STARTUP][Hardware] active_probe=SKIPPED passive_pnp={} note=PnP_is_diagnostic_only_not_functional_session",
+                 present ? "DETECTED" : "NOT_FOUND");
     return present;
 }
 
@@ -124,7 +125,8 @@ void Manager::BeginStartupProbe() {
     if (!state_.makcuAvailable) {
         StartWorkerLocked(1, [] { return RunMakcuProbeIsolated(); });
     }
-    OGS_LOG_INFO("[STARTUP][Hardware] stage=CheckingMakcu optional=YES auto_connect=YES already_connected={}", `n                  state_.makcuAvailable ? "YES" : "NO");
+    OGS_LOG_INFO("[STARTUP][Hardware] stage=CheckingMakcu optional=YES auto_connect=YES already_connected={}",
+                 state_.makcuAvailable ? "YES" : "NO");
     if (state_.makcuAvailable)
         StartDmaProbeLocked();
 #endif
@@ -141,7 +143,8 @@ void Manager::StartDmaProbeLocked() {
         return;
     state_.stage = ProbeStage::CheckingDma;
     stageStarted_ = std::chrono::steady_clock::now();
-    OGS_LOG_INFO("[STARTUP][Hardware] stage=CheckingDma required=YES mode=PASSIVE_PNP timeout_ms={}", `n                  timeouts_.dmaTimeout.count());
+    OGS_LOG_INFO("[STARTUP][Hardware] stage=CheckingDma required=YES mode=PASSIVE_PNP timeout_ms={}",
+                 timeouts_.dmaTimeout.count());
     StartWorkerLocked(2, [] { return PassiveDmaPnpProbe(); });
 }
 
@@ -189,7 +192,8 @@ void Manager::Poll() {
             state_.dmaAvailable = result;
             state_.dmaFinished = true;
             state_.stage = ProbeStage::Complete;
-            OGS_LOG_INFO("[STARTUP][Hardware] dma={} complete=YES note=PnP_is_diagnostic_only", `n                  state_.dmaAvailable ? "PRESENT_PNP" : "NOT_DETECTED");
+            OGS_LOG_INFO("[STARTUP][Hardware] dma={} complete=YES note=PnP_is_diagnostic_only",
+                         state_.dmaAvailable ? "PRESENT_PNP" : "NOT_DETECTED");
         }
         DrainWorkerLocked();
     }
@@ -248,7 +252,8 @@ void Manager::Poll() {
             std::clog << "[STARTUP][Hardware] dma=TIMEOUT launcher_continues=YES note=PnP_probe_does_not_guarantee_functional_session\n";
         }
         if (state_.stage == ProbeStage::Complete)
-            OGS_LOG_INFO("[STARTUP][Hardware] dma={} complete=YES note=PnP_is_diagnostic_only", `n                  state_.dmaAvailable ? "PRESENT_PNP" : "NOT_DETECTED");
+            OGS_LOG_INFO("[STARTUP][Hardware] dma={} complete=YES note=PnP_is_diagnostic_only",
+                         state_.dmaAvailable ? "PRESENT_PNP" : "NOT_DETECTED");
     }
 
 
@@ -269,7 +274,7 @@ State Manager::Snapshot() const {
     return state_;
 }
 
-bool Manager::Complete() const {
+bool Manager::Complete() const noexcept {
     return Snapshot().stage == ProbeStage::Complete;
 }
 

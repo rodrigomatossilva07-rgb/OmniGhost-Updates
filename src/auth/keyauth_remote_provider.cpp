@@ -10,9 +10,9 @@
 
 
 #include "keyauth_secrets.h"
-#if defined(OMNIGHOST_PUBLISH_BUILD)
+#if defined(OMNIGHOST_PUBLISH_BUILD) || defined(OMNIGHOST_PRIVATE_DEV_BUILD)
 #if !defined(OMNIGHOST_KEYAUTH_APP) || !defined(OMNIGHOST_KEYAUTH_OWNERID)
-#error Publish builds require OMNIGHOST_KEYAUTH_APP/OMNIGHOST_KEYAUTH_OWNERID defined via src/auth/keyauth_secrets.h (see keyauth_secrets.h.example).
+#error Publish and private Development builds require OMNIGHOST_KEYAUTH_APP/OMNIGHOST_KEYAUTH_OWNERID defined via src/auth/keyauth_secrets.h (see keyauth_secrets.h.example).
 #endif
 #endif
 #endif

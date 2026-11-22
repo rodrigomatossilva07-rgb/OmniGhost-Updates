@@ -1,7 +1,7 @@
 #include "theme_engine.h"
 #include "theme.h"
-#include "app_paths.h"
-#include "logging.h"
+#include "../platform/app_paths.h"
+#include "../platform/logging.h"
 
 #include <fstream>
 #include <algorithm>
@@ -302,7 +302,7 @@ bool ThemeManager::RegisterTheme(const ThemeDefinition& theme) {
 bool ThemeManager::UnregisterTheme(std::string_view themeId) {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    auto it = themes_.find(themeId);
+    auto it = themes_.find(std::string(themeId));
     if (it == themes_.end()) {
         return false;
     }
@@ -331,7 +331,7 @@ bool ThemeManager::UnregisterTheme(std::string_view themeId) {
 std::optional<ThemeDefinition> ThemeManager::GetTheme(std::string_view themeId) const {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    auto it = themes_.find(themeId);
+    auto it = themes_.find(std::string(themeId));
     if (it != themes_.end()) {
         return it->second;
     }
@@ -386,13 +386,14 @@ std::vector<ThemeDefinition> ThemeManager::GetUserThemes() const {
 bool ThemeManager::SetActiveTheme(std::string_view themeId) {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    if (!themes_.contains(themeId)) {
+    const std::string themeKey(themeId);
+    if (!themes_.contains(themeKey)) {
         OGS_LOG_ERROR("[ThemeEngine] Theme not found: {}", themeId);
         return false;
     }
 
-    activeThemeId_ = themeId;
-    ApplyTheme(themes_[themeId]);
+    activeThemeId_ = themeKey;
+    ApplyTheme(themes_[themeKey]);
 
     OGS_LOG_INFO("[ThemeEngine] Active theme set to: {}", themeId);
     return true;
@@ -468,10 +469,9 @@ void ThemeManager::ApplyTheme(const ThemeDefinition& theme) {
     Xl = theme.metrics.spacingXl;
     Xxl = theme.metrics.spacingXxl;
 
-    using namespace CyberTheme::Radius;
-    Sm = theme.metrics.radiusSm;
-    Md = theme.metrics.radiusMd;
-    Lg = theme.metrics.radiusLg;
+    CyberTheme::Radius::Sm = theme.metrics.radiusSm;
+    CyberTheme::Radius::Md = theme.metrics.radiusMd;
+    CyberTheme::Radius::Lg = theme.metrics.radiusLg;
 
     using namespace CyberTheme::Typography;
     Title = theme.metrics.fontTitle;
@@ -561,7 +561,7 @@ bool ThemeManager::ExportTheme(std::string_view themeId,
                                 const std::filesystem::path& outputPath) const {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    auto it = themes_.find(themeId);
+    auto it = themes_.find(std::string(themeId));
     if (it == themes_.end()) {
         return false;
     }
@@ -619,7 +619,7 @@ std::size_t ThemeManager::ImportThemesFromDirectory(const std::filesystem::path&
 bool ThemeManager::DeleteTheme(std::string_view themeId) {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    auto it = themes_.find(themeId);
+    auto it = themes_.find(std::string(themeId));
     if (it == themes_.end()) {
         return false;
     }
@@ -645,7 +645,7 @@ bool ThemeManager::DeleteTheme(std::string_view themeId) {
 }
 
 std::filesystem::path ThemeManager::GetThemeDirectory() const {
-    return OmniGhost::Paths::ConfigDirectory() / "themes";
+    return OmniGhost::Paths::Configs() / "themes";
 }
 
 std::filesystem::path ThemeManager::GetBuiltInThemeDirectory() const {

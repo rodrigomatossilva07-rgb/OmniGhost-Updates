@@ -279,7 +279,7 @@ bool ReadCamera() {
     std::uintptr_t bestOwner = 0;
     std::uintptr_t bestOffset = 0;
     float best[16]{};
-    constexpr std::array<std::uintptr_t, 3> offsets{
+    const std::array<std::uintptr_t, 3> offsets{
         g_offsets.baseCamera_matrix, g_offsets.baseCamera_viewMatrix, g_offsets.baseCamera_projectionMatrix
     };
     for (std::uintptr_t owner : candidates) {
@@ -337,6 +337,8 @@ void Update(bool processProbe) {
     else if (!runtime.camera_ok) runtime.status = runtime.camera_status;
     else runtime.status = "Rust Box 2D ativa";
 }
+
+} // namespace
 
 bool Attach() {
     Shutdown();

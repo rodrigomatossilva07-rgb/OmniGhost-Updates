@@ -5,7 +5,7 @@
 #include "animations.h"
 #include "localization.h"
 #include "ui_feedback.h"
-#include "app_settings.h"
+#include "config/app_settings.h"
 #include "src/project/third_party/ImGui/imgui.h"
 
 #include <string>

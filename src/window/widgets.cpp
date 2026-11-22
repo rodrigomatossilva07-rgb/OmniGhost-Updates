@@ -2273,6 +2273,8 @@ void DrawMetricGraphInt(const char* label, const std::vector<int>& data, float w
 
 
 
+namespace CyberWidgets {
+
 void ProgressDialog::Open(const Config& config) noexcept {
     config_ = config;
     open_ = true;
@@ -2366,4 +2368,6 @@ bool DrawProgressDialogInternal(ProgressDialog& dialog) {
 
     return true;
 }
-}
+} // namespace
+
+} // namespace CyberWidgets

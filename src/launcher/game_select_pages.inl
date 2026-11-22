@@ -1077,6 +1077,10 @@ void DrawSettings(ImVec2 display) {
         CyberWidgets::BeginCard(Loc::Tr("launcher.updates"), 0.f);
 #if defined(OMNIGHOST_PUBLISH_BUILD)
         CyberWidgets::KeyValueRow(Loc::Tr("launcher.release_channel"), Loc::Tr("launcher.stable_publish_locked"));
+#elif defined(OMNIGHOST_DEV_BUILD)
+        const char* channels[] = {Loc::Tr("launcher.stable"), "Beta", "Development (DEV Configs)"};
+        int channel = static_cast<int>(app_settings::config.update_channel);
+        if (CyberWidgets::Combo(Loc::Tr("launcher.release_channel"), &channel, channels, 3)) { app_settings::config.update_channel = static_cast<app_settings::UpdateChannel>(channel); changed = updaterChanged = true; }
 #else
         const char* channels[] = {Loc::Tr("launcher.stable"), "Beta"};
         int channel = static_cast<int>(app_settings::config.update_channel);
@@ -1100,10 +1104,11 @@ void DrawSettings(ImVec2 display) {
         CyberWidgets::BeginCard(Loc::Tr("launcher.language"), 0.f);
         const int languageCount = Loc::LanguageCount();
         std::vector<const char*> languages; languages.reserve(languageCount);
-        for (int i = 0; i < languageCount; ++i) languages.push_back(Loc::LanguageName(i));
+        for (int i = 0; i < languageCount; ++i)
+            languages.push_back(Loc::LanguageName(static_cast<Loc::Language>(i)));
         int language = static_cast<int>(app_settings::config.language);
         if (CyberWidgets::Combo(Loc::Tr("launcher.language"), &language, languages.data(), languageCount)) { app_settings::config.language = static_cast<app_settings::Language>(language); changed = true; }
-        CyberWidgets::KeyValueRow("Idioma atual", Loc::LanguageName(language));
+        CyberWidgets::KeyValueRow("Idioma atual", Loc::LanguageName(static_cast<Loc::Language>(language)));
         CyberWidgets::KeyValueRow("Idiomas disponíveis", std::to_string(languageCount).c_str());
         CyberWidgets::EndCard();
         CyberWidgets::CardGap();

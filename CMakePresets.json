@@ -13,17 +13,12 @@
         "value": "x64",
         "strategy": "external"
       },
-      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
       "cacheVariables": {
         "CMAKE_CXX_COMPILER": "cl.exe",
         "CMAKE_C_COMPILER": "cl.exe",
         "CMAKE_RC_COMPILER": "rc.exe",
-        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded",
-        "VCPKG_TARGET_TRIPLET": "x64-windows-static-md"
-      },
-      "environment": {
-        "VCPKG_ROOT": "$env{VCPKG_ROOT}",
-        "VCPKG_DEFAULT_TRIPLET": "x64-windows-static-md"
+        "CMAKE_SYSTEM_VERSION": "10.0.26100.0",
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded"
       }
     },
     {
@@ -45,12 +40,21 @@
       }
     },
     {
-      "name": "windows-publish",
+      "name": "windows-publish-cfg",
       "inherits": ["windows-base"],
       "displayName": "Windows Publish (x64)",
       "description": "Production Publish build - single EXE, reproducibility checks",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Publish"
+      }
+    },
+    {
+      "name": "windows-dev",
+      "inherits": ["windows-base"],
+      "displayName": "Windows Development (x64)",
+      "description": "Development build for admins - includes DEV config channel, debug symbols, assertions",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Development"
       }
     }
   ],
@@ -69,8 +73,14 @@
     },
     {
       "name": "build-publish",
-      "configurePreset": "windows-publish",
+      "configurePreset": "windows-publish-cfg",
       "configuration": "Publish",
+      "jobs": 8
+    },
+    {
+      "name": "build-dev",
+      "configurePreset": "windows-dev",
+      "configuration": "Development",
       "jobs": 8
     }
   ],
@@ -85,6 +95,12 @@
       "name": "test-release",
       "configurePreset": "windows-release",
       "configuration": "Release",
+      "output": {"outputOnFailure": true}
+    },
+    {
+      "name": "test-dev",
+      "configurePreset": "windows-dev",
+      "configuration": "Development",
       "output": {"outputOnFailure": true}
     }
   ],
@@ -104,30 +120,6 @@
         { "type": "build", "name": "build-release" },
         { "type": "test", "name": "test-release" }
       ]
-    },
-    {
-      "name": "publish-pipeline",
-      "steps": [
-        { "type": "configure", "name": "windows-publish" },
-        { "type": "build", "name": "build-publish" },
-        { "type": "test", "name": "test-release" }
-      ]
-    },
-    {
-      "name": "ci-pipeline",
-      "steps": [
-        { "type": "configure", "name": "windows-release" },
-        { "type": "build", "name": "build-release" },
-        { "type": "test", "name": "test-release" }
-      ]
-    },
-    {
-      "name": "publish-pipeline",
-      "steps": [
-        { "type": "configure", "name": "windows-publish" },
-        { "type": "build", "name": "build-publish" },
-        { "type": "test", "name": "test-release" }
-      ]
     }
   ],
   "vendor": {
@@ -138,7 +130,8 @@
       "workflows": {
         "ci": "ci-pipeline",
         "dev": "dev-loop",
-        "publish": "publish-pipeline"
+        "publish": "publish-pipeline",
+        "dev-release": "dev-pipeline"
       }
     }
   }

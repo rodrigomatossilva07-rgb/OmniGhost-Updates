@@ -1422,7 +1422,7 @@ namespace FiveM {
                 if (pedListBase) {
 
                     const int listCap = MAX_PEDS;
-                    if ((int)writeRawPeds.size() != listCap)
+                    if (static_cast<int>(writeRawPeds.size()) != listCap)
                         writeRawPeds.resize(listCap);
 
 
@@ -1454,7 +1454,7 @@ namespace FiveM {
                         playerInfoFailures.clear();
                         nextInfoRefresh = 0;
                     }
-                    if ((int)playerInfoPtrs.size() != listCap) {
+                    if (static_cast<int>(playerInfoPtrs.size()) != listCap) {
                         playerInfoPtrs.assign(listCap, 0);
                         playerInfoOwners.assign(listCap, 0);
                         playerInfoVerifiedMs.assign(listCap, 0);
@@ -1511,7 +1511,7 @@ namespace FiveM {
                     if (refreshAllInfo)
                         nextInfoRefresh = now + 250;
 
-                    for (int i = 0; i < (int)writeRawPeds.size(); i++) {
+                    for (int i = 0; i < static_cast<int>(writeRawPeds.size()); i++) {
                         uintptr_t ped = writeRawPeds[i];
                         if (!ped || ped < 0x10000) continue;
 
@@ -1686,7 +1686,7 @@ namespace FiveM {
                         : 48u;
                     if (s_performanceMode.load(std::memory_order_relaxed) ||
                         (esp::config.web_radar_enabled && esp::config.web_radar_mode == 2))
-                        kMax = (std::min)(kMax, (size_t)30);
+                        kMax = (std::min)(kMax, static_cast<size_t>(30));
 
                     const Matrix vmCull = s_acquireViewMatrix;
                     const ImVec2 ds(s_displayWidth.load(std::memory_order_relaxed),

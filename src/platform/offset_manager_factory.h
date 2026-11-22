@@ -12,9 +12,7 @@ namespace OmniGhost::Platform {
 
 class OffsetManagerFactory final {
 public:
-    Expected<std::unique_ptr<IOffsetManager>> Create() {
-        return Success(std::make_unique<OffsetManager>());
-    }
+    Expected<std::unique_ptr<IOffsetManager>> Create();
 };
 
 } // namespace OmniGhost::Platform

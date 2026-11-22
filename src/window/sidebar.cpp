@@ -116,13 +116,13 @@ namespace CyberWidgets {
         if (OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::CS2 ||
             OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Rust) {
             tabs = cs2Tabs;
-            tabCount = (int)(sizeof(cs2Tabs) / sizeof(cs2Tabs[0]));
+            tabCount = static_cast<int>(sizeof(cs2Tabs) / sizeof(cs2Tabs[0]));
         } else if (OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Fortnite) {
             tabs = fortniteTabs;
-            tabCount = (int)(sizeof(fortniteTabs) / sizeof(fortniteTabs[0]));
+            tabCount = static_cast<int>(sizeof(fortniteTabs) / sizeof(fortniteTabs[0]));
         } else {
             tabs = fivemTabs;
-            tabCount = (int)(sizeof(fivemTabs) / sizeof(fivemTabs[0]));
+            tabCount = static_cast<int>(sizeof(fivemTabs) / sizeof(fivemTabs[0]));
         }
 
 

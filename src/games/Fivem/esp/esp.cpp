@@ -596,11 +596,11 @@ static void DrawTextOutlinedScaled(ImDrawList* dl, ImVec2 pos, ImU32 col,
 }
 
 static ImU32 EspRGB() {
-    float t = (float)ImGui::GetTime();
+    float t = static_cast<float>(ImGui::GetTime());
     return IM_COL32(
-        (int)(sinf(t * 2.0f) * 127 + 128),
-        (int)(sinf(t * 2.0f + 2.094f) * 127 + 128),
-        (int)(sinf(t * 2.0f + 4.188f) * 127 + 128), 255);
+        static_cast<int>(sinf(t * 2.0f) * 127 + 128),
+        static_cast<int>(sinf(t * 2.0f + 2.094f) * 127 + 128),
+        static_cast<int>(sinf(t * 2.0f + 4.188f) * 127 + 128), 255);
 }
 
 static bool EspPedVisible(uintptr_t ped) {
@@ -2473,7 +2473,7 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
     }
 
     {
-        uint32_t f = (uint32_t)ImGui::GetFrameCount();
+        uint32_t f = static_cast<uint32_t>(ImGui::GetFrameCount());
         if (f != s_lastBump) { s_lastBump = f; s_frameId = f; }
 
         if ((f & 15) == 0) {
@@ -3191,7 +3191,7 @@ void esp::DrawPlayerRadar(const Matrix& , uintptr_t localplayer) {
         }
     }
     static uint32_t s_triBump = 0;
-    const uint32_t frame = (uint32_t)ImGui::GetFrameCount();
+    const uint32_t frame = static_cast<uint32_t>(ImGui::GetFrameCount());
     if (frame != s_triBump) {
         s_triBump = frame;
         if ((frame & 31) == 0) {

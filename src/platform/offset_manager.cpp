@@ -26,13 +26,6 @@ public:
         OffsetAuto::g_busy = false;
         OffsetAuto::g_status = "Pronto";
         
-        // Initialize compatibility states for all games
-        for (int i = 0; i <= static_cast<int>(ActiveGame::Apex); ++i) {
-            OffsetAuto::SetState(static_cast<ActiveGame>(i), 
-                                OffsetAuto::CompatibilityState::Unknown, 
-                                "Não verificado");
-        }
-        
         OGS_LOG_INFO("[OffsetManager] Initialized");
         return Success();
     }
@@ -45,27 +38,9 @@ public:
     Expected<void> LoadOffsets(ActiveGame game) override {
         OGS_LOG_INFO("[OffsetManager] Loading offsets for game: {}", static_cast<int>(game));
         
-        // Use existing game-specific load functions
-        bool success = false;
-        switch (game) {
-            case ActiveGame::CS2:
-                success = CS2::LoadOffsetsFromJson(nullptr);
-                break;
-            case ActiveGame::FiveM:
-                success = FiveM::LoadOffsetsFromJson(nullptr) > 0;
-                break;
-            case ActiveGame::Rust:
-                // Rust uses LoadRuntimeOffsets
-                success = Rust::LoadRuntimeOffsets();
-                break;
-            case ActiveGame::Fortnite:
-                success = Fortnite::LoadOffsetsFromJson(nullptr);
-                break;
-            default:
-                return Failure<void>(ErrorCode::UnsupportedOperation, "Game not supported for offset loading");
-        }
-        
-        if (!success) {
+        const auto result = OffsetAuto::EnsureOffsets(game, false);
+        if (result != OffsetAuto::Result::Ok && result != OffsetAuto::Result::Current &&
+            result != OffsetAuto::Result::UsingCached) {
             return Failure<void>(ErrorCode::OffsetsMissing, "Failed to load offsets for game");
         }
         
@@ -96,7 +71,7 @@ public:
         return Success(OffsetAuto::SoftProbeFailReason(game));
     }
 
-    Expected<bool> SupportsAutomaticRefresh(ActiveGame game) const noexcept override {
+    Expected<bool> SupportsAutomaticRefresh(ActiveGame game) const override {
         return Success(OffsetAuto::SupportsAutomaticRefresh(game));
     }
 
@@ -113,43 +88,15 @@ public:
     }
 
     void MarkLiveValid(ActiveGame game, std::string_view detail) override {
-        OffsetAuto::MarkLiveValid(game, detail);
+        OffsetAuto::MarkLiveValid(game, std::string(detail));
     }
 
     void MarkOutdated(ActiveGame game, std::string_view detail) override {
-        OffsetAuto::MarkOutdated(game, detail);
+        OffsetAuto::MarkOutdated(game, std::string(detail));
     }
 
     void MarkUnsupported(ActiveGame game, std::string_view detail) override {
-        OffsetAuto::MarkUnsupported(game, detail);
-    }
-
-    bool BlocksLaunch(ActiveGame game) const override {
-        return OffsetAuto::BlocksLaunch(game);
-    }
-
-    Expected<int> RefreshAllSupported(bool force = false) override {
-        return Success(OffsetAuto::RefreshAllSupported(force));
-    }
-
-    OffsetAuto::CompatibilitySnapshot Compatibility(ActiveGame game) const override {
-        return OffsetAuto::Compatibility(game);
-    }
-
-    void MarkChecking(ActiveGame game) override {
-        OffsetAuto::MarkChecking(game);
-    }
-
-    void MarkLiveValid(ActiveGame game, std::string_view detail) override {
-        OffsetAuto::MarkLiveValid(game, detail);
-    }
-
-    void MarkOutdated(ActiveGame game, std::string_view detail) override {
-        OffsetAuto::MarkOutdated(game, detail);
-    }
-
-    void MarkUnsupported(ActiveGame game, std::string_view detail) override {
-        OffsetAuto::MarkUnsupported(game, detail);
+        OffsetAuto::MarkUnsupported(game, std::string(detail));
     }
 
     bool BlocksLaunch(ActiveGame game) const override {
@@ -173,12 +120,9 @@ public:
 // Factory implementation
 // =============================================================================
 
-class OffsetManagerFactory final : public IOffsetManagerFactory {
-public:
-    Expected<std::unique_ptr<IOffsetManager>> Create() override {
-        return Success(std::make_unique<OffsetManager>());
-    }
-};
+Expected<std::unique_ptr<IOffsetManager>> OffsetManagerFactory::Create() {
+    return Success(std::make_unique<OffsetManager>());
+}
 
 // Registration function
 void RegisterOffsetManagerFactory() {

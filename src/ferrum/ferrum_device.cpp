@@ -30,6 +30,8 @@
 namespace ferrum_device {
 namespace {
 
+using namespace OmniGhost;
+
 OmniGhost::Platform::UniqueHandle g_serial;
 std::mutex g_writeMutex;
 std::mutex g_stateMutex;

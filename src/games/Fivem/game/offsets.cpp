@@ -3,6 +3,7 @@
 #include "globals.h"
 #include "src/project/third_party/DMALibrary/Memory/Memory.h"
 #include "../../../platform/offset_source.h"
+#include "../../../platform/logging.h"
 
 #include <cctype>
 #include <iostream>
@@ -431,7 +432,7 @@ int LoadOffsetsFromJsonImpl(const char* explicit_path) {
     }
 
     if (g_buildOffsets.empty()) {
-        std::cerr << "[FiveM] Nenhum build valido em " << used << "; ativacao bloqueada.\n";
+        std::cerr << "[FiveM] Nenhum build valido nos offsets carregados; ativacao bloqueada.\n";
     } else {
         auto shared = [&](const char* field, uintptr_t& output) {
             output = JsonHexField(data, field);
@@ -505,7 +506,7 @@ int LoadOffsetsFromJsonImpl(const char* explicit_path) {
             std::cerr << "[FiveM] shared_fields incompleto; ativacao bloqueada.\n";
             g_buildOffsets.clear();
         }
-        std::cout << "[FiveM] Offsets JSON: " << used << " builds=" << g_buildOffsets.size() << std::endl;
+        std::cout << "[FiveM] Offsets JSON carregados: builds=" << g_buildOffsets.size() << std::endl;
     }
     g_offsetsLoaded = true;
     return static_cast<int>(g_buildOffsets.size());

@@ -122,11 +122,11 @@ void SerializeESP(std::ostringstream& o) {
     WBool(o, "esp.active_panel_show_aim", e.active_panel_show_aim);
     WBool(o, "esp.active_panel_show_trigger", e.active_panel_show_trigger);
     WBool(o, "esp.active_panel_show_radar", e.active_panel_show_radar);
-    WInt(o, "esp.layout_name", (int)e.layout_name);
-    WInt(o, "esp.layout_health", (int)e.layout_health);
-    WInt(o, "esp.layout_armor", (int)e.layout_armor);
-    WInt(o, "esp.layout_weapon", (int)e.layout_weapon);
-    WInt(o, "esp.layout_distance", (int)e.layout_distance);
+    WInt(o, "esp.layout_name", static_cast<int>(e.layout_name));
+    WInt(o, "esp.layout_health", static_cast<int>(e.layout_health));
+    WInt(o, "esp.layout_armor", static_cast<int>(e.layout_armor));
+    WInt(o, "esp.layout_weapon", static_cast<int>(e.layout_weapon));
+    WInt(o, "esp.layout_distance", static_cast<int>(e.layout_distance));
     WFloat(o, "esp.layout_name_x", e.layout_name_x);
     WFloat(o, "esp.layout_name_y", e.layout_name_y);
     WFloat(o, "esp.layout_health_x", e.layout_health_x);

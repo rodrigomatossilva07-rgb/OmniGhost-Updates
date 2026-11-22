@@ -183,7 +183,7 @@ private:
 // Initialize with default config (call early in main)
 inline bool InitializeDefaultLogging() {
     Config config;
-    config.logDirectory = OmniGhost::Paths::LogDirectory();
+    config.logDirectory = OmniGhost::Paths::Logs();
     config.consoleLevel = spdlog::level::info;
     config.fileLevel = spdlog::level::debug;
     config.asyncEnabled = true;

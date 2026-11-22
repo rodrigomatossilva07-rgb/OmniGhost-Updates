@@ -8,9 +8,14 @@
 #include "config_aimtype.h"
 #include "../window/hotkeys.h"
 #include "../globals.h"
+#include "../constants.h"
+#include "../app_version.h"
+#include "../platform/app_paths.h"
 #include "../../src/games/Fivem/aimbot/aimbot.h"
 #include "../../src/games/Fivem/esp/esp.h"
 #include "../../src/games/Fivem/friends/friends.h"
+#include "../../src/licensing/license_service.h"
+#include "../../src/updater/json.h"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -20,8 +25,44 @@
 #include <sstream>
 #include <algorithm>
 #include <array>
+#include <chrono>
+#include <iomanip>
 
 namespace config_manager {
+
+namespace {
+constexpr int kConfigSchemaVersion = OmniGhost::Constants::kConfigSchemaVersion;
+
+std::string CurrentAppVersion() { return OmniGhost::Version; }
+
+std::string ActiveGameMeta() {
+    switch (g_activeGame) {
+    case ActiveGame::CS2: return "cs2";
+    case ActiveGame::Rust: return "rust";
+    case ActiveGame::Warzone: return "warzone";
+    case ActiveGame::Apex: return "apex";
+    case ActiveGame::Fortnite: return "fortnite";
+    case ActiveGame::FiveM:
+    default: return "fivem";
+    }
+}
+
+std::string NewConfigId() {
+    const auto ticks = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    std::ostringstream id;
+    id << std::hex << static_cast<unsigned long long>(ticks) << '-' << GetCurrentProcessId();
+    return id.str();
+}
+
+bool ParseLine(const std::string& line, std::string& key, std::string& value) {
+    const auto separator = line.find('=');
+    if (separator == std::string::npos || separator == 0) return false;
+    key = line.substr(0, separator);
+    value = line.substr(separator + 1);
+    return true;
+}
+}
 
 std::string SerializeAll() {
     std::ostringstream o;
@@ -65,6 +106,10 @@ std::string SerializeAll() {
     o << Hotkeys::SerializeActions();
 
     return o.str();
+}
+
+std::string GetConfigFolder() {
+    return OmniGhost::Paths::Configs().string();
 }
 
 bool DeserializeAll(const std::string& data) {
@@ -304,5 +349,495 @@ bool DeserializeAll(const std::string& data) {
     return true;
 }
 
+// =============================================================================
+// DEV Config (admin only)
+// =============================================================================
+
+bool IsDevConfigAvailable() {
+    // Only available in Development builds
+    #if defined(OMNIGHOST_DEV_BUILD) || defined(OMNIGHOST_DEV_BUILD)
+    return true;
+    #else
+    return false;
+    #endif
+}
+
+namespace {
+    // Helper to make DEV Config API requests
+    OmniGhost::Auth::LauncherApiResponse DevConfigRequest(std::string_view method, std::string_view path, std::string_view body = {}) {
+        return OmniGhost::Licensing::WebsiteRequest(method, path, body);
+    }
+
+    bool ParseDevConfigResponse(const std::string& body, std::string& outData, std::string& outError) {
+        if (body.empty()) {
+            outError = "Resposta vazia do servidor";
+            return false;
+        }
+        OmniGhost::Update::Json::Value root;
+        OmniGhost::Update::Json::Limits limits{24, 64u * 1024u, 5000};
+        const auto parsed = OmniGhost::Update::Json::Parse(body, root, limits);
+        const auto* object = parsed.ok ? OmniGhost::Update::Json::AsObject(root) : nullptr;
+        if (!object) {
+            outError = "Resposta JSON invalida";
+            return false;
+        }
+        if (const auto* okValue = OmniGhost::Update::Json::Field(*object, "ok")) {
+            const bool* ok = OmniGhost::Update::Json::AsBool(*okValue);
+            if (!ok || !*ok) {
+                if (const auto* errValue = OmniGhost::Update::Json::Field(*object, "error")) {
+                    const std::string* err = OmniGhost::Update::Json::AsString(*errValue);
+                    if (err) outError = *err;
+                }
+                if (outError.empty()) outError = "Operacao recusada pelo servidor";
+                return false;
+            }
+        }
+        if (const auto* dataValue = OmniGhost::Update::Json::Field(*object, "data")) {
+            const std::string* data = OmniGhost::Update::Json::AsString(*dataValue);
+            if (data) outData = *data;
+        }
+        return true;
+    }
+
+    // Parse detailed DEV config info from server response
+    bool ParseDevConfigInfo(const OmniGhost::Update::Json::Object& obj, config_manager::DevConfigInfo& info) {
+        auto getString = [&](const char* key, std::string& out) {
+            if (const auto* val = OmniGhost::Update::Json::Field(obj, key)) {
+                if (const auto* str = OmniGhost::Update::Json::AsString(*val)) out = *str;
+            }
+        };
+        auto getInt = [&](const char* key, int& out) {
+            if (const auto* val = OmniGhost::Update::Json::Field(obj, key)) {
+                double number = 0.0;
+                if (OmniGhost::Update::Json::AsDouble(*val, number)) out = static_cast<int>(number);
+            }
+        };
+        auto getBool = [&](const char* key, bool& out) {
+            if (const auto* val = OmniGhost::Update::Json::Field(obj, key)) {
+                if (const auto* b = OmniGhost::Update::Json::AsBool(*val)) out = *b;
+            }
+        };
+        auto getArray = [&](const char* key, std::vector<std::string>& out) {
+            if (const auto* val = OmniGhost::Update::Json::Field(obj, key)) {
+                if (const auto* arr = OmniGhost::Update::Json::AsArray(*val)) {
+                    for (const auto& item : *arr) {
+                        if (const auto* str = OmniGhost::Update::Json::AsString(item)) out.push_back(*str);
+                    }
+                }
+            }
+        };
+
+        getString("name", info.name);
+        getString("title", info.title);
+        getString("description", info.description);
+        getString("author", info.author);
+        getString("version", info.version);
+        getInt("version_int", info.version_int);
+        getString("exe_version", info.exe_version);
+        getString("changelog", info.changelog);
+        getString("updated_at", info.updated_at);
+        getString("download_url", info.download_url);
+        getInt("downloads", info.downloads);
+        getBool("official", info.official);
+        getArray("tags", info.tags);
+        getString("min_launcher_version", info.min_launcher_version);
+
+        // Validar versão do EXE compatível
+        if (info.exe_version.empty()) {
+            info.exe_version = OmniGhost::Version;
+        }
+
+        return true;
+    }
+
+    // Storage key for notified updates
+    const char* kNotifiedUpdatesKey = "dev_config_notified_updates";
+    
+    std::vector<std::string> GetNotifiedUpdates() {
+        std::vector<std::string> notified;
+        // Load from app settings / local storage
+        // For now, return empty - can be persisted in config file
+        return notified;
+    }
+    
+    void AddNotifiedUpdate(const std::string& name) {
+        // Save to persistent storage
+        // Implementation depends on config system
+    }
+    
+    bool IsUpdateNotified(const std::string& name) {
+        auto notified = GetNotifiedUpdates();
+        return std::find(notified.begin(), notified.end(), name) != notified.end();
+    }
+}
+
+// Legacy simple list (backward compatibility)
+std::vector<std::string> ListDevConfigs() {
+    auto detailed = ListDevConfigsDetailed();
+    std::vector<std::string> names;
+    for (const auto& info : detailed) names.push_back(info.name);
+    return names;
+}
+
+// Enhanced detailed list with versioning info
+std::vector<DevConfigInfo> ListDevConfigsDetailed() {
+    std::vector<DevConfigInfo> configs;
+    
+    if (!IsDevConfigAvailable()) {
+        last_status = "Configs DEV disponiveis apenas em builds de desenvolvimento";
+        return configs;
+    }
+    
+    if (!OmniGhost::Licensing::IsAdmin()) {
+        last_status = "Acesso negado: Apenas administradores podem listar configs DEV";
+        return configs;
+    }
+    
+    auto response = DevConfigRequest("GET", "/api/v1/dev-configs");
+    if (response.statusCode < 200 || response.statusCode >= 300 || !response.error.empty()) {
+        last_status = "Erro ao listar configs DEV: " + (response.error.empty() ? std::to_string(response.statusCode) : response.error);
+        return configs;
+    }
+    
+    OmniGhost::Update::Json::Value root;
+    OmniGhost::Update::Json::Limits limits{24, 64u * 1024u, 5000};
+    const auto parsed = OmniGhost::Update::Json::Parse(response.body, root, limits);
+    const auto* object = parsed.ok ? OmniGhost::Update::Json::AsObject(root) : nullptr;
+    if (!object) {
+        last_status = "Resposta invalida do servidor";
+        return configs;
+    }
+    
+    if (const auto* dataValue = OmniGhost::Update::Json::Field(*object, "data")) {
+        const auto* array = OmniGhost::Update::Json::AsArray(*dataValue);
+        if (array) {
+            for (const auto& item : *array) {
+                const auto* itemObj = OmniGhost::Update::Json::AsObject(item);
+                if (itemObj) {
+                    DevConfigInfo info;
+                    if (ParseDevConfigInfo(*itemObj, info)) {
+                        // Check if this version is newer than what we have locally
+                        // For now, mark all as potentially having updates
+                        info.has_update = false; // Will be set by CheckDevConfigUpdates()
+                        configs.push_back(std::move(info));
+                    }
+                }
+            }
+        }
+    }
+    
+    last_status = "Lista detalhada de configs DEV atualizada (" + std::to_string(configs.size()) + " configs)";
+    return configs;
+}
+
+// Download specific version of DEV config (or latest if target_version = -1)
+bool DownloadDevConfigVersioned(const std::string& name, int target_version) {
+    if (!OmniGhost::Licensing::IsAdmin()) {
+        last_status = "Acesso negado: Apenas administradores podem baixar configs DEV";
+        return false;
+    }
+    
+    if (!IsDevConfigAvailable()) {
+        last_status = "Configs DEV disponiveis apenas em builds de desenvolvimento";
+        return false;
+    }
+    
+    std::string path = "/api/v1/dev-configs/" + name + "/download";
+    if (target_version > 0) {
+        path += "?version=" + std::to_string(target_version);
+    }
+    
+    auto response = DevConfigRequest("GET", path);
+    
+    if (response.statusCode < 200 || response.statusCode >= 300 || !response.error.empty()) {
+        last_status = "Erro ao baixar config DEV: " + (response.error.empty() ? std::to_string(response.statusCode) : response.error);
+        return false;
+    }
+    
+    std::string configData, error;
+    if (!ParseDevConfigResponse(response.body, configData, error)) {
+        last_status = error;
+        return false;
+    }
+    
+    if (configData.empty()) {
+        last_status = "Config DEV vazia ou nao encontrada";
+        return false;
+    }
+    
+    // Validar schema version antes de aplicar
+    std::istringstream metaIn(configData);
+    std::string line;
+    int schema_version = 0;
+    std::string meta_game;
+    while (std::getline(metaIn, line)) {
+        std::string key, val;
+        size_t eq = line.find('=');
+        if (eq != std::string::npos) {
+            key = line.substr(0, eq);
+            val = line.substr(eq + 1);
+            if (key == "meta.schema_version") schema_version = atoi(val.c_str());
+            else if (key == "meta.game") meta_game = val;
+        }
+    }
+    
+    // Validar compatibilidade
+    constexpr int kCurrentSchemaVersion = 3; // kConfigSchemaVersion
+    if (schema_version > kCurrentSchemaVersion) {
+        last_status = "Config DEV requer launcher mais novo (schema v" + std::to_string(schema_version) + " > v" + std::to_string(kCurrentSchemaVersion) + ")";
+        return false;
+    }
+    
+    if (!meta_game.empty() && meta_game != "fivem" && meta_game != "cs2" && meta_game != "rust" && meta_game != "warzone" && meta_game != "apex" && meta_game != "fortnite") {
+        last_status = "Config DEV para jogo desconhecido: " + meta_game;
+        return false;
+    }
+    
+    // Deserialize and apply the config
+    if (!DeserializeAll(configData)) {
+        last_status = "Falha ao aplicar config DEV: " + GetLastStatus();
+        return false;
+    }
+    
+    active_config_name = name;
+    last_status = "Config DEV '" + name + (target_version > 0 ? " v" + std::to_string(target_version) : "") + "' baixada e aplicada com sucesso";
+    return true;
+}
+
+// Upload new version of DEV config with full metadata
+bool UploadDevConfigVersioned(const std::string& name, const std::string& title, const std::string& description, const std::string& changelog, const std::vector<std::string>& tags) {
+    if (!OmniGhost::Licensing::IsAdmin()) {
+        last_status = "Acesso negado: Apenas administradores podem enviar configs DEV";
+        return false;
+    }
+    
+    if (!IsDevConfigAvailable()) {
+        last_status = "Configs DEV disponiveis apenas em builds de desenvolvimento";
+        return false;
+    }
+    
+    // Validar nome
+    if (name.empty() || name.size() > 64) {
+        last_status = "Nome invalido (1-64 caracteres)";
+        return false;
+    }
+    
+    // Validar caracteres permitidos
+    for (char c : name) {
+        if (!std::isalnum(c) && c != '-' && c != '_') {
+            last_status = "Nome deve conter apenas letras, numeros, hifen e underscore";
+            return false;
+        }
+    }
+    
+    // Serialize current config
+    std::string configData = SerializeAll();
+    if (configData.empty()) {
+        last_status = "Nenhuma config ativa para enviar";
+        return false;
+    }
+    
+    // Validar config data size
+    if (configData.size() > 1024 * 1024) { // 1MB max
+        last_status = "Config muito grande (>1MB)";
+        return false;
+    }
+    
+    // Escape JSON string helper
+    auto escapeJson = [](const std::string& input) {
+        std::ostringstream out;
+        for (char c : input) {
+            switch (c) {
+                case '"': out << "\\\""; break;
+                case '\\': out << "\\\\"; break;
+                case '\n': out << "\\n"; break;
+                case '\r': out << "\\r"; break;
+                case '\t': out << "\\t"; break;
+                default:
+                    if (static_cast<unsigned char>(c) < 0x20) {
+                        char buf[7];
+                        sprintf(buf, "\\u%04x", static_cast<unsigned char>(c));
+                        out << buf;
+                    } else {
+                        out << c;
+                    }
+            }
+        }
+        return out.str();
+    };
+    
+    // Create JSON body with full metadata
+    std::ostringstream body;
+    body << "{";
+    body << "\"name\":\"" << escapeJson(name) << "\",";
+    body << "\"title\":\"" << escapeJson(title) << "\",";
+    body << "\"description\":\"" << escapeJson(description) << "\",";
+    body << "\"changelog\":\"" << escapeJson(changelog) << "\",";
+    body << "\"config\":\"" << escapeJson(configData) << "\",";
+    body << "\"exe_version\":\"" << OmniGhost::Version << "\",";
+    
+    // Tags array
+    body << "\"tags\":[";
+    for (size_t i = 0; i < tags.size(); ++i) {
+        if (i > 0) body << ",";
+        body << "\"" << escapeJson(tags[i]) << "\"";
+    }
+    body << "],";
+    
+    if (!active_config_id.empty()) {
+        body << "\"config_id\":\"" << active_config_id << "\",";
+    }
+    body << "\"author\":\"" << escapeJson(OmniGhost::Licensing::RemoteUsername()) << "\"";
+    body << "}";
+    
+    auto response = DevConfigRequest("POST", "/api/v1/dev-configs", body.str());
+    
+    if (response.statusCode < 200 || response.statusCode >= 300 || !response.error.empty()) {
+        last_status = "Erro ao enviar config DEV: " + (response.error.empty() ? std::to_string(response.statusCode) : response.error);
+        return false;
+    }
+    
+    std::string resultData, error;
+    if (!ParseDevConfigResponse(response.body, resultData, error)) {
+        last_status = error;
+        return false;
+    }
+    
+    last_status = "Config DEV '" + name + "' enviada com sucesso (v" + OmniGhost::Version + ")";
+    return true;
+}
+
+bool DeleteDevConfig(const std::string& name) {
+    if (!OmniGhost::Licensing::IsAdmin()) {
+        last_status = "Acesso negado: Apenas administradores podem deletar configs DEV";
+        return false;
+    }
+    
+    if (!IsDevConfigAvailable()) {
+        last_status = "Configs DEV disponiveis apenas em builds de desenvolvimento";
+        return false;
+    }
+    
+    std::string path = "/api/v1/dev-configs/" + name;
+    auto response = DevConfigRequest("DELETE", path);
+    
+    if (response.statusCode < 200 || response.statusCode >= 300 || !response.error.empty()) {
+        last_status = "Erro ao deletar config DEV: " + (response.error.empty() ? std::to_string(response.statusCode) : response.error);
+        return false;
+    }
+    
+    std::string resultData, error;
+    if (!ParseDevConfigResponse(response.body, resultData, error)) {
+        last_status = error;
+        return false;
+    }
+    
+    last_status = "Config DEV '" + name + "' deletada com sucesso";
+    return true;
+}
+
+// Check for DEV config updates on server
+bool CheckDevConfigUpdates() {
+    if (!OmniGhost::Licensing::IsAdmin()) {
+        last_status = "Acesso negado: Apenas administradores podem verificar updates DEV";
+        return false;
+    }
+    
+    if (!IsDevConfigAvailable()) {
+        last_status = "Configs DEV disponiveis apenas em builds de desenvolvimento";
+        return false;
+    }
+    
+    auto response = DevConfigRequest("GET", "/api/v1/dev-configs/check-updates");
+    
+    if (response.statusCode < 200 || response.statusCode >= 300 || !response.error.empty()) {
+        last_status = "Erro ao verificar updates DEV: " + (response.error.empty() ? std::to_string(response.statusCode) : response.error);
+        return false;
+    }
+    
+    OmniGhost::Update::Json::Value root;
+    OmniGhost::Update::Json::Limits limits{24, 64u * 1024u, 5000};
+    const auto parsed = OmniGhost::Update::Json::Parse(response.body, root, limits);
+    const auto* object = parsed.ok ? OmniGhost::Update::Json::AsObject(root) : nullptr;
+    if (!object) {
+        last_status = "Resposta invalida do servidor";
+        return false;
+    }
+    
+    // Server returns list of configs with newer versions
+    if (const auto* dataValue = OmniGhost::Update::Json::Field(*object, "data")) {
+        const auto* array = OmniGhost::Update::Json::AsArray(*dataValue);
+        if (array) {
+            int updatesFound = 0;
+            for (const auto& item : *array) {
+                const auto* itemObj = OmniGhost::Update::Json::AsObject(item);
+                if (itemObj) {
+                    if (const auto* nameValue = OmniGhost::Update::Json::Field(*itemObj, "name")) {
+                        if (const auto* name = OmniGhost::Update::Json::AsString(*nameValue)) {
+                            // Mark this config as having an update available
+                            // Could store in memory/cache for UI
+                            updatesFound++;
+                        }
+                    }
+                }
+            }
+            last_status = updatesFound > 0 
+                ? std::to_string(updatesFound) + " config(s) DEV com atualizacao disponivel"
+                : "Nenhuma atualizacao DEV disponivel";
+        }
+    }
+    
+    return true;
+}
+
+// Get list of DEV configs that have updates available
+std::vector<DevConfigInfo> GetPendingDevConfigUpdates() {
+    std::vector<DevConfigInfo> updates;
+    
+    if (!OmniGhost::Licensing::IsAdmin() || !IsDevConfigAvailable()) {
+        return updates;
+    }
+    
+    auto response = DevConfigRequest("GET", "/api/v1/dev-configs/pending-updates");
+    
+    if (response.statusCode < 200 || response.statusCode >= 300 || !response.error.empty()) {
+        return updates;
+    }
+    
+    OmniGhost::Update::Json::Value root;
+    OmniGhost::Update::Json::Limits limits{24, 64u * 1024u, 5000};
+    const auto parsed = OmniGhost::Update::Json::Parse(response.body, root, limits);
+    const auto* object = parsed.ok ? OmniGhost::Update::Json::AsObject(root) : nullptr;
+    if (!object) return updates;
+    
+    if (const auto* dataValue = OmniGhost::Update::Json::Field(*object, "data")) {
+        const auto* array = OmniGhost::Update::Json::AsArray(*dataValue);
+        if (array) {
+            for (const auto& item : *array) {
+                const auto* itemObj = OmniGhost::Update::Json::AsObject(item);
+                if (itemObj) {
+                    DevConfigInfo info;
+                    if (ParseDevConfigInfo(*itemObj, info)) {
+                        info.has_update = true;
+                        updates.push_back(std::move(info));
+                    }
+                }
+            }
+        }
+    }
+    
+    return updates;
+}
+
+// Mark DEV config update notification as seen
+void MarkDevConfigUpdateNotified(const std::string& name) {
+    // Store in persistent config
+    // For now, just track in memory
+    AddNotifiedUpdate(name);
+}
+
+std::string GetLastStatus() {
+    return last_status;
+}
 
 }

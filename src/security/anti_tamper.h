@@ -1,216 +1,200 @@
 #pragma once
 
-#include <cstdint>
-#include <string>
-#include <string_view>
-#include <vector>
-#include <array>
-#include <functional>
-#include <mutex>
-#include <atomic>
-#include <chrono>
-#include <filesystem>
+// Anti-Tamper / Integrity Check Module
+// Provides runtime integrity verification of code sections and critical data
 
-#include "memory_span.h"
-#include "file_integrity.h"
+#ifndef OMNIGHOST_ANTI_TAMPER_H
+#define OMNIGHOST_ANTI_TAMPER_H
 
-namespace OmniGhost::Security {
+#include "security_common.h"
+
+namespace omnighost::security {
 
 // =============================================================================
-// Anti-Tamper & Integrity Checks
+// Configuration
 // =============================================================================
 
-// Memory protection guard using VirtualProtect
-class MemoryGuard {
-public:
-    MemoryGuard() = default;
-    MemoryGuard(void* address, std::size_t size, DWORD protect = PAGE_READONLY);
-    ~MemoryGuard();
+struct AntiTamperConfig {
+    // Code sections to protect
+    bool protect_text_section = true;
+    bool protect_rodata_section = true;
+    bool protect_data_section = false;
+    bool protect_heap = true;
+    bool protect_stack = false;
 
-    // Non-copyable, movable
-    MemoryGuard(const MemoryGuard&) = delete;
-    MemoryGuard& operator=(const MemoryGuard&) = delete;
-    MemoryGuard(MemoryGuard&& other) noexcept;
-    MemoryGuard& operator=(MemoryGuard&& other) noexcept;
+    // Check intervals (milliseconds)
+    uint32_t integrity_check_interval_ms = 5000;
+    uint32_t fast_check_interval_ms = 1000;
 
-    // Apply protection
-    [[nodiscard]] bool Protect(void* address, std::size_t size, DWORD protect = PAGE_READONLY);
-    // Remove protection (restore original)
-    void Unprotect();
+    // Actions on violation
+    bool terminate_on_violation = true;
+    bool log_violation = true;
+    bool callback_on_violation = true;
 
-    // Check if memory is still protected
-    [[nodiscard]] bool IsProtected() const noexcept { return protected_ && address_ != nullptr; }
+    // Advanced
+    bool verify_imports = true;
+    bool verify_exports = false;
+    bool verify_relocations = false;
+    bool check_module_list = true;
 
-    // Get protected region info
-    [[nodiscard]] void* Address() const noexcept { return address_; }
-    [[nodiscard]] std::size_t Size() const noexcept { return size_; }
-    [[nodiscard]] DWORD OriginalProtection() const noexcept { return originalProtect_; }
-
-private:
-    void* address_ = nullptr;
-    std::size_t size_ = 0;
-    DWORD originalProtect_ = 0;
-    bool protected_ = false;
+    // CRC32 polynomial (standard IEEE 802.3)
+    static constexpr uint32_t CRC32_POLY = 0xEDB88320;
 };
 
-// Guard multiple critical regions
-class MemoryGuardRegistry {
+// =============================================================================
+// CRC32 Implementation
+// =============================================================================
+
+class CRC32 {
 public:
-    static MemoryGuardRegistry& Instance() noexcept {
-        static MemoryGuardRegistry instance;
+    static constexpr uint32_t POLYNOMIAL = 0xEDB88320;
+
+    OMNIGHOST_FORCE_INLINE static uint32_t compute(const void* data, size_t length, uint32_t initialCrc = 0xFFFFFFFF) {
+        const uint8_t* bytes = static_cast<const uint8_t*>(data);
+        uint32_t crc = ~initialCrc;
+
+        for (size_t i = 0; i < length; ++i) {
+            crc ^= bytes[i];
+            for (int j = 0; j < 8; ++j) {
+                const uint32_t mask = 0u - (crc & 1u);
+                crc = (crc >> 1) ^ (mask & POLYNOMIAL);
+            }
+        }
+
+        return ~crc;
+    }
+
+    OMNIGHOST_FORCE_INLINE static uint32_t compute_incremental(const void* data, size_t length, uint32_t crc) {
+        return compute(data, length, crc);
+    }
+};
+
+// =============================================================================
+// Protected Region
+// =============================================================================
+
+struct ProtectedRegion {
+    const char* name;
+    uintptr_t start_address;
+    size_t size;
+    uint32_t expected_crc;
+    uint32_t flags;
+
+    enum Flags : uint32_t {
+        FLAG_NONE = 0,
+        FLAG_EXECUTABLE = 1 << 0,
+        FLAG_READABLE = 1 << 1,
+        FLAG_WRITABLE = 1 << 2,
+        FLAG_CRITICAL = 1 << 3,      // Critical section - immediate termination on modification
+        FLAG_SELF_MODIFYING = 1 << 4, // Known to self-modify (JIT, etc.)
+    };
+};
+
+// =============================================================================
+// Anti-Tamper Class
+// =============================================================================
+
+class AntiTamper {
+public:
+    // Singleton access
+    static AntiTamper& instance() {
+        static AntiTamper instance;
         return instance;
     }
 
-    // Register a critical memory region for protection
-    // Returns guard ID for later reference
-    [[nodiscard]] std::size_t RegisterRegion(void* address, std::size_t size,
-                                             DWORD protect = PAGE_READONLY,
-                                             std::string_view name = "");
+    // Non-copyable, non-movable
+    AntiTamper(const AntiTamper&) = delete;
+    AntiTamper& operator=(const AntiTamper&) = delete;
+    AntiTamper(AntiTamper&&) = delete;
+    AntiTamper& operator=(AntiTamper&&) = delete;
 
-    // Unregister and unprotect region
-    bool UnregisterRegion(std::size_t guardId);
+    // Initialization
+    OMNIGHOST_SECURE_FUNC bool initialize(const AntiTamperConfig& config = {});
+    OMNIGHOST_SECURE_FUNC void shutdown();
 
-    // Verify all protected regions are intact
-    [[nodiscard]] bool VerifyAll() const;
+    // Configuration
+    OMNIGHOST_SECURE_INLINE void set_config(const AntiTamperConfig& config) { config_ = config; }
+    OMNIGHOST_SECURE_INLINE const AntiTamperConfig& get_config() const { return config_; }
 
-    // Verify specific region
-    [[nodiscard]] bool VerifyRegion(std::size_t guardId) const;
+    // Region management
+    OMNIGHOST_SECURE_FUNC bool add_protected_region(const ProtectedRegion& region);
+    OMNIGHOST_SECURE_FUNC bool remove_protected_region(const char* name);
+    OMNIGHOST_SECURE_FUNC bool update_region_crc(const char* name);
 
-    // Get all registered regions
-    struct RegionInfo {
-        std::size_t id;
-        void* address;
-        std::size_t size;
-        DWORD protection;
-        std::string name;
-        bool valid;
-    };
-    [[nodiscard]] std::vector<RegionInfo> GetAllRegions() const;
+    // Integrity checks
+    OMNIGHOST_SECURE_FUNC bool verify_all_regions();
+    OMNIGHOST_SECURE_FUNC bool verify_region(const char* name);
+    OMNIGHOST_SECURE_FUNC bool verify_region(const ProtectedRegion& region);
 
-    // Enable/disable protection for all regions
-    void SetProtectionEnabled(bool enabled);
+    // Full integrity check (includes imports, modules, etc.)
+    OMNIGHOST_SECURE_FUNC bool full_integrity_check();
 
-private:
-    MemoryGuardRegistry() = default;
-    std::mutex mutex_;
-    std::vector<MemoryGuard> guards_;
-    std::atomic<bool> protectionEnabled_{true};
-};
+    // Callbacks
+    using ViolationCallback = void(*)(const IntegrityReport&);
+    OMNIGHOST_SECURE_INLINE void set_violation_callback(IntegrityViolationCallback cb) {
+        violation_callback_ = cb;
+    }
 
-// =============================================================================
-// Timing Checks (RDTSC) for Debugger Detection
-// =============================================================================
+    // Status
+    OMNIGHOST_SECURE_INLINE bool is_initialized() const { return initialized_; }
+    OMNIGHOST_SECURE_INLINE size_t get_region_count() const { return regions_.size(); }
+    OMNIGHOST_SECURE_INLINE uint64_t get_last_check_time() const { return last_check_time_; }
+    OMNIGHOST_SECURE_INLINE uint32_t get_violation_count() const { return violation_count_; }
 
-class TimingCheck {
-public:
-    // Check for debugger using RDTSC timing
-    // Returns true if timing anomaly detected (possible debugger)
-    [[nodiscard]] static bool CheckRDTSC(uint64_t thresholdCycles = 10000);
-
-    // Check for debugger using QueryPerformanceCounter
-    [[nodiscard]] static bool CheckQPC(uint64_t thresholdMicroseconds = 1000);
-
-    // Check for debugger using NtQueryInformationProcess
-    [[nodiscard]] static bool CheckDebuggerPresent();
-
-    // Check for hardware breakpoints
-    [[nodiscard]] static bool CheckHardwareBreakpoints();
-
-    // Combined check - runs all timing checks
-    [[nodiscard]] static bool RunAllChecks(uint64_t rdtscThreshold = 10000,
-                                           uint64_t qpcThreshold = 1000);
-
-    // Get timing statistics for analysis
-    struct TimingStats {
-        uint64_t rdtscDelta = 0;
-        uint64_t qpcDelta = 0;
-        bool debuggerDetected = false;
-        std::string details;
-    };
-    [[nodiscard]] static TimingStats GetTimingStats();
-};
-
-// =============================================================================
-// Module Integrity Verification
-// =============================================================================
-
-struct ModuleIntegrityInfo {
-    std::string moduleName;
-    std::uintptr_t baseAddress = 0;
-    std::size_t size = 0;
-    std::string expectedSHA256;
-    std::string actualSHA256;
-    uint32_t crc32 = 0;
-    bool verified = false;
-    std::string error;
-};
-
-class ModuleIntegrity {
-public:
-    // Add a module to verify
-    void AddModule(std::string_view moduleName,
-                   std::uintptr_t baseAddress,
-                   std::size_t size,
-                   std::string_view expectedSHA256 = "");
-
-    // Add module by name (will find base address automatically)
-    void AddModuleByName(std::string_view moduleName, std::string_view expectedSHA256 = "");
-
-    // Verify all registered modules
-    [[nodiscard]] bool VerifyAll(std::vector<ModuleIntegrityInfo>& results);
-
-    // Verify single module
-    [[nodiscard]] bool VerifyModule(std::string_view moduleName, ModuleIntegrityInfo& result);
-
-    // Calculate SHA256 of memory region
-    [[nodiscard]] static bool CalculateSHA256(std::uintptr_t address, std::size_t size, std::string& hash);
-
-    // Calculate CRC32 of memory region
-    [[nodiscard]] static uint32_t CalculateCRC32(std::uintptr_t address, std::size_t size);
-
-    // Get all registered modules
-    [[nodiscard]] const std::vector<ModuleIntegrityInfo>& GetRegisteredModules() const noexcept;
-
-    // Clear registered modules
-    void Clear();
+    // Manual trigger
+    OMNIGHOST_SECURE_FUNC void force_check();
 
 private:
-    std::mutex mutex_;
-    std::vector<ModuleIntegrityInfo> modules_;
+    AntiTamper() = default;
+    ~AntiTamper() = default;
+
+    // Configuration
+    AntiTamperConfig config_;
+
+    // State
+    bool initialized_ = false;
+    std::vector<ProtectedRegion> regions_;
+    IntegrityViolationCallback violation_callback_ = nullptr;
+    uint64_t last_check_time_ = 0;
+    uint32_t violation_count_ = 0;
+
+    // Known good state
+    std::vector<uint8_t> original_text_section_;
+    std::vector<uint8_t> original_imports_;
+    std::vector<std::string> original_modules_;
+
+    // Internal methods
+    OMNIGHOST_SECURE_FUNC bool scan_memory_regions();
+    OMNIGHOST_SECURE_FUNC bool verify_text_section();
+    OMNIGHOST_SECURE_FUNC bool verify_imports();
+    OMNIGHOST_SECURE_FUNC bool verify_modules();
+    OMNIGHOST_SECURE_FUNC bool verify_heap_integrity();
+    OMNIGHOST_SECURE_FUNC void report_violation(const IntegrityReport& report);
+
+    // Platform-specific
+    OMNIGHOST_SECURE_FUNC bool get_module_bounds(const char* module_name, uintptr_t& base, size_t& size);
+    OMNIGHOST_SECURE_FUNC bool get_section_bounds(const char* section_name, uintptr_t& base, size_t size);
 };
 
 // =============================================================================
-// Startup Integrity Verification
+// Global Functions
 // =============================================================================
 
-// Run all integrity checks at startup
-// Returns true if all checks pass
-[[nodiscard]] bool RunStartupIntegrityChecks();
+// Quick integrity check (for periodic calls)
+OMNIGHOST_SECURE_FUNC bool quick_integrity_check();
 
-// Run periodic integrity checks (call from main loop)
-// Returns true if all checks pass
-[[nodiscard]] bool RunPeriodicIntegrityChecks();
+// Full integrity check (comprehensive)
+OMNIGHOST_SECURE_FUNC bool full_integrity_check();
 
-// Install memory guards on critical regions
-void InstallCriticalMemoryGuards();
+// Register protected region (called from module initialization)
+OMNIGHOST_SECURE_FUNC bool register_protected_region(const ProtectedRegion& region);
 
-// Run timing checks
-[[nodiscard]] bool RunTimingChecks();
+// Verify specific region
+OMNIGHOST_SECURE_FUNC bool verify_region(const char* name);
 
-// =============================================================================
-// Helper: Get current module base address
-// =============================================================================
-[[nodiscard]] std::uintptr_t GetCurrentModuleBase();
+// Get integrity report
+OMNIGHOST_SECURE_FUNC const IntegrityReport* get_last_report();
 
-// =============================================================================
-// Helper: Get module info by name
-// =============================================================================
-struct ModuleInfo {
-    std::uintptr_t baseAddress = 0;
-    std::size_t size = 0;
-    std::string name;
-    std::string path;
-};
-[[nodiscard]] std::optional<ModuleInfo> GetModuleInfo(std::string_view moduleName);
+} // namespace omnighost::security
 
-} // namespace OmniGhost::Security
+#endif // OMNIGHOST_ANTI_TAMPER_H

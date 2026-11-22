@@ -81,7 +81,6 @@ constexpr uint32_t kEntityEntrySize = 8;
 constexpr uintptr_t kMinPointer = 0x10000;
 constexpr uintptr_t kMaxPointer = 0x7FFFFFFFFFFF;
 constexpr size_t kPageSize = 4096;
-constexpr size_t kEntityEntrySize = 8;
 
 // =============================================================================
 // Timing/Animation Constants
@@ -115,7 +114,6 @@ constexpr float kSniperMaxDistance = 150.0f;
 constexpr int kMinHealth = 1;
 constexpr int kMaxHealth = 1000;
 constexpr int kMaxHealthApex = 1000;
-constexpr int kMaxEntitiesDisplay = 256;
 
 // =============================================================================
 // Telemetry/Logging Constants
@@ -137,7 +135,6 @@ constexpr float kCardRounding = 10.0f;
 constexpr float kWindowRounding = 14.0f;
 constexpr float kCardRoundingSmall = 8.0f;
 constexpr float kControlRoundingSmall = 4.0f;
-constexpr float kCardMinHeight = 0.0f;
 constexpr float kCheckboxSize = 28.0f;
 constexpr float kCheckboxKnobRatio = 0.42f;
 constexpr float kSwitchWidth = 52.0f;
@@ -164,7 +161,6 @@ constexpr float kCardRoundingInternal = 10.0f;
 // Window metrics
 constexpr float kWindowWidth = 1180.0f;
 constexpr float kWindowHeight = 720.0f;
-constexpr float kWindowRounding = 14.0f;
 constexpr float kHeaderHeight = 70.0f;
 constexpr float kFooterHeight = 40.0f;
 constexpr float kSidebarWidth = 210.0f;
@@ -188,9 +184,6 @@ constexpr float kFontMono = 11.0f;
 // =============================================================================
 // Hardware/Device Constants
 // =============================================================================
-constexpr int kMaxVehicles = 128;
-constexpr int kMinVehicles = 8;
-constexpr int kMaxEntitiesDisplay = 256;
 constexpr int kMaxEntitiesLimit = 256;
 
 // =============================================================================
@@ -267,7 +260,6 @@ constexpr float kSniperMaxRange = 150.0f;
 // Vehicle Limits
 // =============================================================================
 constexpr int kDefaultMaxVehicles = 32;
-constexpr int kMinVehicles = 8;
 constexpr int kMaxVehiclesLimit = 128;
 
 // =============================================================================

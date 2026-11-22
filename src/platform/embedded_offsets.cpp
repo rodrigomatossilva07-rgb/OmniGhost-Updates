@@ -299,9 +299,9 @@ bool ParseEmbeddedOffsetBlob(ByteView blob,
         return false;
     }
     diagnostics.sizeValid = true;
-    const auto expectedDigest = blob.subview(cursor, 32);
+    const auto expectedDigest = blob.subspan(cursor, 32);
     cursor += 32;
-    const auto compressed = blob.subview(cursor, compressedSize);
+    const auto compressed = blob.subspan(cursor, compressedSize);
 
     std::vector<std::uint8_t> payload;
     if (!DecompressPackBits(compressed, uncompressedSize, payload)) {

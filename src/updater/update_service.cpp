@@ -7,6 +7,7 @@
 #include "../platform/text_encoding.h"
 #include "../platform/unique_handle.h"
 #include "../launcher/remote_usage_service.h"
+#include "../licensing/license_service.h"
 #include "crypto.h"
 #include "github_release_resolver.h"
 #include "installation_integrity.h"
@@ -354,6 +355,10 @@ void UpdateService::Initialize(Configuration configuration, std::unique_ptr<IHtt
 bool UpdateService::ApplyUserPreferences(Channel channel, bool automaticDownload, bool installOnExit) {
 #if defined(OMNIGHOST_PUBLISH_BUILD)
     channel = Channel::Stable;
+#elif defined(OMNIGHOST_PRIVATE_DEV_BUILD)
+    // A private development executable must never be redirected to a public
+    // release by a saved setting or an old UI preference.
+    channel = Channel::Development;
 #endif
     if (busy_.load(std::memory_order_acquire))
         return false;
@@ -443,18 +448,23 @@ void UpdateService::RunCheck(bool force) {
     std::optional<GitHubReleaseSelection> resolvedRelease;
     std::string releaseResolutionWarning;
     bool releaseListResponseReceived = false;
+    const bool isPrivateDevelopment = config_.channel == Channel::Development;
+    const bool isDevConfig = config_.channel == Channel::DevConfig;
+    const std::string effectiveReleasesApiUrl = isPrivateDevelopment
+        ? std::string{}
+        : (isDevConfig ? config_.devReleasesApiUrl : config_.releasesApiUrl);
 
-    if (!config_.releasesApiUrl.empty()) {
+    if (!effectiveReleasesApiUrl.empty()) {
         WriteLog(
             LogFile(),
             LogLevel::Info,
             OmniGhost::Version,
             {},
             OGS_CSTR("release-resolution"),
-            OGS_CSTR("A consultar a lista pública de versões para encontrar a versão estável mais recente."));
+            isDevConfig ? OGS_CSTR("A consultar a lista de versões DEV para encontrar a versão mais recente.") : OGS_CSTR("A consultar a lista pública de versões para encontrar a versão estável mais recente."));
 
         HttpResult releasesResponse = http_->GetText(
-            config_.releasesApiUrl,
+            effectiveReleasesApiUrl,
             timeoutMilliseconds,
             cancelled_);
 
@@ -523,9 +533,11 @@ void UpdateService::RunCheck(bool force) {
         }
     }
 
-    const std::string manifestUrl = resolvedRelease
+    const std::string manifestUrl = isPrivateDevelopment
+        ? config_.privateDevelopmentManifestPath
+        : (resolvedRelease
         ? resolvedRelease->updateManifestUrl
-        : config_.manifestUrl;
+        : (isDevConfig ? config_.devManifestUrl : config_.manifestUrl));
 
     WriteLog(
         LogFile(),
@@ -535,10 +547,24 @@ void UpdateService::RunCheck(bool force) {
         OGS_CSTR("check"),
         OGS_CSTR("A consultar o manifesto: ") + manifestUrl);
 
-    HttpResult response = http_->GetText(
-        manifestUrl,
-        timeoutMilliseconds,
-        cancelled_);
+    HttpResult response;
+    if (isPrivateDevelopment) {
+        const OmniGhost::Auth::LauncherApiResponse privateResponse =
+            OmniGhost::Licensing::WebsiteRequest("GET", manifestUrl);
+        response.statusCode = privateResponse.statusCode;
+        response.body = privateResponse.body;
+        if (privateResponse.statusCode != 200) {
+            response.error = privateResponse.error.empty()
+                ? OGS_CSTR("O acesso ao canal privado Development foi recusado (HTTP ") +
+                      std::to_string(privateResponse.statusCode) + ")."
+                : privateResponse.error;
+        }
+    } else {
+        response = http_->GetText(
+            manifestUrl,
+            timeoutMilliseconds,
+            cancelled_);
+    }
 
     if (!response.error.empty()) {
         std::string detail = response.error;

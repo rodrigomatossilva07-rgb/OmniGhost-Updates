@@ -3,7 +3,7 @@
 #include "igame_module.h"
 #include "platform/service_container.h"
 #include "platform/expected.h"
-#include "launcher/launcher.h"
+#include "launcher/launcher_data.h"
 
 #include <memory>
 #include <string>

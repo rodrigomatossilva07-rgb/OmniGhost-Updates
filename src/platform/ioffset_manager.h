@@ -1,7 +1,9 @@
 #pragma once
 
 #include "platform/expected.h"
+#include "platform/offset_auto.h"
 #include "globals.h"
+#include <memory>
 #include <string>
 #include <string_view>
 
@@ -28,7 +30,7 @@ public:
     virtual Expected<bool> ValidateLive(ActiveGame game) = 0;
     virtual Expected<bool> SoftProbeLive(ActiveGame game) const = 0;
     virtual Expected<std::string> SoftProbeFailReason(ActiveGame game) const = 0;
-    virtual Expected<bool> SupportsAutomaticRefresh(ActiveGame game) const noexcept = 0;
+    virtual Expected<bool> SupportsAutomaticRefresh(ActiveGame game) const = 0;
 
     // Refresh
     virtual Expected<OffsetAuto::Result> EnsureOffsets(ActiveGame game, bool forceRefresh) = 0;

@@ -10,7 +10,7 @@
 #include "platform/strprotect/strprotect.h"
 
 namespace OmniGhost::Update {
-enum class Channel { Stable, Beta, Development };
+enum class Channel { Stable, Beta, Development, DevConfig };
 enum class Status { Idle, Checking, UpToDate, Available, Downloading, Ready, Installing, Deferred, Completed, RolledBack, Error };
 
 struct SemVersion {
@@ -47,11 +47,19 @@ struct Manifest {
 struct Configuration {
 
 
-
     std::string releasesApiUrl = OGS_LIT("https://api.github.com/repos/rodrigomatossilva07-rgb/OmniGhost-Updates/releases?per_page=30");
     std::string manifestUrl = OGS_LIT("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest/download/update.json");
+    // DEV Config channel (separate manifest for admin testing)
+    std::string devManifestUrl = OGS_LIT("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates-DEV/releases/latest/download/update.json");
+    std::string devReleasesApiUrl = OGS_LIT("https://api.github.com/repos/rodrigomatossilva07-rgb/OmniGhost-Updates-DEV/releases?per_page=30");
+    // Private Development manifests are fetched through the authenticated
+    // website session.  The package itself is a short-lived signed URL issued
+    // by Supabase Storage, never a public GitHub asset.
+    std::string privateDevelopmentManifestPath = "/api/launcher/development/latest";
     std::string expectedAppId = "com.omnighost.launcher";
     std::string allowedPackageUrlPrefix = OGS_LIT("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/download/");
+    std::string devAllowedPackageUrlPrefix = OGS_LIT("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates-DEV/releases/download/");
+    std::string privateDevelopmentAllowedPackageUrlPrefix = OGS_LIT("https://przzijzsmwbdsmyhwyro.supabase.co/storage/v1/object/sign/launcher-development/");
     Channel channel = Channel::Stable;
     std::chrono::seconds networkTimeout{25};
     std::chrono::hours minimumCheckInterval{6};
@@ -63,21 +71,6 @@ struct Configuration {
 
     int updaterExitTimeoutSeconds = 30;
     int startupConfirmationSeconds = 30;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

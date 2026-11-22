@@ -202,7 +202,7 @@ namespace friends {
             if (line.empty() || line[0] == '#') continue;
             size_t comma = line.find(',');
             if (comma == std::string::npos) continue;
-            uint32_t id = (uint32_t)strtoul(line.c_str(), nullptr, 10);
+            uint32_t id = static_cast<uint32_t>(strtoul(line.c_str(), nullptr, 10));
             std::string name = line.substr(comma + 1);
             if (id == 0) continue;
             if (!IsFriend(id))

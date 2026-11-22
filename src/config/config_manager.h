@@ -5,8 +5,49 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+#include <cstdlib>
+#include <climits>
 
 namespace config_manager {
+
+// Shared wire-format helpers.  Configuration sections are compiled in
+// separate translation units, so these must live in a header rather than in
+// the parser implementation.
+inline void WBool(std::ostringstream& out, const char* key, bool value) {
+    out << key << '=' << (value ? 1 : 0) << '\n';
+}
+inline void WInt(std::ostringstream& out, const char* key, int value) {
+    out << key << '=' << value << '\n';
+}
+inline void WU32(std::ostringstream& out, const char* key, ImU32 value) {
+    out << key << '=' << static_cast<std::uint32_t>(value) << '\n';
+}
+inline void WFloat(std::ostringstream& out, const char* key, float value) {
+    out << key << '=' << value << '\n';
+}
+inline void WStr(std::ostringstream& out, const char* key, const std::string& value) {
+    out << key << '=' << value << '\n';
+}
+inline bool toB(const std::string& value) {
+    return value == "1" || value == "true";
+}
+inline float toF(const std::string& value) {
+    char* end = nullptr;
+    const float result = std::strtof(value.c_str(), &end);
+    return end != value.c_str() && *end == '\0' ? result : 0.0f;
+}
+inline int toI(const std::string& value) {
+    char* end = nullptr;
+    const long result = std::strtol(value.c_str(), &end, 10);
+    return end != value.c_str() && *end == '\0' && result >= INT_MIN && result <= INT_MAX
+        ? static_cast<int>(result) : 0;
+}
+inline ImU32 toU(const std::string& value) {
+    char* end = nullptr;
+    const unsigned long result = std::strtoul(value.c_str(), &end, 10);
+    return end != value.c_str() && *end == '\0' && result <= UINT32_MAX
+        ? static_cast<ImU32>(result) : 0u;
+}
 
 enum class GameProfile : int {
     Default = 0,
@@ -49,6 +90,25 @@ struct CommunityConfigInfo {
     std::string min_launcher_version;
 };
 
+// DEV Config Info (admin only)
+struct DevConfigInfo {
+    std::string name;
+    std::string title;
+    std::string description;
+    std::string author;
+    std::string version;          // SemVer da config DEV (ex: "1.0.0")
+    int version_int = 1;          // Versão incremental (ex: 1, 2, 3)
+    std::string exe_version;      // Versão do EXE compatível (ex: "1.3.4")
+    std::string changelog;
+    std::string updated_at;
+    std::string download_url;
+    int downloads = 0;
+    bool official = false;
+    std::vector<std::string> tags;
+    std::string min_launcher_version;
+    bool has_update = false;      // Se existe versão mais nova no servidor
+};
+
 extern std::vector<SavedConfigInfo> saved_list;
 extern char new_config_name[64];
 extern std::string last_status;
@@ -77,6 +137,23 @@ bool ImportJson(const std::string& file_name = "OmniGhost-import.json");
 bool UploadCloudConfig(const std::string& name);
 bool DownloadCloudConfig(const std::string& name);
 bool DeleteCloudConfig(const std::string& name);
+
+    // DEV Config (admin only)
+    bool IsDevConfigAvailable();
+    std::vector<std::string> ListDevConfigs();
+    bool DownloadDevConfig(const std::string& name);
+    bool UploadDevConfig(const std::string& name);
+    bool DeleteDevConfig(const std::string& name);
+
+    // Enhanced DEV Config API (with versioning, validation, notifications)
+    std::vector<DevConfigInfo> ListDevConfigsDetailed();
+    bool DownloadDevConfigVersioned(const std::string& name, int target_version = -1);
+    bool UploadDevConfigVersioned(const std::string& name, const std::string& title, const std::string& description, const std::string& changelog, const std::vector<std::string>& tags);
+    bool CheckDevConfigUpdates();  // Verifica se há novas configs DEV no servidor
+    std::vector<DevConfigInfo> GetPendingDevConfigUpdates();  // Lista configs com update disponível
+    void MarkDevConfigUpdateNotified(const std::string& name);  // Marca notificação como vista
+
+    std::string GetLastStatus();
 bool RefreshCommunityConfigs(CommunityScope scope, const std::string& search = {}, const std::string& sort = "popular");
 bool RefreshCommunityConfigsForGame(const std::string& game, CommunityScope scope,
                                     const std::string& search = {}, const std::string& sort = "popular");

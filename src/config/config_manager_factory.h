@@ -12,9 +12,7 @@ namespace OmniGhost::Config {
 
 class ConfigManagerFactory final {
 public:
-    Expected<std::unique_ptr<IConfigManager>> Create() {
-        return Success(std::make_unique<ConfigManagerImpl>());
-    }
+    Expected<std::unique_ptr<IConfigManager>> Create();
 };
 
 } // namespace OmniGhost::Config

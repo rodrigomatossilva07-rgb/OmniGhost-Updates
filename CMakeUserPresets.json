@@ -1,0 +1,57 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "windows-vcpkg",
+      "inherits": ["windows-base"],
+      "displayName": "Windows vcpkg (x64)",
+      "description": "Usa vcpkg local - configure VCPKG_ROOT abaixo",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "OMNIGHOST_USE_FETCHCONTENT": "OFF",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+      },
+      "environment": {
+        "VCPKG_ROOT": "C:/src/vcpkg"
+      }
+    },
+    {
+      "name": "windows-vcpkg-dev",
+      "inherits": ["windows-vcpkg"],
+      "displayName": "Windows vcpkg Development (x64)",
+      "description": "Build Development com vcpkg",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Development"
+      }
+    },
+    {
+      "name": "windows-vcpkg-publish",
+      "inherits": ["windows-vcpkg"],
+      "displayName": "Windows vcpkg Publish (x64)",
+      "description": "Build Publish com vcpkg",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Publish"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "build-vcpkg-release",
+      "configurePreset": "windows-vcpkg",
+      "configuration": "Release",
+      "jobs": 8
+    },
+    {
+      "name": "build-vcpkg-dev",
+      "configurePreset": "windows-vcpkg-dev",
+      "configuration": "Development",
+      "jobs": 8
+    },
+    {
+      "name": "build-vcpkg-publish",
+      "configurePreset": "windows-vcpkg-publish",
+      "configuration": "Publish",
+      "jobs": 8
+    }
+  ]
+}

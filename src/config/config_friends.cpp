@@ -14,9 +14,9 @@ void SerializeFriends(std::ostringstream& o) {
 
     {
         std::lock_guard<std::mutex> lock(friends::list_mutex);
-        WInt(o, "friends.count", (int)friends::friend_list.size());
+        WInt(o, "friends.count", static_cast<int>(friends::friend_list.size()));
         for (size_t i = 0; i < friends::friend_list.size(); ++i) {
-            WInt(o, ("friend." + std::to_string(i) + ".id").c_str(), (int)friends::friend_list[i].id);
+            WInt(o, ("friend." + std::to_string(i) + ".id").c_str(), static_cast<int>(friends::friend_list[i].id));
             WStr(o, ("friend." + std::to_string(i) + ".name").c_str(), friends::friend_list[i].name);
         }
     }
@@ -50,9 +50,9 @@ bool DeserializeFriends(const std::string& key, const std::string& val) {
         const auto first = key.find('.');
         const size_t idx = (first == std::string::npos || sep == first)
             ? SIZE_MAX
-            : (size_t)strtoul(key.substr(first + 1, sep - first - 1).c_str(), nullptr, 10);
+            : static_cast<size_t>(strtoul(key.substr(first + 1, sep - first - 1).c_str(), nullptr, 10));
         if (leaf == "id") {
-            const uint32_t id = (uint32_t)strtoul(val.c_str(), nullptr, 10);
+            const uint32_t id = static_cast<uint32_t>(strtoul(val.c_str(), nullptr, 10));
             friends::AddFriend(std::string("Friend_") + val, id, false);
         } else if (leaf == "name" && idx != SIZE_MAX) {
 

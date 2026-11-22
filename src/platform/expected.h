@@ -6,6 +6,11 @@
 #include <system_error>
 #include <exception>
 #include <utility>
+#include <cerrno>
+
+#ifdef _WIN32
+#include <Windows.h>
+#endif
 
 namespace OmniGhost {
 
@@ -174,6 +179,8 @@ namespace ErrorCode {
     constexpr std::string_view MemoryReadError = "MEMORY_READ_ERROR";
     constexpr std::string_view ModuleNotFound = "MODULE_NOT_FOUND";
     constexpr std::string_view SecurityError = "SECURITY_ERROR";
+    constexpr std::string_view RuntimeFileInvalid = "RUNTIME_FILE_INVALID";
+    constexpr std::string_view InstallManifestInvalid = "INSTALL_MANIFEST_INVALID";
     constexpr std::string_view LicenseError = "LICENSE_ERROR";
     constexpr std::string_view NetworkError = "NETWORK_ERROR";
     constexpr std::string_view Timeout = "TIMEOUT";

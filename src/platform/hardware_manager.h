@@ -14,25 +14,10 @@
 
 namespace OmniGhost::Hardware {
 
-enum class ProbeStage {
-    Idle,
-    CheckingMakcu,
-    CheckingDma,
-    Complete
-};
-
-struct State {
-    ProbeStage stage{ProbeStage::Idle};
-    bool makcuFinished{false};
-    bool makcuAvailable{false};
-    bool dmaFinished{false};
-    bool dmaAvailable{false};
-};
-
-struct TimeoutConfig {
-    std::chrono::milliseconds makcuTimeout{6500};
-    std::chrono::milliseconds dmaTimeout{2000};
-};
+using ProbeStage = OmniGhost::Platform::HardwareState::ProbeStage;
+using State = OmniGhost::Platform::HardwareState;
+using HardwareState = OmniGhost::Platform::HardwareState;
+using TimeoutConfig = OmniGhost::Platform::TimeoutConfig;
 
 
 

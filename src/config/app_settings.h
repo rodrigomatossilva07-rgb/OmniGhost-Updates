@@ -162,5 +162,8 @@ struct Config {
     const char* EffectLevelName(EffectLevel level);
     const char* LangName(Language l);
     const char* T(const char* pt, const char* en, const char* de, const char* es, const char* fr, const char* it, const char* ru);
+    inline const char* T(const char* pt, const char* en) {
+        return T(pt, en, en, en, en, en, en);
+    }
 
 }

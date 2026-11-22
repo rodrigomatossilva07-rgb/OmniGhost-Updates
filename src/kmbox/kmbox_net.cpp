@@ -23,6 +23,8 @@
 #include <string>
 #include <thread>
 #include <stop_token>
+
+using namespace OmniGhost;
 #include <vector>
 #include "platform/strprotect/strprotect.h"
 
@@ -389,8 +391,8 @@ bool Move(int x, int y) {
     if (!IsConnected()) return false;
     MousePayload payload{};
     payload.buttons = g_buttons.load(std::memory_order_relaxed);
-    payload.x = std::clamp(x, Constants::kInt16Min, Constants::kInt16Max);
-    payload.y = std::clamp(y, Constants::kInt16Min, Constants::kInt16Max);
+    payload.x = static_cast<std::int16_t>(std::clamp<int>(x, Constants::kInt16Min, Constants::kInt16Max));
+    payload.y = static_cast<std::int16_t>(std::clamp<int>(y, Constants::kInt16Min, Constants::kInt16Max));
 
     return Request(kCommandMouseMove, &payload, sizeof(payload), 0, false, false);
 }

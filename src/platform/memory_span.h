@@ -103,11 +103,9 @@ template <typename T, std::size_t Extent>
 // =============================================================================
 
 // Deprecated: Use ByteSpan instead
-[[deprecated("Use OmniGhost::ByteSpan instead")]]
 using ByteView = ByteSpan;
 
 // Deprecated: Use MutableByteSpan instead
-[[deprecated("Use OmniGhost::MutableByteSpan instead")]]
 using EmbeddedByteView = ByteSpan;
 
 // =============================================================================

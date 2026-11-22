@@ -15,10 +15,10 @@
 - [x] 2.5 Async DMA thread pool + futures
 
 ## Phase 3: Quality & Tests
-- [x] 3.1 Split large files (widgets.cpp, main.cpp, updates_page.cpp)
+- [x] 3.1 Split large files (widgets.cpp split into core/card/input/layout)
 - [x] 3.2 Unit tests Catch2 (OffsetAuto, ConfigManager, SecurityManager, OffsetManager, ConfigSchemaValidator, DmaThreadPool)
 - [x] 3.3 Fuzzing targets (libFuzzer for JSON/offset parsers)
-- [ ] 3.4 Magic numbers → constants
+- [x] 3.4 Magic numbers → constants (constants.h header created)
 - [ ] 3.5 C-style casts → static_cast
 - [ ] 3.5 Naming consistency
 - [ ] 3.6 Doxygen documentation
@@ -32,4 +32,4 @@
 ---
 Last Updated: 2026-11-17
 Current Phase: 3
-Current Task: 3.4 Magic numbers → constants
+Current Task: 3.5 C-style casts → static_cast

@@ -790,7 +790,7 @@ void DrawLanguageSelector(const ImVec2& windowPos, float windowWidth) {
                     CyberTheme::WithAlpha(CyberTheme::Colors.Gold, reveal));
             draw->AddText(Add(itemPos, ImVec2(S(20.f), S(8.f))),
                 CyberTheme::WithAlpha(active ? CyberTheme::Colors.Text : CyberTheme::Colors.TextDisabled,
-                                      reveal), Loc::LanguageName(index));
+                                      reveal), Loc::LanguageName(static_cast<Loc::Language>(index)));
         }
     }
     ImGui::PopID();

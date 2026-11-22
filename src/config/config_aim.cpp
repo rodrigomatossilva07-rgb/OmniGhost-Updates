@@ -11,7 +11,7 @@ void SerializeAim(std::ostringstream& o) {
     WBool(o, "aim.aimbot_enabled", a.aimbot_enabled);
     WBool(o, "aim.show_fov", a.show_fov);
     WFloat(o, "aim.fov_size", a.fov_size);
-    WInt(o, "aim.dynamic_fov_mode", (int)a.dynamic_fov_mode);
+    WInt(o, "aim.dynamic_fov_mode", static_cast<int>(a.dynamic_fov_mode));
     WFloat(o, "aim.dynamic_fov_min", a.dynamic_fov_min);
     WFloat(o, "aim.dynamic_fov_max", a.dynamic_fov_max);
     WFloat(o, "aim.dynamic_fov_near_distance", a.dynamic_fov_near_distance);
@@ -31,7 +31,7 @@ void SerializeAim(std::ostringstream& o) {
     WBool(o, "aim.switch_immediately_if_invalid", a.switch_immediately_if_invalid);
     WBool(o, "aim.respect_weapon_range", a.respect_weapon_range);
     WBool(o, "aim.trigger_respect_weapon_range", a.trigger_respect_weapon_range);
-    WInt(o, "aim.weapon_range_category", (int)a.weapon_range_category);
+    WInt(o, "aim.weapon_range_category", static_cast<int>(a.weapon_range_category));
     WFloat(o, "aim.weapon_range_custom", a.weapon_range_custom);
     WFloat(o, "aim.weapon_range_melee", a.weapon_range_melee);
     WFloat(o, "aim.weapon_range_pistol", a.weapon_range_pistol);
@@ -41,8 +41,8 @@ void SerializeAim(std::ostringstream& o) {
     WFloat(o, "aim.weapon_range_sniper", a.weapon_range_sniper);
     WFloat(o, "aim.weapon_range_heavy", a.weapon_range_heavy);
     WBool(o, "aim.closest_to_crosshair", a.closest_to_crosshair);
-    WInt(o, "aim.hitbox", (int)a.hitbox);
-    WInt(o, "aim.fov_style", (int)a.fov_style);
+    WInt(o, "aim.hitbox", static_cast<int>(a.hitbox));
+    WInt(o, "aim.fov_style", static_cast<int>(a.fov_style));
     WInt(o, "aim.aimbot_bind", a.aimbot_bind);
     WInt(o, "aim.aimbot_bind2", a.aimbot_bind2);
     WBool(o, "aim.visible_check", a.visible_check);

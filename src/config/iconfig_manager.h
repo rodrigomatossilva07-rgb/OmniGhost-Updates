@@ -42,6 +42,13 @@ public:
     // Utility
     virtual std::filesystem::path GetConfigDirectory() const noexcept = 0;
     [[nodiscard]] virtual const char* ActiveConfigName() const noexcept = 0;
+
+    // DEV Config (admin only)
+    virtual Expected<bool> IsDevConfigAvailable() const = 0;
+    virtual Expected<std::vector<std::string>> ListDevConfigs() const = 0;
+    virtual Expected<void> DownloadDevConfig(std::string_view configName) = 0;
+    virtual Expected<void> UploadDevConfig(std::string_view configName) = 0;
+    virtual Expected<void> DeleteDevConfig(std::string_view configName) = 0;
 };
 
 // =============================================================================

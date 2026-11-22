@@ -1,10 +1,16 @@
 ﻿#pragma once
 #include "src/project/third_party/ImGui/imgui.h"
 #include "menu_tab.h"
-#include "widgets_core.h"
-#include "widgets_card.h"
-#include "widgets_input.h"
-#include "widgets_layout.h"
+#include "theme.h"
+
+namespace CyberWidgets {
+    enum class TextTone { Primary, Secondary, Accent, Success, Warning, Error, Info };
+    enum class ButtonStyle { Primary, Secondary, Ghost, Destructive };
+    enum class HealthStatus { Ok, Warning, Error };
+    enum class ModalResult { None, Confirmed, Cancelled };
+    enum class StatusColor { Neutral, Success, Warning, Error, Info };
+}
+
 #include <cstddef>
 #include <vector>
 #include <algorithm>
@@ -15,12 +21,6 @@
 #include <chrono>
 
 namespace CyberWidgets {
-
-    // Forward declarations for types defined in sub-headers
-    using CyberWidgets::TextTone;
-    using CyberWidgets::ButtonStyle;
-    using CyberWidgets::ModalResult;
-    using CyberWidgets::HealthStatus;
 
     // Re-export core functions that were in the original widgets.h
     // These are now implemented in the split files
@@ -278,9 +278,3 @@ namespace CyberWidgets {
 
 }
 
-#include "widgets_core.h"
-#include "widgets_card.h"
-#include "widgets_input.h"
-#include "widgets_layout.h"
-
-#endif // CYBERWIDGETS_H

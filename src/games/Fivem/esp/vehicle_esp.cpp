@@ -153,7 +153,7 @@ namespace vehicle_esp {
             ? (std::min)(vehicleCount, configuredLimit) : configuredLimit;
         std::vector<uintptr_t> rawPtrs(listCount, 0);
         for (int i = 0; i < listCount; ++i)
-            mem.AddScatterReadRequest(handle, vehicleListBase + (uintptr_t)i * FiveM::offset::vehicleEntryStride,
+            mem.AddScatterReadRequest(handle, vehicleListBase + static_cast<uintptr_t>(i) * FiveM::offset::vehicleEntryStride,
                                       &rawPtrs[i], sizeof(uintptr_t));
         mem.SetDmaCallTag("FiveM.VehicleEntities");
         mem.ExecuteReadScatter(handle);
@@ -627,7 +627,7 @@ namespace vehicle_esp {
             if (config.show_speed) {
                 char buf[48];
                 if (v.gear >= -1 && v.gear <= 8) {
-                    snprintf(buf, sizeof(buf), "G%d", (int)v.gear);
+                    snprintf(buf, sizeof(buf), "G%d", static_cast<int>(v.gear));
                     ImVec2 ts = ImGui::CalcTextSize(buf);
                     dl->AddText(ImVec2(screenPos.x - ts.x * 0.5f, textY),
                         IM_COL32(255, 220, 120, 220), buf);

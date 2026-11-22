@@ -123,7 +123,7 @@ void LogSuccessfulLoadOnce(const EmbeddedResourceDescriptor& descriptor) {
 
 std::optional<EmbeddedByteView> GetPeResourceView(int resourceId) noexcept {
     if (resourceId <= 0 || resourceId > 0xffff) return std::nullopt;
-    HRSRC resource = FindResourceW(nullptr, MAKEINTRESOURCEW(resourceId), RT_RCDATA);
+    HRSRC resource = FindResourceW(nullptr, MAKEINTRESOURCEW(resourceId), MAKEINTRESOURCEW(10));
     if (!resource) return std::nullopt;
     const DWORD size = SizeofResource(nullptr, resource);
     HGLOBAL loaded = LoadResource(nullptr, resource);
@@ -169,7 +169,7 @@ bool ParseEmbeddedResourceBlob(EmbeddedByteView blob, std::vector<std::uint8_t>&
         diagnostics.error = "invalid declared size"; return false;
     }
     diagnostics.sizeValid = true;
-    const EmbeddedByteView payload = blob.subview(kHeaderSize, storedSize);
+    const EmbeddedByteView payload = blob.subspan(kHeaderSize, storedSize);
     try {
         if (compression == EmbeddedCompression::None) {
             if (storedSize != originalSize) { diagnostics.error = "raw size mismatch"; return false; }
@@ -185,7 +185,7 @@ bool ParseEmbeddedResourceBlob(EmbeddedByteView blob, std::vector<std::uint8_t>&
     diagnostics.decompressed = true;
     std::array<std::uint8_t, 32> digest{};
     if (!Sha256(EmbeddedByteView(output.data(), output.size()), digest) ||
-        !EqualDigest(digest, blob.subview(20, 32))) {
+        !EqualDigest(digest, blob.subspan(20, 32))) {
         output.clear(); diagnostics.error = "sha256 mismatch"; return false;
     }
     diagnostics.integrityValid = true;

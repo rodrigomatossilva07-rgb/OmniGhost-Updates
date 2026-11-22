@@ -61,7 +61,7 @@ public:
                 throw std::runtime_error("Thread pool is stopped");
             }
             tasks_.emplace([task]() { (*task)(); });
-            stats_.tasksSubmitted.fetch_add(1, std::memory_order_relaxed);
+            tasksSubmitted_.fetch_add(1, std::memory_order_relaxed);
         }
         
         condition_.notify_one();
@@ -98,7 +98,11 @@ public:
 
     // Get pool statistics
     DmaThreadPoolStats GetStats() const noexcept override {
-        return stats_;
+        DmaThreadPoolStats result = stats_;
+        result.tasksSubmitted = tasksSubmitted_.load(std::memory_order_relaxed);
+        result.tasksCompleted = tasksCompleted_.load(std::memory_order_relaxed);
+        result.tasksFailed = tasksFailed_.load(std::memory_order_relaxed);
+        return result;
     }
 
     // Get current queue size
@@ -140,17 +144,6 @@ public:
         }
     }
 
-protected:
-    // IDmaThreadPool interface implementation
-    std::future<void> DoSubmit(std::function<void()> task) override {
-        return Submit(std::move(task));
-    }
-
-    template <typename T>
-    std::future<Expected<T>> DoSubmitDmaRead(std::function<Expected<T>()> readOp) override {
-        return SubmitDmaRead(std::move(readOp));
-    }
-
 private:
     std::vector<std::thread> workers_;
     std::queue<Task> tasks_;
@@ -158,6 +151,9 @@ private:
     std::condition_variable condition_;
     std::atomic<bool> stopped_{false};
     std::atomic<size_t> activeTasks_{0};
+    std::atomic<size_t> tasksSubmitted_{0};
+    std::atomic<size_t> tasksCompleted_{0};
+    std::atomic<size_t> tasksFailed_{0};
     DmaThreadPoolStats stats_;
 
     void WorkerThread() {
@@ -183,13 +179,16 @@ private:
             if (task) {
                 try {
                     task();
-                    stats_.tasksCompleted.fetch_add(1, std::memory_order_relaxed);
+                    tasksCompleted_.fetch_add(1, std::memory_order_relaxed);
                 } catch (...) {
-                    stats_.tasksFailed.fetch_add(1, std::memory_order_relaxed);
+                    tasksFailed_.fetch_add(1, std::memory_order_relaxed);
                 }
                 activeTasks_.fetch_sub(1, std::memory_order_relaxed);
+                // Wake WaitForAll() once the final in-flight task completes.
+                condition_.notify_all();
             }
         }
+    }
 };
 
 } // namespace OmniGhost::Platform

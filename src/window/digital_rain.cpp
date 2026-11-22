@@ -340,7 +340,7 @@ void SeedStars(float width, float height, bool performance_mode) {
             float ang = 0.f, rad = (std::min)(width, height) * 0.045f * cl.scale;
             switch (cl.shape) {
             case 1:
-                ang = (i / (float)cl.count) * 6.28318f + 0.3f;
+                ang = (i / static_cast<float>(cl.count)) * 6.28318f + 0.3f;
                 rad *= (0.85f + 0.25f * Rand01());
                 break;
             case 2:
@@ -348,7 +348,7 @@ void SeedStars(float width, float height, bool performance_mode) {
                 rad *= (i < 4 ? 1.f : 0.45f);
                 break;
             case 3:
-                ang = -0.9f + (i / (float)(std::max)(1, cl.count - 1)) * 1.8f;
+                ang = -0.9f + (i / static_cast<float>((std::max)(1, cl.count - 1))) * 1.8f;
                 rad *= (0.7f + 0.5f * std::fabs(std::sin(ang * 1.2f)));
                 s.x = cl.cx + ang * rad * 1.4f;
                 s.y = cl.cy + std::sin(ang) * rad * 0.6f;
@@ -358,7 +358,7 @@ void SeedStars(float width, float height, bool performance_mode) {
                 rad *= (0.3f + Rand01() * 1.1f);
                 break;
             default:
-                ang = (i / (float)cl.count) * 6.28318f + Rand01() * 0.2f;
+                ang = (i / static_cast<float>(cl.count)) * 6.28318f + Rand01() * 0.2f;
                 rad *= (0.75f + Rand01() * 0.35f);
                 break;
             }

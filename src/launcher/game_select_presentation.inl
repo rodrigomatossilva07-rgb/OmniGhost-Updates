@@ -305,6 +305,7 @@ void DrawHeader(ImDrawList* draw, ImVec2 display) {
             InputDeviceConnected() ? C_GREEN() : C_MUTED(), statusRight);
         DrawStatusChip(draw, statusX, S(15.f), Loc::Tr("launcher.updates_status"), UpdateStatusText(update),
             UpdateStatusColor(update), statusRight);
+
     }
 
     const auto& auth = OmniGhost::Auth::LocalAuthService::Instance();

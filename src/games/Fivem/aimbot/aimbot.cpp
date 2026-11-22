@@ -693,8 +693,8 @@ namespace aimbot {
             else if (targetDistance > 25.f) { maxPkt = 8; stepCap = 64; }
 
             const int totalCap = (targetDistance > 70.f)
-                ? (int)std::min(errLen0 * 0.25f, 40.f)
-                : (int)std::min(errLen0 + 1.f, 200.f);
+                ? static_cast<int>(std::min(errLen0 * 0.25f, 40.f))
+                : static_cast<int>(std::min(errLen0 + 1.f, 200.f));
             int moved = 0;
             for (int n = 0; n < maxPkt && (left_x != 0 || left_y != 0); ++n) {
                 if (moved >= totalCap) break;
@@ -704,7 +704,7 @@ namespace aimbot {
                 aim_type::Move(sx, sy);
                 left_x -= sx;
                 left_y -= sy;
-                moved += (int)(std::abs(sx) + std::abs(sy));
+                moved += static_cast<int>(std::abs(sx) + std::abs(sy));
             }
             return;
         }

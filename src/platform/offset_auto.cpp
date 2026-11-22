@@ -2,7 +2,7 @@
 
 #include "src/games/Cs2/cs2_game.h"
 #include "src/games/Fivem/game/offsets.h"
-#include "src/games/Rust/rust_offsets.h"
+#include "src/games/Rust/rust_game.h"
 
 #include <array>
 #include <mutex>
@@ -93,12 +93,8 @@ bool HasCriticalOffsets(ActiveGame game) {
 
         return FiveM::HasAnyCriticalOffsets();
     }
-    if (game == ActiveGame::Rust) {
-        using namespace Rust::Offsets::Build_25231061;
-        return Rvas::BaseNetworkable != 0 && Rvas::Camera != 0 &&
-               BaseNetworkable::clientEntities != 0 &&
-               BasePlayer::playerModel != 0 && BaseCombatEntity::health != 0;
-    }
+    if (game == ActiveGame::Rust)
+        return Rust::runtime.offset_catalog_ok;
     if (game == ActiveGame::Apex) {
 
         return false;

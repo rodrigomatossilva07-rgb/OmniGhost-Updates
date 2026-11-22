@@ -1,0 +1,468 @@
+{
+  "schema_version": 7,
+  "game": "rob_run",
+  "build": "20261117",
+  "build_id": "il2cpp-dump-20261117_2212",
+  "module": "GameAssembly.dll",
+  "source": "il2cpp dump.cs (rob_run)",
+  "generated_at": "2026-11-17T22:12:00Z",
+  "note": "Essential offsets for rob_run (Unity IL2CPP) from dump.cs. Includes BattleCharacterModel, Camera, Entity lists, World-to-Screen via Unity Camera.",
+  "namespaces": {
+    "globals": {
+      "fields": {
+        "ReplicatedBattleEntitiesCollections": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "Static list of all battle entities (TypeDefIndex: 578). Find via pattern scan."
+        },
+        "ReplicatedBattleEntitiesCollection": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "Per-collection entity list (TypeDefIndex: 580)."
+        },
+        "CamerasModel": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "Static cameras container (TypeDefIndex: 4192)."
+        }
+      }
+    },
+    "BattleCharacterModel": {
+      "fields": {
+        "PrivateModel": {
+          "offset": "0x10",
+          "resolved": true,
+          "comment": "BattleCharacterPrivateModel*"
+        },
+        "Events": {
+          "offset": "0x18",
+          "resolved": true,
+          "comment": "EventsModel*"
+        },
+        "Id": {
+          "offset": "0x38",
+          "resolved": true,
+          "comment": "int entity ID"
+        },
+        "Data": {
+          "offset": "0x40",
+          "resolved": true,
+          "comment": "BattleCharacterData*"
+        },
+        "Config": {
+          "offset": "0x48",
+          "resolved": true,
+          "comment": "BattleCharacterConfig*"
+        },
+        "BodyIdModel": {
+          "offset": "0x50",
+          "resolved": true,
+          "comment": "BodyIdModel*"
+        },
+        "Transform": {
+          "offset": "0x58",
+          "resolved": true,
+          "comment": "ITransformModel* (TransformModel*) - Position/Rotation at +0x10/0x18/0x20"
+        },
+        "ReplicatedTransform": {
+          "offset": "0x60",
+          "resolved": true,
+          "comment": "CharacterReplicatedTransformModel* (networked transform)"
+        },
+        "LastPositionModel": {
+          "offset": "0x68",
+          "resolved": true,
+          "comment": "LastPositionModel*"
+        },
+        "LookDirection": {
+          "offset": "0x70",
+          "resolved": true,
+          "comment": "LookDirectionModel*"
+        },
+        "ReplicatedLookDirection": {
+          "offset": "0x78",
+          "resolved": true,
+          "comment": "ReplicatedLookDirectionModel*"
+        },
+        "Id": {
+          "offset": "0x38",
+          "resolved": true,
+          "comment": "int entity ID"
+        },
+        "IsDead": {
+          "offset": "0xF0",
+          "resolved": true,
+          "comment": "IPrimitiveModel<bool>* - is entity dead"
+        },
+        "Health": {
+          "offset": "0xE0",
+          "resolved": true,
+          "comment": "BattleCharacterStaminaModel* (health/stamina)"
+        },
+        "Role": {
+          "offset": "0x208",
+          "resolved": true,
+          "comment": "PlayerRoleDescription* (team/role)"
+        },
+        "Weapon": {
+          "offset": "0x150",
+          "resolved": true,
+          "comment": "IWeaponModel*"
+        },
+        "SkeletonModel": {
+          "offset": "0x138",
+          "resolved": true,
+          "comment": "SkeletonModel* (bone ESP)"
+        },
+        "WeaponReload": {
+          "offset": "0x158",
+          "resolved": true,
+          "comment": "WeaponReload*"
+        },
+        "CrouchModel": {
+          "offset": "0x160",
+          "resolved": true,
+          "comment": "CrouchModel*"
+        },
+        "InVehicleModel": {
+          "offset": "0x1C8",
+          "resolved": true,
+          "comment": "InVehicleModel*"
+        },
+        "CarInput": {
+          "offset": "0x1D0",
+          "resolved": true,
+          "comment": "BattleCharacterCarInputModel*"
+        },
+        "HelicopterInput": {
+          "offset": "0x1D8",
+          "resolved": true,
+          "comment": "BattleCharacterHelicopterInputModel*"
+        },
+        "ArmedModel": {
+          "offset": "0x1F8",
+          "resolved": true,
+          "comment": "ArmedModel*"
+        },
+        "HasArmor": {
+          "offset": "0x1B8",
+          "resolved": true,
+          "comment": "IPrimitiveModel<bool>*"
+        },
+        "SkeletonModel": {
+          "offset": "0x138",
+          "resolved": true,
+          "comment": "SkeletonModel* (bone positions)"
+        },
+        "Velocity": {
+          "offset": "0xB8",
+          "resolved": true,
+          "comment": "CharacterVelocityModel*"
+        }
+      }
+    },
+    "TransformModel": {
+      "fields": {
+        "X": {
+          "offset": "0x10",
+          "resolved": true,
+          "comment": "float X position"
+        },
+        "Y": {
+          "offset": "0x18",
+          "resolved": true,
+          "comment": "float Y position"
+        },
+        "Z": {
+          "offset": "0x20",
+          "resolved": true,
+          "comment": "float Z position"
+        },
+        "Rx": {
+          "offset": "0x28",
+          "resolved": true,
+          "comment": "float rotation X (pitch)"
+        },
+        "Ry": {
+          "offset": "0x30",
+          "resolved": true,
+          "comment": "float rotation Y (yaw)"
+        },
+        "Rz": {
+          "offset": "0x38",
+          "resolved": true,
+          "comment": "float rotation Z (roll)"
+        },
+        "Pitch": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "Computed pitch from Rx"
+        },
+        "Yaw": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "Computed yaw from Ry"
+        },
+        "Roll": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "Computed roll from Rz"
+        }
+      }
+    },
+    "CameraModel": {
+      "fields": {
+        "Description": {
+          "offset": "0x28",
+          "resolved": true,
+          "comment": "LocationCameraDescription*"
+        },
+        "ShotEvents": {
+          "offset": "0x30",
+          "resolved": true,
+          "comment": "ShotEventsModel*"
+        },
+        "ZoneTriggerBodies": {
+          "offset": "0x38",
+          "resolved": true,
+          "comment": "HashSet<PhysicsBodyId>*"
+        },
+        "IsBroken": {
+          "offset": "0x40",
+          "resolved": true,
+          "comment": "bool"
+        },
+        "Progress": {
+          "offset": "0x40",
+          "resolved": false,
+          "comment": "int progress"
+        },
+        "AlarmTs": {
+          "offset": "0x20",
+          "resolved": true,
+          "comment": "long alarm timestamp"
+        },
+        "AlarmInitiatorEntityId": {
+          "offset": "0x40",
+          "resolved": false,
+          "comment": "int alarm initiator entity ID"
+        }
+      }
+    },
+    "CamerasModel": {
+      "fields": {
+        "Cameras": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "List<CameraModel>* - iterate for main camera"
+        }
+      }
+    },
+    "CharacterReplicatedTransformModel": {
+      "fields": {
+        "Position": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "Vector3 replicated position"
+        },
+        "Rotation": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "Quaternion replicated rotation"
+        }
+      }
+    },
+    "CharacterVelocityModel": {
+      "fields": {
+        "Value": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "Vector3 velocity"
+        }
+      }
+    },
+    "BattleCharacterStaminaModel": {
+      "fields": {
+        "CurrentHealth": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "float current health"
+        },
+        "MaxHealth": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "float max health"
+        },
+        "CurrentStamina": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "float current stamina"
+        },
+        "MaxStamina": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "float max stamina"
+        }
+      }
+    },
+    "BattleCharacterConfig": {
+      "fields": {
+        "MaxHealth": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "float max health"
+        },
+        "MaxStamina": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "float max stamina"
+        }
+      }
+    },
+    "BattleCharacterData": {
+      "fields": {
+        "CurrentHealth": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "float current health"
+        },
+        "MaxHealth": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "float max health"
+        }
+      }
+    },
+    "PlayerRoleDescription": {
+      "fields": {
+        "Id": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "int role ID"
+        },
+        "Name": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "string role name"
+        },
+        "TeamIndex": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "int team index (0/1)"
+        }
+      }
+    },
+    "SkeletonModel": {
+      "fields": {
+        "Bones": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "List<BoneModel>* - bone positions for skeleton ESP"
+        },
+        "RootBone": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "BoneModel* root bone"
+        }
+      }
+    },
+    "BoneModel": {
+      "fields": {
+        "Position": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "Vector3 bone world position"
+        },
+        "Rotation": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "Quaternion bone rotation"
+        },
+        "ParentIndex": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "int parent bone index"
+        },
+        "Name": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "string bone name"
+        }
+      }
+    },
+    "CameraModel": {
+      "fields": {
+        "Description": {
+          "offset": "0x28",
+          "resolved": true,
+          "comment": "LocationCameraDescription*"
+        },
+        "ShotEvents": {
+          "offset": "0x30",
+          "resolved": true,
+          "comment": "ShotEventsModel*"
+        },
+        "ZoneTriggerBodies": {
+          "offset": "0x38",
+          "resolved": true,
+          "comment": "HashSet<PhysicsBodyId>*"
+        },
+        "IsBroken": {
+          "offset": "0x40",
+          "resolved": true,
+          "comment": "bool"
+        }
+      }
+    },
+    "CameraModel": {
+      "fields": {
+        "Description": {
+          "offset": "0x28",
+          "resolved": true,
+          "comment": "LocationCameraDescription*"
+        },
+        "ShotEvents": {
+          "offset": "0x30",
+          "resolved": true,
+          "comment": "ShotEventsModel*"
+        },
+        "ZoneTriggerBodies": {
+          "offset": "0x38",
+          "resolved": true,
+          "comment": "HashSet<PhysicsBodyId>*"
+        },
+        "IsBroken": {
+          "offset": "0x40",
+          "resolved": true,
+          "comment": "bool"
+        }
+      }
+    },
+    "UnityCamera": {
+      "fields": {
+        "WorldToScreenPoint": {
+          "offset": "0x0",
+          "resolved": false,
+          "comment": "Unity Camera.WorldToScreenPoint() - use via C# reflection or mono"
+        }
+      }
+    }
+  },
+  "decryptions": {
+    "namespace": "decryption",
+    "functions": [
+      "GetEntityList",
+      "GetCamera",
+      "GetLocalPlayer",
+      "GetEntityPosition",
+      "WorldToScreen"
+    ],
+    "rva_fingerprints": {
+      "GetEntityList": "0x0",
+      "GetCamera": "0x0",
+      "GetLocalPlayer": "0x0",
+      "GetEntityPosition": "0x0",
+      "WorldToScreen": "0x0"
+    }
+  }
+}

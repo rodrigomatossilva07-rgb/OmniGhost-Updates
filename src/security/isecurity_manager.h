@@ -12,6 +12,15 @@ namespace OmniGhost::Security {
 
 class ISecurityManager {
 public:
+    enum class SecurityEventId : uint8_t {
+        InstallManifestInvalid, InstallManifestMissing, RuntimeFileInvalid,
+        SessionInvalid, SessionUnavailable, SessionRestored,
+        DebuggerObserved, UnknownModuleObserved
+    };
+    enum class Severity : uint8_t { Info, Low, Medium, High, Critical };
+    enum class Enforcement : uint8_t { None, Observe, Recheck, DenyFeatures };
+    struct Assessment { SecurityEventId id; Severity severity; Enforcement enforcement; };
+
     virtual ~ISecurityManager() = default;
 
     // Verification methods
@@ -29,26 +38,6 @@ public:
     [[nodiscard]] static Assessment Classify(SecurityEventId id) noexcept;
     [[nodiscard]] static std::string_view Code(SecurityEventId id) noexcept;
 
-    // Event IDs
-    enum class SecurityEventId : uint8_t {
-        InstallManifestInvalid,
-        InstallManifestMissing,
-        RuntimeFileInvalid,
-        SessionInvalid,
-        SessionUnavailable,
-        SessionRestored,
-        DebuggerObserved,
-        UnknownModuleObserved
-    };
-
-    struct Assessment {
-        SecurityEventId id;
-        Severity severity;
-        Enforcement enforcement;
-    };
-
-    enum class Severity : uint8_t { Info, Low, Medium, High, Critical };
-    enum class Enforcement : uint8_t { None, Observe, Recheck, DenyFeatures };
 };
 
 } // namespace OmniGhost::Security

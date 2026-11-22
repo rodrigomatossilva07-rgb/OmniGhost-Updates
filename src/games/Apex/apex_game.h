@@ -7,6 +7,8 @@
 
 namespace Apex {
 
+struct Config {};
+
 struct Player {
     uintptr_t address = 0;
     float pos[3]{};
@@ -27,11 +29,13 @@ struct Runtime {
     uintptr_t game_base = 0;
     uintptr_t client_dll = 0;
     uintptr_t engine_dll = 0;
+    uintptr_t client_dll_base = 0;
+    uintptr_t engine_dll_base = 0;
     uintptr_t entity_list = 0;
     uintptr_t local_player = 0;
     uintptr_t view_render = 0;
     uintptr_t client_state = 0;
-    uintptr_t view_matrix = 0;
+    uintptr_t view_matrix_address = 0;
     uintptr_t camera_origin = 0;
     uintptr_t view_angles = 0;
     uintptr_t name_list = 0;
@@ -41,11 +45,16 @@ struct Runtime {
     float view_matrix[16]{};
     std::vector<Player> players;
     std::uint32_t player_count = 0;
+    std::uint32_t valid_player_count = 0;
     std::uint32_t entity_count = 0;
     std::uint64_t frames = 0;
     std::uint64_t read_failures = 0;
     std::uint64_t world_sample_ms = 0;
     std::uint64_t camera_sample_ms = 0;
+    std::uint64_t last_camera_sample_ms = 0;
+    std::uint64_t last_world_sample_ms = 0;
+    std::uint64_t last_probe_ms = 0;
+    std::uint64_t last_acquisition_attempt_ms = 0;
     bool device_ok = false;
     bool process_ok = false;
     bool modules_ok = false;
@@ -56,6 +65,7 @@ struct Runtime {
     std::string status = "Apex inativo";
     std::string collection_status = "Nao validada";
     std::string camera_status = "Nao validada";
+    std::string transform_status = "Nao validada";
 };
 
 extern Runtime runtime;

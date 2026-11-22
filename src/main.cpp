@@ -53,9 +53,7 @@
 #include "platform/ioffset_manager.h"
 #include "platform/offset_manager_factory.h"
 #include "config/iconfig_manager.h"
-#include "config/config_manager_impl.h"
 #include "config/config_manager_factory.h"
-#include "config/config_schema_validator.h"
 #include "platform/ihardware_manager.h"
 #include "platform/hardware_manager_factory.h"
 #include "platform/idma_thread_pool.h"
@@ -86,8 +84,8 @@
 #include <string>
 #include <thread>
 
-#if defined(OMNIGHOST_PUBLISH_BUILD) && (!defined(OMNIGHOST_KEYAUTH_ENABLED) || defined(OMNIGHOST_SKIP_KEYAUTH))
-#error Publish builds must retain a configured entitlement provider.
+#if (defined(OMNIGHOST_PUBLISH_BUILD) || defined(OMNIGHOST_PRIVATE_DEV_BUILD)) && (!defined(OMNIGHOST_KEYAUTH_ENABLED) || defined(OMNIGHOST_SKIP_KEYAUTH))
+#error Publish and private Development builds must retain a configured entitlement provider.
 #endif
 
 namespace {
@@ -428,7 +426,8 @@ int RunOmniGhost(int argc, wchar_t** argv) {
     OmniGhost::Logging::InitializeDefaultLogging();
 
     // Initialize security/anti-tamper
-    if (!OmniGhost::Security::RunStartupIntegrityChecks()) {
+    const auto startupIntegrity = OmniGhost::Security::SecurityManager::Instance().VerifyStartup();
+    if (!startupIntegrity || !startupIntegrity.value()) {
         OGS_SEC_LOG_ERROR("Startup integrity checks failed - aborting");
         MessageBoxW(nullptr, L"Verificação de integridade falhou. A aplicação será encerrada.",
                     L"OmniGhost - Segurança", MB_OK | MB_ICONERROR);
@@ -558,7 +557,7 @@ int RunOmniGhost(int argc, wchar_t** argv) {
     config_manager::Initialize();
 
     // Initialize Dependency Injection container
-    auto& diContainer = OmniGhost::Platform::Services::Instance();
+    (void)OmniGhost::Platform::Services::Instance();
     OmniGhost::Platform::ServiceBuilder builder = OmniGhost::Platform::Services::Builder();
 
     // Register core services using interfaces
@@ -606,16 +605,6 @@ int RunOmniGhost(int argc, wchar_t** argv) {
         builder.AddInstance<OmniGhost::Platform::IOffsetManager>(std::move(offsetResult.value()));
     }
 
-    // ConfigSchemaValidator
-    {
-        auto validator = std::make_unique<OmniGhost::Config::ConfigSchemaValidator>();
-        auto initResult = validator->Initialize(OmniGhost::Paths::ConfigDirectory() / "schemas");
-        if (!initResult) {
-            OGS_LOG_WARN("[DI] Failed to initialize ConfigSchemaValidator: {}", initResult.error().message);
-        }
-        builder.AddInstance<OmniGhost::Config::ConfigSchemaValidator>(std::move(validator));
-    }
-
     // DmaThreadPool
     {
         auto factory = OmniGhost::Platform::DmaThreadPoolFactory{};
@@ -628,7 +617,7 @@ int RunOmniGhost(int argc, wchar_t** argv) {
     }
 
     // Build the container
-    auto& container = builder.Build();
+    (void)builder.Build();
 
     // Initialize game module registry (auto-registers modules via static init)
     OGS_LOG_INFO("[DI] Registered game modules: {}",
@@ -690,6 +679,24 @@ while (application.shouldRun && !authenticated) {
     }
 
     WritePostAuthStage("authenticated");
+
+#if defined(OMNIGHOST_PRIVATE_DEV_BUILD)
+    // A Development executable remains useful only to the explicitly
+    // authorised website administrator.  Do this after the normal login so
+    // the decision is based on the same signed website/KeyAuth session as the
+    // public launcher, never on a local flag or a remembered file.
+    const auto developmentAccess =
+        OmniGhost::Licensing::WebsiteRequest("GET", "/api/launcher/development/access");
+    if (!OmniGhost::Licensing::IsAdmin() || developmentAccess.statusCode != 200) {
+        OmniGhost::UI::RenderTimedTransition(
+            application,
+            "Acesso DEV recusado",
+            "Esta versão é exclusiva para a conta de desenvolvimento.",
+            app_settings::MotionEnabled() ? 0.80f : 0.05f);
+        (void)shutdownCoordinator.ShutdownAll("development-access-denied");
+        return 0;
+    }
+#endif
 
 
 
@@ -774,6 +781,9 @@ while (application.shouldRun && !authenticated) {
     OmniGhost::Update::Configuration update_configuration{};
 #if defined(OMNIGHOST_PUBLISH_BUILD)
     update_configuration.channel = OmniGhost::Update::Channel::Stable;
+#elif defined(OMNIGHOST_DEV_BUILD)
+    // Development is intentionally isolated from public Stable/Beta releases.
+    update_configuration.channel = OmniGhost::Update::Channel::Development;
 #else
     update_configuration.channel = app_settings::config.update_channel == app_settings::UpdateChannel::Beta
         ? OmniGhost::Update::Channel::Beta
@@ -1022,7 +1032,8 @@ while (application.shouldRun && !authenticated) {
             if (warg.result != OmniGhost::OffsetAuto::Result::Ok &&
                 !OmniGhost::OffsetAuto::HasCriticalOffsets(pending_game)) {
 
-                OGS_LOG_INFO("[Offsets] Refresh incomplete (non-blocking): {}", OmniGhost::OffsetAuto::g_status);
+                OGS_LOG_INFO("[Offsets] Refresh incomplete (non-blocking): {}",
+                             std::string(OmniGhost::OffsetAuto::g_status));
             }
         }
     }
@@ -1286,7 +1297,8 @@ while (application.shouldRun && !authenticated) {
             }
 
             // Periodic integrity checks
-            if (!OmniGhost::Security::RunPeriodicIntegrityChecks()) {
+            const auto periodicIntegrity = OmniGhost::Security::SecurityManager::Instance().VerifyProtectedFiles();
+            if (!periodicIntegrity || !periodicIntegrity.value()) {
                 OGS_SEC_LOG_ERROR("Periodic integrity check failed - returning to launcher");
                 return_to_launcher = true;
                 continue;

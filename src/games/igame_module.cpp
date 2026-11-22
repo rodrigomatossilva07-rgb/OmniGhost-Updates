@@ -14,7 +14,7 @@ namespace OmniGhost::Games {
 void GameModuleRegistry::RegisterFactory(std::unique_ptr<IGameModuleFactory> factory) {
     std::unique_lock lock(mutex_);
 
-    const std::string gameId = factory->GetGameId();
+    const std::string gameId{factory->GetGameId()};
     factories_[gameId] = std::move(factory);
 
     // Update launcher ID map
@@ -26,7 +26,7 @@ void GameModuleRegistry::RegisterFactory(std::unique_ptr<IGameModuleFactory> fac
 IGameModuleFactory* GameModuleRegistry::GetFactory(std::string_view gameId) const noexcept {
     std::shared_lock lock(mutex_);
 
-    auto it = factories_.find(gameId);
+    auto it = factories_.find(std::string{gameId});
     if (it != factories_.end()) {
         return it->second.get();
     }
@@ -49,7 +49,7 @@ Expected<std::unique_ptr<IGameModule>> GameModuleRegistry::CreateModule(
 
     std::shared_lock lock(mutex_);
 
-    auto it = factories_.find(gameId);
+    auto it = factories_.find(std::string{gameId});
     if (it == factories_.end()) {
         return OmniGhost::Failure<std::unique_ptr<IGameModule>>(
             OmniGhost::ErrorCode::NotFound,
@@ -79,7 +79,7 @@ std::vector<std::string_view> GameModuleRegistry::GetRegisteredGameIds() const n
 
 bool GameModuleRegistry::IsRegistered(std::string_view gameId) const noexcept {
     std::shared_lock lock(mutex_);
-    return factories_.contains(gameId);
+    return factories_.contains(std::string{gameId});
 }
 
 } // namespace OmniGhost::Games

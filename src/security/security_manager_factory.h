@@ -1,6 +1,6 @@
 #pragma once
 
-#include "isecurity_manager.h"
+#include "security_manager.h"
 #include "platform/expected.h"
 #include <memory>
 
@@ -12,8 +12,11 @@ namespace OmniGhost::Security {
 
 class SecurityManagerFactory final {
 public:
-    Expected<std::unique_ptr<ISecurityManager>> Create() {
-        return Success(std::make_unique<SecurityManager>());
+    Expected<std::shared_ptr<ISecurityManager>> Create() {
+        // SecurityManager is a process-wide singleton.  The container keeps a
+        // non-owning shared reference so all call sites observe one state.
+        return Success(std::shared_ptr<ISecurityManager>(
+            &SecurityManager::Instance(), [](ISecurityManager*) {}));
     }
 };
 

@@ -8,6 +8,7 @@
 #include <chrono>
 #include <variant>
 #include <optional>
+#include <mutex>
 #include <nlohmann/json.hpp>
 
 #include "config_core.h"

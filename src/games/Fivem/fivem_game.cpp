@@ -275,6 +275,8 @@ void Update(bool processProbe) {
     else runtime.status = "FiveM ESP ativa";
 }
 
+} // namespace
+
 bool Attach() {
     Shutdown();
     runtime.status = "A ligar ao FiveM...";

@@ -19,9 +19,6 @@ CS2GameModule::CS2GameModule(OmniGhost::Platform::ServiceContainer& container)
 Expected<void> CS2GameModule::Initialize(OmniGhost::Platform::ServiceContainer& container) {
     OGS_LOG_INFO("[CS2GameModule] Initializing...");
 
-    // Register this module's services
-    container.RegisterInstance<IGameModule>(shared_from_this());
-
     // Load configuration
     auto loadResult = LoadConfig();
     if (!loadResult) {

@@ -1,0 +1,251 @@
+name: Deploy DEV Config
+
+on:
+  workflow_dispatch:
+    inputs:
+      config_name:
+        description: 'Nome da config DEV (ex: dev-aim-v1)'
+        required: true
+        type: string
+      version:
+        description: 'Versão da config (ex: 1, 2, 3)'
+        required: true
+        type: string
+      changelog:
+        description: 'Changelog desta versão'
+        required: false
+        type: string
+      exe_version:
+        description: 'Versão do EXE compatível (ex: 1.3.4)'
+        required: true
+        type: string
+
+  # Permite trigger via API (ex: do launcher admin)
+  repository_dispatch:
+    types: [deploy-dev-config]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: github-pages
+    steps:
+      - name: Checkout DEV configs repo
+        uses: actions/checkout@v4
+        with:
+          repository: rodrigomatossilva07-rgb/OmniGhost-Updates-DEV
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: dev-repo
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests pyyaml
+
+      - name: Generate DEV Config Manifest
+        id: manifest
+        run: |
+          python << 'EOF'
+          import json
+          import os
+          import sys
+          from datetime import datetime
+
+          config_name = "${{ github.event.inputs.config_name }}"
+          version = "${{ github.event.inputs.version }}"
+          changelog = "${{ github.event.inputs.changelog }}"
+          exe_version = "${{ github.event.inputs.exe_version }}"
+
+          # Se veio via repository_dispatch, ler do payload
+          if not config_name or config_name == "${{ github.event.inputs.config_name }}":
+              payload = os.environ.get('GITHUB_EVENT_PATH')
+              if payload and os.path.exists(payload):
+                  with open(payload) as f:
+                      event = json.load(f)
+                  client_payload = event.get('client_payload', {})
+                  config_name = client_payload.get('config_name', config_name)
+                  version = client_payload.get('version', version)
+                  changelog = client_payload.get('changelog', changelog)
+                  exe_version = client_payload.get('exe_version', exe_version)
+
+          # Validar inputs
+          if not config_name or not version or not exe_version:
+              print("::error::Config name, version e exe_version são obrigatórios")
+              sys.exit(1)
+
+          # Sanitizar nome
+          safe_name = config_name.lower().replace(' ', '-').replace('_', '-')
+          
+          # Criar estrutura de release
+          release_dir = f"dev-repo/releases/download/{safe_name}-v{version}"
+          os.makedirs(release_dir, exist_ok=True)
+
+          # Manifest update.json
+          manifest = {
+              "schemaVersion": 1,
+              "appId": "com.omnighost.launcher",
+              "channel": "devconfig",
+              "version": exe_version,
+              "minimumSupportedVersion": exe_version,
+              "mandatory": False,
+              "mandatoryReason": "",
+              "publishedAt": datetime.utcnow().isoformat() + "Z",
+              "releaseNotesUrl": f"https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates-DEV/releases/tag/{safe_name}-v{version}",
+              "packages": [{
+                  "platform": "windows",
+                  "architecture": "x64",
+                  "fileName": f"{safe_name}-v{version}.json",
+                  "url": f"https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates-DEV/releases/download/{safe_name}-v{version}/{safe_name}-v{version}.json",
+                  "size": 0,  # Será preenchido depois
+                  "sha256": ""  # Será preenchido depois
+              }]
+          }
+
+          # Salvar manifest temporário
+          with open("dev-repo/update.json", "w") as f:
+              json.dump(manifest, f, indent=2)
+
+          # Outputs para próximos steps
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"config_name={safe_name}\n")
+              f.write(f"version={version}\n")
+              f.write(f"release_dir={release_dir}\n")
+              f.write(f"tag={safe_name}-v{version}\n")
+              f.write(f"exe_version={exe_version}\n")
+          EOF
+
+      - name: Download Config from Launcher API
+        id: download
+        env:
+          LAUNCHER_API_TOKEN: ${{ secrets.LAUNCHER_API_TOKEN }}
+        run: |
+          python << 'EOF'
+          import requests
+          import hashlib
+          import os
+          import sys
+
+          config_name = "${{ steps.manifest.outputs.config_name }}"
+          version = "${{ steps.manifest.outputs.version }}"
+          release_dir = "${{ steps.manifest.outputs.release_dir }}"
+          tag = "${{ steps.manifest.outputs.tag }}"
+
+          # Baixar config do launcher (endpoint admin)
+          api_url = "https://omnighost.store/api/v1/dev-configs"
+          headers = {"Authorization": f"Bearer {os.environ['LAUNCHER_API_TOKEN']}"}
+          
+          response = requests.get(f"{api_url}/{config_name}/download", headers=headers)
+          
+          if response.status_code != 200:
+              print(f"::error::Falha ao baixar config: {response.status_code} - {response.text}")
+              sys.exit(1)
+
+          data = response.json()
+          if not data.get('ok'):
+              print(f"::error::API retornou erro: {data.get('error')}")
+              sys.exit(1)
+
+          config_content = data['data']
+          
+          # Salvar arquivo da config
+          config_file = f"{release_dir}/{config_name}-v{version}.json"
+          with open(config_file, 'w') as f:
+              f.write(config_content)
+
+          # Calcular SHA256 e tamanho
+          sha256 = hashlib.sha256(config_content.encode()).hexdigest()
+          size = len(config_content.encode())
+
+          print(f"Config salva: {config_file}")
+          print(f"SHA256: {sha256}")
+          print(f"Size: {size}")
+
+          # Atualizar update.json com valores reais
+          with open("dev-repo/update.json", 'r') as f:
+              manifest = json.load(f)
+          
+          manifest['packages'][0]['size'] = size
+          manifest['packages'][0]['sha256'] = sha256
+          
+          with open("dev-repo/update.json", 'w') as f:
+              json.dump(manifest, f, indent=2)
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"config_file={config_file}\n")
+              f.write(f"sha256={sha256}\n")
+              f.write(f"size={size}\n")
+          EOF
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.manifest.outputs.tag }}
+          name: "DEV Config ${{ steps.manifest.outputs.config_name }} v${{ steps.manifest.outputs.version }}"
+          body: |
+            ## DEV Config: ${{ steps.manifest.outputs.config_name }}
+            **Versão:** ${{ steps.manifest.outputs.version }}
+            **EXE Compatível:** ${{ steps.manifest.outputs.exe_version }}
+            **Data:** ${{ github.event.head_commit.timestamp || github.run_started_at }}
+            
+            ### Changelog
+            ${{ github.event.inputs.changelog || 'Sem changelog fornecido' }}
+            
+            ---
+            *Deploy automático via GitHub Actions*
+          draft: false
+          prerelease: true
+          files: |
+            ${{ steps.manifest.outputs.release_dir }}/*
+            dev-repo/update.json
+          generate_release_notes: false
+
+      - name: Update Latest Manifest (GitHub Pages)
+        run: |
+          cd dev-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Copiar update.json para pasta docs (GitHub Pages)
+          mkdir -p docs
+          cp update.json docs/update.json
+          
+          git add docs/update.json
+          git commit -m "Update latest DEV manifest: ${{ steps.manifest.outputs.tag }}" || echo "No changes"
+          git push
+
+      - name: Notify Launcher (Webhook)
+        if: success()
+        run: |
+          python << 'EOF'
+          import requests
+          import os
+          
+          webhook_url = os.environ.get('LAUNCHER_WEBHOOK_URL')
+          if not webhook_url:
+              print("Webhook URL não configurado, pulando notificação")
+              exit(0)
+          
+          payload = {
+              "event": "dev_config_deployed",
+              "config_name": "${{ steps.manifest.outputs.config_name }}",
+              "version": "${{ steps.manifest.outputs.version }}",
+              "tag": "${{ steps.manifest.outputs.tag }}",
+              "exe_version": "${{ steps.manifest.outputs.exe_version }}",
+              "download_url": "https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates-DEV/releases/download/${{ steps.manifest.outputs.tag }}/${{ steps.manifest.outputs.config_name }}-v${{ steps.manifest.outputs.version }}.json",
+              "timestamp": "${{ github.event.head_commit.timestamp || github.run_started_at }}"
+          }
+          
+          response = requests.post(webhook_url, json=payload, timeout=10)
+          print(f"Notificação enviada: {response.status_code}")
+          EOF
+        env:
+          LAUNCHER_WEBHOOK_URL: ${{ secrets.LAUNCHER_WEBHOOK_URL }}

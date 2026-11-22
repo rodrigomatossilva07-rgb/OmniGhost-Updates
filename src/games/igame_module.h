@@ -5,10 +5,12 @@
 #include <string_view>
 #include <vector>
 #include <optional>
+#include <shared_mutex>
+#include <unordered_map>
 
 #include "platform/service_container.h"
 #include "platform/expected.h"
-#include "launcher/launcher.h"
+#include "launcher/launcher_data.h"
 
 namespace OmniGhost::Games {
 
@@ -25,7 +27,7 @@ public:
     // Game identification
     [[nodiscard]] virtual std::string_view GetGameId() const noexcept = 0;
     [[nodiscard]] virtual std::string_view GetGameName() const noexcept = 0;
-    [[nodiscard]] virtual Launcher::GameId GetLauncherGameId() const noexcept = 0;
+    [[nodiscard]] virtual ::Launcher::GameId GetLauncherGameId() const noexcept = 0;
 
     // Lifecycle
     virtual Expected<void> Initialize(OmniGhost::Platform::ServiceContainer& container) = 0;
@@ -69,7 +71,7 @@ public:
     [[nodiscard]] virtual std::unique_ptr<IGameModule> Create(
         OmniGhost::Platform::ServiceContainer& container) = 0;
     [[nodiscard]] virtual std::string_view GetGameId() const noexcept = 0;
-    [[nodiscard]] virtual Launcher::GameId GetLauncherGameId() const noexcept = 0;
+    [[nodiscard]] virtual ::Launcher::GameId GetLauncherGameId() const noexcept = 0;
 };
 
 // =============================================================================
@@ -88,7 +90,7 @@ public:
 
     // Get factory by game ID
     [[nodiscard]] IGameModuleFactory* GetFactory(std::string_view gameId) const noexcept;
-    [[nodiscard]] IGameModuleFactory* GetFactory(Launcher::GameId launcherGameId) const noexcept;
+    [[nodiscard]] IGameModuleFactory* GetFactory(::Launcher::GameId launcherGameId) const noexcept;
 
     // Create module instance
     [[nodiscard]] Expected<std::unique_ptr<IGameModule>> CreateModule(
@@ -109,7 +111,7 @@ private:
 
     mutable std::shared_mutex mutex_;
     std::unordered_map<std::string, std::unique_ptr<IGameModuleFactory>> factories_;
-    std::unordered_map<Launcher::GameId, IGameModuleFactory*> launcherIdMap_;
+    std::unordered_map<::Launcher::GameId, IGameModuleFactory*> launcherIdMap_;
 };
 
 // =============================================================================
@@ -141,7 +143,7 @@ public:
         return T::StaticGameId();
     }
 
-    [[nodiscard]] Launcher::GameId GetLauncherGameId() const noexcept override {
+    [[nodiscard]] ::Launcher::GameId GetLauncherGameId() const noexcept override {
         return T::StaticLauncherGameId();
     }
 };

@@ -1,5 +1,6 @@
 ﻿#include "../../widgets.h"
 #include "../../theme.h"
+#include "../../localization.h"
 #include "../../platform/strprotect/strprotect.h"
 #include "config/app_settings.h"
 #include "../../../project/third_party/keyauth/x64/lib/QRCode/qrcode.hpp"
