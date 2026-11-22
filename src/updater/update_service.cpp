@@ -1089,7 +1089,15 @@ bool UpdateService::InstallPreparedUpdate() {
 
 
     OmniGhost::RemoteUsage::SuppressFinalFlush();
-    exitRequested_ = true; return true;
+    exitRequested_ = true;
+
+    // Immediately terminate the main process so the updater can replace the executable.
+    // The updater waits for this process to exit (see updater_mode.cpp WaitForExit).
+    #if defined(_WIN32)
+    ExitProcess(0);
+    #else
+    std::exit(0);
+    #endif
 }
 
 void UpdateService::InstallUpdateAsync() {

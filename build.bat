@@ -7,6 +7,10 @@ rem Usage: build.bat [Debug^|Release^|Development^|Publish] [clean]
 set "ROOT=%~dp0"
 if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
 
+rem Limpar pasta .cache inteira no INICIO (antes de tudo, para build limpo)
+echo [OmniGhost] A limpar pasta .cache completa...
+if exist "%ROOT%\.cache" rmdir /s /q "%ROOT%\.cache" >nul 2>&1
+
 if not "%~1"=="" goto :arguments
 
 :menu
@@ -138,6 +142,8 @@ if /I "%CONFIG%"=="Development" (
     if errorlevel 1 goto :failure
     echo [OK] Release Development publicada no canal privado.
 )
+
+rem Limpar locks (pasta .cache já foi limpa no inicio)
 rmdir "%LOCK_DIR%" >nul 2>&1
 exit /b 0
 

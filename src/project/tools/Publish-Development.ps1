@@ -20,6 +20,90 @@ function Read-EnvValue {
     return $null
 }
 
+function Upload-SupabaseMultipart {
+    param(
+        [Parameter(Mandatory=$true)][string]$SupabaseUrl,
+        [Parameter(Mandatory=$true)][string]$ServiceKey,
+        [Parameter(Mandatory=$true)][string]$Bucket,
+        [Parameter(Mandatory=$true)][string]$ObjectPath,
+        [Parameter(Mandatory=$true)][string]$FilePath
+    )
+
+    # Supabase S3-compatible endpoint
+    $projectRef = $SupabaseUrl -replace '^https?://([^.]+)\..*$', '$1'
+    $s3Endpoint = "https://$projectRef.supabase.co/storage/v1/s3"
+    $authHeaders = @{ Authorization = "Bearer $ServiceKey" }
+    $chunkSize = 50MB  # 50MB por parte
+
+    try {
+        # 1. Iniciar multipart upload (CreateMultipartUpload)
+        $createUrl = $s3Endpoint + '/' + $Bucket + '/' + $ObjectPath + '?uploads'
+        $createHeaders = $authHeaders + @{ 'Content-Type' = 'application/xml' }
+        $createBody = ''
+        $createResp = Invoke-RestMethod -Method Post -Uri $createUrl -Headers $createHeaders -Body $createBody -ErrorAction Stop
+        $xml = [xml]$createResp
+        $uploadId = $xml.InitiateMultipartUploadResult.UploadId
+        if (-not $uploadId) { throw "Não foi possível obter uploadId" }
+        Write-Host "[OmniGhost] Multipart upload iniciado: $uploadId"
+
+        # 2. Ler arquivo e dividir em partes
+        $fileStream = [IO.File]::OpenRead($FilePath)
+        $totalSize = $fileStream.Length
+        $partNumber = 1
+        $parts = @()
+
+        while ($fileStream.Position -lt $totalSize) {
+            $remaining = $totalSize - $fileStream.Position
+            $readSize = [Math]::Min($chunkSize, $remaining)
+            $buffer = New-Object byte[] $readSize
+            $bytesRead = $fileStream.Read($buffer, 0, $readSize)
+            if ($bytesRead -le 0) { break }
+
+            # 3. Upload da parte (UploadPart)
+            $partUrl = $s3Endpoint + '/' + $Bucket + '/' + $ObjectPath + '?partNumber=' + $partNumber + '&uploadId=' + $uploadId
+            $partHeaders = $authHeaders + @{ 'Content-Type' = 'application/octet-stream' }
+            $partStream = New-Object IO.MemoryStream (,$buffer)
+            $partResp = Invoke-RestMethod -Method Put -Uri $partUrl -Headers $partHeaders -InFile $partStream -ErrorAction Stop
+            $etag = $partResp.ETag -replace '"', ''
+            if (-not $etag) { throw "ETag não retornado para parte $partNumber" }
+            $parts += @{ PartNumber = $partNumber; ETag = $etag }
+            Write-Host "[OmniGhost] Parte $partNumber upload concluída (ETag: $etag)"
+
+            $partNumber++
+        }
+        $fileStream.Close()
+
+        # 4. Completar multipart upload (CompleteMultipartUpload)
+        $completeUrl = $s3Endpoint + '/' + $Bucket + '/' + $ObjectPath + '?uploadId=' + $uploadId
+        $completeHeaders = $authHeaders + @{ 'Content-Type' = 'application/xml' }
+        $completeXml = @"
+<?xml version="1.0" encoding="UTF-8"?>
+<CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+    <Part>
+        <PartNumber>1</PartNumber>
+        <ETag>$($parts[0].ETag)</ETag>
+    </Part>
+"@
+        if ($parts.Count -gt 1) {
+            for ($i = 1; $i -lt $parts.Count; $i++) {
+                $completeXml += @"
+    <Part>
+        <PartNumber>$($parts[$i].PartNumber)</PartNumber>
+        <ETag>$($parts[$i].ETag)</ETag>
+    </Part>
+"@
+            }
+        }
+        $completeXml += "</CompleteMultipartUpload>"
+        $completeResp = Invoke-RestMethod -Method Post -Uri $completeUrl -Headers $completeHeaders -Body $completeXml -ErrorAction Stop
+
+        return @{ Success = $true; Result = $completeResp }
+    }
+    catch {
+        return @{ Success = $false; Error = $_.Exception.Message }
+    }
+}
+
 if ([string]::IsNullOrWhiteSpace($ProjectDir)) { $ProjectDir = Join-Path $PSScriptRoot '..\..\..' }
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 if ([string]::IsNullOrWhiteSpace($BuildDir)) { $BuildDir = Join-Path $ProjectDir 'build\development' }
@@ -58,7 +142,13 @@ try {
     $packagePath = "releases/$version/OmniGhost.zip"
 
     $headers = @{ apikey = $serviceKey; Authorization = "Bearer $serviceKey"; 'x-upsert' = 'true' }
-    Invoke-RestMethod -Method Put -Uri "$supabaseUrl/storage/v1/object/launcher-development/$packagePath" -Headers $headers -ContentType 'application/zip' -InFile $zip | Out-Null
+    # Multipart upload para Supabase Storage (sem limite de tamanho)
+    Write-Host "[OmniGhost] A fazer upload multipart para Supabase Storage..."
+    $uploadResult = Upload-SupabaseMultipart -SupabaseUrl $supabaseUrl -ServiceKey $serviceKey -Bucket 'launcher-development' -ObjectPath $packagePath -FilePath $zip
+    if (-not $uploadResult.Success) {
+        throw "Falha no upload multipart: $($uploadResult.Error)"
+    }
+    Write-Host "[OK] Upload multipart concluído."
 
     $restHeaders = @{ apikey = $serviceKey; Authorization = "Bearer $serviceKey"; Prefer = 'resolution=merge-duplicates,return=minimal'; 'Content-Type' = 'application/json' }
     Invoke-RestMethod -Method Patch -Uri "$supabaseUrl/rest/v1/launcher_development_releases?active=eq.true" -Headers $restHeaders -Body '{"active":false}' | Out-Null
