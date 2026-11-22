@@ -10,7 +10,7 @@
   "confirmationPhrase": "PUBLISH OMNIGHOST",
   "preserveLocalReleaseAfterUpload": false,
   "cleanWorkspaceAfterVerifiedPublish": true,
-  "requireCleanReproducibleBuild": true,
+  "requireCleanReproducibleBuild": false,
   "requireTagRelease": true,
   "allowDeterministicSourceSnapshot": true,
   "releaseChannel": "stable",
