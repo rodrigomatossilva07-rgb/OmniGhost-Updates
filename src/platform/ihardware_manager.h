@@ -22,6 +22,8 @@ struct HardwareState {
     bool makcuAvailable = false;
     bool dmaFinished = false;
     bool dmaAvailable = false;
+    bool dmaTimedOut = false;
+    bool makcuTimedOut = false;
 };
 
 struct TimeoutConfig {
@@ -37,6 +39,7 @@ public:
     [[nodiscard]] virtual TimeoutConfig GetTimeouts() const noexcept = 0;
 
     virtual void BeginStartupProbe() = 0;
+    virtual void RefreshDetection() = 0;
     virtual void Shutdown() noexcept = 0;
     virtual void Poll() = 0;
     [[nodiscard]] virtual HardwareState Snapshot() const = 0;

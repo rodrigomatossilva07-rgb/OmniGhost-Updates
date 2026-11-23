@@ -132,6 +132,20 @@ void Manager::BeginStartupProbe() {
 #endif
 }
 
+void Manager::RefreshDetection() {
+    std::scoped_lock lock(mutex_);
+    if (state_.stage != ProbeStage::Complete ||
+        workerState_.load(std::memory_order_acquire) != 0)
+        return;
+    state_.dmaFinished = false;
+    state_.dmaTimedOut = false;
+    state_.stage = ProbeStage::CheckingDma;
+#if !defined(OMNIGHOST_MOCK_HARDWARE)
+    nextMakcuRetry_ = std::chrono::steady_clock::time_point{};
+    StartDmaProbeLocked();
+#endif
+}
+
 void Manager::StartDmaProbeLocked() {
 
 
@@ -177,6 +191,7 @@ void Manager::Poll() {
         OGS_LOG_INFO("[STARTUP][Hardware] dma=DETECTED complete=YES mode=MOCK");
         return;
     }
+    return;
 #endif
 
 
@@ -188,6 +203,7 @@ void Manager::Poll() {
         if (kind == 1) {
             state_.makcuAvailable = result;
             state_.makcuFinished = true;
+            if (result) state_.makcuTimedOut = false;
         } else if (kind == 2) {
             state_.dmaAvailable = result;
             state_.dmaFinished = true;
@@ -203,6 +219,7 @@ void Manager::Poll() {
     if (makcu_wrapper::IsConnectedSnapshot()) {
         state_.makcuAvailable = true;
         state_.makcuFinished = true;
+        state_.makcuTimedOut = false;
         aim_type::config.makcu_connected = true;
         aim_type::config.makcu_enabled = true;
         aim_type::config.active = aim_type::DeviceType::Makcu;
@@ -210,6 +227,8 @@ void Manager::Poll() {
         if (diagnostics.port[0])
             std::snprintf(aim_type::config.makcu_com,
                 sizeof(aim_type::config.makcu_com), "%s", diagnostics.port);
+    } else {
+        state_.makcuAvailable = false;
     }
 
     if (state_.stage == ProbeStage::CheckingMakcu) {
@@ -225,6 +244,7 @@ void Manager::Poll() {
                 worker_.request_stop();
             state_.makcuFinished = true;
             state_.makcuAvailable = false;
+            state_.makcuTimedOut = true;
             OGS_LOG_WARN("[STARTUP][Hardware] makcu=TIMEOUT optional=YES continuing=DMA");
         }
 
@@ -233,6 +253,14 @@ void Manager::Poll() {
             workerState_.load(std::memory_order_acquire) == 0 &&
             workerKind_.load(std::memory_order_relaxed) == 0)
             StartDmaProbeLocked();
+        else if (state_.makcuTimedOut && now - stageStarted_ >= timeouts_.makcuTimeout + timeouts_.dmaTimeout) {
+            // The single probe worker is still occupied. Keep setup recoverable
+            // without claiming that Windows completed the DMA device check.
+            state_.dmaFinished = true;
+            state_.dmaAvailable = false;
+            state_.dmaTimedOut = true;
+            state_.stage = ProbeStage::Complete;
+        }
         return;
     }
 
@@ -248,6 +276,7 @@ void Manager::Poll() {
                 worker_.request_stop();
             state_.dmaAvailable = false;
             state_.dmaFinished = true;
+            state_.dmaTimedOut = true;
             state_.stage = ProbeStage::Complete;
             std::clog << "[STARTUP][Hardware] dma=TIMEOUT launcher_continues=YES note=PnP_probe_does_not_guarantee_functional_session\n";
         }
@@ -262,6 +291,7 @@ void Manager::Poll() {
         if (now >= nextMakcuRetry_ &&
             workerState_.load(std::memory_order_acquire) == 0) {
             state_.makcuFinished = false;
+            state_.makcuTimedOut = false;
             nextMakcuRetry_ = now + 5s;
             StartWorkerLocked(1, [] { return RunMakcuProbeIsolated(); });
             std::clog << "[Hardware] MAKCU automatic rediscovery started\n";

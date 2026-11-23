@@ -24,10 +24,10 @@ struct Snapshot {
 
 
 [[nodiscard]] OmniGhost::Auth::LicenseResult Login(std::string_view username, std::string_view password);
-[[nodiscard]] OmniGhost::Auth::LicenseResult LoginWebsite(std::string_view email, std::string_view password);
+[[nodiscard]] OmniGhost::Auth::LicenseResult LoginWebsite(std::string_view email, std::string_view password, bool rememberSession = true);
 [[nodiscard]] OmniGhost::Auth::LicenseResult RegisterWebsite(std::string_view email,
                                                               std::string_view password,
-                                                              std::string_view licenseKey);
+                                                              std::string_view licenseKey, bool rememberSession = true);
 [[nodiscard]] OmniGhost::Auth::LicenseResult RestoreWebsiteSession();
 [[nodiscard]] bool SelectWebsiteLicense(std::string_view licenseId);
 [[nodiscard]] bool IsWebsiteAuthenticated() noexcept;

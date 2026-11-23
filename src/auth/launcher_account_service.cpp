@@ -131,14 +131,20 @@ bool Text(const OmniGhost::Update::Json::Object& object, std::string_view name,
     return true;
 }
 
-std::string ErrorText(const LauncherApiResponse& response, std::string fallback) {
+std::string ErrorText(const LauncherApiResponse& response, std::string fallback,
+                      std::string* diagnostic = nullptr) {
     OmniGhost::Update::Json::Value root;
     OmniGhost::Update::Json::Limits limits{16, 16u * 1024u, 1000};
     if (OmniGhost::Update::Json::Parse(response.body, root, limits).ok) {
         if (const auto* object = OmniGhost::Update::Json::AsObject(root)) {
             std::string message;
-            if (Text(*object, OGS_LIT("message"), message, false) && !message.empty()) return message;
             if (Text(*object, OGS_LIT("error"), message, false) && !message.empty()) {
+                if (diagnostic) {
+                    if (message == OGS_LIT("invalid_credentials")) *diagnostic = "website.invalid_credentials";
+                    else if (message == OGS_LIT("launcher_license_not_owned")) *diagnostic = "website.license_not_owned";
+                    else if (message == OGS_LIT("launcher_license_not_active")) *diagnostic = "website.license_not_active";
+                    else if (message == OGS_LIT("no_active_license")) *diagnostic = "website.no_active_license";
+                }
                 if (message == OGS_LIT("invalid_credentials"))
                     return OGS_LIT("O email ou a palavra-passe da conta do site estão incorretos. Se usas apenas Google, define primeiro uma palavra-passe no site.");
                 if (message == OGS_LIT("launcher_account_exists"))
@@ -157,6 +163,7 @@ std::string ErrorText(const LauncherApiResponse& response, std::string fallback)
                     return OGS_LIT("Foram feitas demasiadas tentativas. Aguarda um pouco e tenta novamente.");
                 return fallback;
             }
+            if (Text(*object, OGS_LIT("message"), message, false) && !message.empty()) return message;
         }
     }
     return fallback;
@@ -173,7 +180,9 @@ std::string DiagnosticForHttp(int status) {
     if (status == 401) return "website.session_unauthorized";
     if (status == 403) return "website.session_forbidden";
     if (status == 429) return "website.rate_limited";
-    if (status >= 500 || status == 0) return "website.unavailable";
+    if (status == 408) return "website.timeout";
+    if (status == 0) return "website.connection_failed";
+    if (status >= 500) return "website.unavailable";
     return "website.rejected";
 }
 
@@ -258,12 +267,16 @@ public:
 
         void* bodyPointer = body.empty() ? WINHTTP_NO_REQUEST_DATA
                                          : const_cast<char*>(body.data());
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(45);
         if (!WinHttpSendRequest(request.get(), headers.c_str(),
                                 static_cast<DWORD>(headers.size()), bodyPointer,
                                 static_cast<DWORD>(body.size()),
                                 static_cast<DWORD>(body.size()), 0) ||
-            !WinHttpReceiveResponse(request.get(), nullptr))
-            return {0, {}, OGS_LIT("O serviço de contas está temporariamente indisponível.")};
+            !WinHttpReceiveResponse(request.get(), nullptr)) {
+            const DWORD error = GetLastError();
+            return {error == ERROR_WINHTTP_TIMEOUT ? 408 : 0, {},
+                    OGS_LIT("Não foi possível receber uma resposta do serviço de contas.")};
+        }
 
         DWORD status = 0;
         DWORD statusSize = sizeof(status);
@@ -275,8 +288,14 @@ public:
         result.statusCode = static_cast<int>(status);
 
         while (true) {
+            if (std::chrono::steady_clock::now() >= deadline) {
+                result.statusCode = 408;
+                result.error = OGS_LIT("O serviço de contas demorou demasiado a responder.");
+                return result;
+            }
             DWORD available = 0;
             if (!WinHttpQueryDataAvailable(request.get(), &available)) {
+                result.statusCode = GetLastError() == ERROR_WINHTTP_TIMEOUT ? 408 : 0;
                 result.error = OGS_LIT("Não foi possível ler a resposta do servidor.");
                 return result;
             }
@@ -292,7 +311,7 @@ public:
             DWORD read = 0;
             if (!WinHttpReadData(request.get(), result.body.data() + previous,
                                  available, &read)) {
-                result.body.clear();
+                result.statusCode = GetLastError() == ERROR_WINHTTP_TIMEOUT ? 408 : 0;
                 result.error = OGS_LIT("Não foi possível ler a resposta do servidor.");
                 return result;
             }
@@ -427,7 +446,7 @@ LauncherAccountService::LauncherAccountService(
       deviceId_(GetOrCreateInstallationDeviceId()) {}
 
 LicenseResult LauncherAccountService::Login(std::string_view emailInput,
-                                            std::string_view password) {
+                                            std::string_view password, bool rememberSession) {
     std::scoped_lock operation(operationMutex_);
     const std::string email = TrimLower(emailInput);
     if (email.size() < 5 || email.size() > 320 || email.find('@') == std::string::npos ||
@@ -443,12 +462,12 @@ LicenseResult LauncherAccountService::Login(std::string_view emailInput,
         if (!body.empty()) SecureZeroMemory(body.data(), body.size());
     });
     return ApplySessionResponse(transport_->Request(
-        OGS_LIT("POST"), OGS_LIT("/api/launcher/session"), body, {}, deviceId_), true, false);
+        OGS_LIT("POST"), OGS_LIT("/api/launcher/session"), body, {}, deviceId_), true, false, rememberSession);
 }
 
 LicenseResult LauncherAccountService::Register(std::string_view emailInput,
                                                std::string_view password,
-                                               std::string_view licenseKey) {
+                                               std::string_view licenseKey, bool rememberSession) {
     std::scoped_lock operation(operationMutex_);
     const std::string email = TrimLower(emailInput);
     if (email.size() < 5 || email.size() > 320 || email.find('@') == std::string::npos ||
@@ -467,7 +486,7 @@ LicenseResult LauncherAccountService::Register(std::string_view emailInput,
         if (!body.empty()) SecureZeroMemory(body.data(), body.size());
     });
     return ApplySessionResponse(transport_->Request(
-        OGS_LIT("POST"), OGS_LIT("/api/launcher/register"), body, {}, deviceId_), true, false);
+        OGS_LIT("POST"), OGS_LIT("/api/launcher/register"), body, {}, deviceId_), true, false, rememberSession);
 }
 
 LicenseResult LauncherAccountService::Restore() {
@@ -479,6 +498,7 @@ LicenseResult LauncherAccountService::Restore() {
     {
         std::lock_guard lock(mutex_);
         token_ = std::move(stored.token);
+        rememberSession_ = true;
         state_.email = std::move(stored.email);
         expiresAtText_ = std::move(stored.expiresAt);
         state_.expiresAt = ParseIso8601(expiresAtText_);
@@ -631,7 +651,7 @@ LauncherApiResponse LauncherAccountService::BearerRequest(
 }
 
 LicenseResult LauncherAccountService::ApplySessionResponse(
-    LauncherApiResponse response, bool requireToken, bool retainLicenses) {
+    LauncherApiResponse response, bool requireToken, bool retainLicenses, bool rememberSession) {
     auto wipeResponse = OmniGhost::Platform::MakeScopeExit([&] {
         if (!response.body.empty()) SecureZeroMemory(response.body.data(), response.body.size());
     });
@@ -640,11 +660,10 @@ LicenseResult LauncherAccountService::ApplySessionResponse(
             std::lock_guard lock(mutex_);
             ClearLocked();
         }
-        return {StatusForHttp(response.statusCode),
-                ErrorText(response, response.error.empty()
-                    ? OGS_LIT("O servidor recusou o início de sessão.")
-                    : response.error),
-                DiagnosticForHttp(response.statusCode), {}};
+        auto diagnostic = DiagnosticForHttp(response.statusCode);
+        auto message = ErrorText(response, response.error.empty()
+            ? OGS_LIT("O servidor recusou o início de sessão.") : response.error, &diagnostic);
+        return {StatusForHttp(response.statusCode), std::move(message), std::move(diagnostic), {}};
     }
 
     OmniGhost::Update::Json::Value root;
@@ -730,6 +749,10 @@ LicenseResult LauncherAccountService::ApplySessionResponse(
             }
         }
         state_.authenticated = true;
+        if (!retainLicenses) {
+            rememberSession_ = rememberSession;
+            if (!rememberSession_) store_->Clear();
+        }
         if (!PersistLocked()) {
             ClearLocked();
             return {LicenseStatus::Unavailable,
@@ -816,6 +839,7 @@ LicenseResult LauncherAccountService::ApplyLicenseResponse(const LauncherApiResp
 
 bool LauncherAccountService::PersistLocked() const {
     if (token_.empty()) return false;
+    if (!rememberSession_) return true;
     return store_->Save({token_, state_.email, expiresAtText_, state_.selectedLicenseId});
 }
 

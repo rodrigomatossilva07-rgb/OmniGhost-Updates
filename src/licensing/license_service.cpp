@@ -344,16 +344,16 @@ OmniGhost::Auth::LauncherApiResponse UsageRequest(
 OmniGhost::Auth::LicenseResult Login(std::string_view username, std::string_view password) {
     return RemoteGateway().Login(username, password);
 }
-OmniGhost::Auth::LicenseResult LoginWebsite(std::string_view email, std::string_view password) {
-    const auto result = WebsiteService().Login(email, password);
+OmniGhost::Auth::LicenseResult LoginWebsite(std::string_view email, std::string_view password, bool rememberSession) {
+    const auto result = WebsiteService().Login(email, password, rememberSession);
     if (result.Ok()) OmniGhost::RemoteUsage::Refresh();
     Refresh();
     return result;
 }
 OmniGhost::Auth::LicenseResult RegisterWebsite(std::string_view email,
                                                std::string_view password,
-                                               std::string_view licenseKey) {
-    const auto result = WebsiteService().Register(email, password, licenseKey);
+                                               std::string_view licenseKey, bool rememberSession) {
+    const auto result = WebsiteService().Register(email, password, licenseKey, rememberSession);
     if (result.Ok()) {
 
 

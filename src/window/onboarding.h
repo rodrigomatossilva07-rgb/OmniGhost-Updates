@@ -3,6 +3,8 @@
 #include <vector>
 #include <functional>
 
+namespace OmniGhost::Platform { struct HardwareState; }
+
 namespace Onboarding {
 
     enum class Step {
@@ -50,6 +52,8 @@ namespace Onboarding {
 
 
     void DrawWizard();
+    bool UpdateHardware(const OmniGhost::Platform::HardwareState& state);
+    bool OpenLicenseAgreement();
 
 
     bool IsActive();

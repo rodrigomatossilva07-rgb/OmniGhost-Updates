@@ -825,6 +825,8 @@ while (application.shouldRun && !authenticated) {
 
 
         const auto hardware = hardwareManager.Snapshot();
+        if (Onboarding::UpdateHardware(hardware))
+            hardwareManager.RefreshDetection();
         HardwareMonitor::SetDeviceEnabled(HardwareMonitor::DeviceType::DMA, true);
         HardwareMonitor::UpdateDeviceStatus(
             HardwareMonitor::DeviceType::DMA,

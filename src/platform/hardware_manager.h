@@ -32,6 +32,7 @@ public:
     [[nodiscard]] TimeoutConfig GetTimeouts() const noexcept override { return timeouts_; }
 
     void BeginStartupProbe() override;
+    void RefreshDetection() override;
     void Shutdown() noexcept override;
     void Poll() override;
     [[nodiscard]] HardwareState Snapshot() const override;

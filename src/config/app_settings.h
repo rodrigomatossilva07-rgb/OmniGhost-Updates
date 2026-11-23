@@ -134,6 +134,8 @@ struct Config {
         bool aura_100 = false;
         bool onboarding_completed = false;
         bool license_accepted = false;
+        std::string license_agreement_digest;
+        std::string license_accepted_at;
         int last_selected_game = -1;
         std::string changelog_last_viewed = "";
     };

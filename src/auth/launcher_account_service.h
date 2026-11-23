@@ -68,9 +68,10 @@ public:
         std::shared_ptr<ILauncherApiTransport> transport = {},
         std::shared_ptr<ILauncherSessionStore> store = {});
 
-    [[nodiscard]] LicenseResult Login(std::string_view email, std::string_view password);
+    [[nodiscard]] LicenseResult Login(std::string_view email, std::string_view password,
+                                      bool rememberSession = true);
     [[nodiscard]] LicenseResult Register(std::string_view email, std::string_view password,
-                                         std::string_view licenseKey);
+                                         std::string_view licenseKey, bool rememberSession = true);
     [[nodiscard]] LicenseResult Restore();
     [[nodiscard]] LicenseResult Renew();
     [[nodiscard]] LicenseResult RefreshLicenses();
@@ -93,7 +94,8 @@ public:
 private:
     [[nodiscard]] LicenseResult ApplySessionResponse(LauncherApiResponse response,
                                                      bool requireToken,
-                                                     bool retainLicenses);
+                                                     bool retainLicenses,
+                                                     bool rememberSession = true);
     [[nodiscard]] LicenseResult ApplyLicenseResponse(const LauncherApiResponse& response);
     [[nodiscard]] LicenseResult RefreshLicensesUnlocked();
     [[nodiscard]] bool PersistLocked() const;
@@ -104,6 +106,7 @@ private:
     mutable std::mutex mutex_;
     std::mutex operationMutex_;
     LauncherSessionState state_;
+    bool rememberSession_ = true;
     std::string token_;
     std::string expiresAtText_;
     std::string deviceId_;

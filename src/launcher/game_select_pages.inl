@@ -1163,6 +1163,9 @@ void DrawSettings(ImVec2 display) {
         CyberWidgets::KeyValueRow("MSVC", OmniGhost::BuildInfo::ToolchainVersion);
         CyberWidgets::KeyValueRow("Windows SDK", OmniGhost::BuildInfo::WindowsSdkVersion);
         CyberWidgets::TextLine(Loc::Tr("launcher.about_metadata_help"), CyberWidgets::TextTone::Secondary);
+        if (CyberWidgets::CyberButton(app_settings::config.language == app_settings::Language::PT
+                ? "Abrir acordo de licença" : "Open License Agreement", ImVec2(S(202.f), S(34.f))))
+            Onboarding::OpenLicenseAgreement();
         CyberWidgets::EndCard();
         break;
     }

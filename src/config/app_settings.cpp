@@ -221,6 +221,8 @@ namespace app_settings {
             out << "colors.particles=" << value.color_particles << '\n';
             out << "onboarding.completed=" << (value.onboarding_completed ? 1 : 0) << '\n';
             out << "onboarding.license_accepted=" << (value.license_accepted ? 1 : 0) << '\n';
+            out << "onboarding.license_agreement_digest=" << value.license_agreement_digest << '\n';
+            out << "onboarding.license_accepted_at=" << value.license_accepted_at << '\n';
             out << "onboarding.last_game=" << value.last_selected_game << '\n';
             out << "onboarding.changelog_viewed=" << value.changelog_last_viewed << '\n';
             return out.str();
@@ -296,6 +298,8 @@ namespace app_settings {
                 else if (key == "colors.particles") parsed.color_particles = ParseU32(value, parsed.color_particles);
                 else if (key == "onboarding.completed") parsed.onboarding_completed = ParseBool(value, parsed.onboarding_completed);
                 else if (key == "onboarding.license_accepted") parsed.license_accepted = ParseBool(value, parsed.license_accepted);
+                else if (key == "onboarding.license_agreement_digest") parsed.license_agreement_digest = value;
+                else if (key == "onboarding.license_accepted_at") parsed.license_accepted_at = value;
                 else if (key == "onboarding.last_game") parsed.last_selected_game = ParseInt(value, parsed.last_selected_game);
                 else if (key == "onboarding.changelog_viewed") parsed.changelog_last_viewed = value;
 
@@ -351,12 +355,10 @@ namespace app_settings {
                     return false;
                 }
             }
-            std::filesystem::remove(path, ec);
-            ec.clear();
-            std::filesystem::rename(temporary, path, ec);
-            if (ec) {
+            if (!MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+                const std::error_code replaceError(static_cast<int>(GetLastError()), std::system_category());
                 std::filesystem::remove(temporary, ec);
-                if (error) *error = "Não foi possível substituir o ficheiro de settings: " + ec.message();
+                if (error) *error = "Não foi possível substituir o ficheiro de settings: " + replaceError.message();
                 return false;
             }
             return true;

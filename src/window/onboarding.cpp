@@ -4,7 +4,8 @@
 #include "fonts.h"
 #include "brand_assets.h"
 #include "localization.h"
-#include "hardware_monitor.h"
+#include "../platform/ihardware_manager.h"
+#include "../platform/file_integrity.h"
 #include "hotkeys.h"
 #include "animations.h"
 #include "../config/app_settings.h"
@@ -15,6 +16,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <string_view>
@@ -24,7 +26,45 @@ namespace Onboarding {
     namespace {
         Step g_current_step = Step::Welcome;
         bool g_active = false;
+        bool g_acceptance = false;
+        bool g_refresh_requested = false;
+        double g_step_started = 0.0;
+        double g_last_refresh = 0.0;
+        double g_last_result = 0.0;
+        double g_finish_started = 0.0;
+        bool g_finish_pending = false;
+        const char* g_notice = nullptr;
+        OmniGhost::Platform::HardwareState g_hardware;
         std::vector<WizardStep> g_steps;
+
+        constexpr std::string_view kLicenseResource = "legal/OmniGhost_EULA_and_Terms_of_Use.pdf";
+
+        const char* Tr(const char* en, const char* pt) {
+            return app_settings::config.language == app_settings::Language::PT ? pt : en;
+        }
+
+        const std::string& AgreementDigest() {
+            static const std::string digest = [] {
+                std::string value, error;
+                const auto bytes = OmniGhost::LoadEmbeddedResource(kLicenseResource);
+                if (!bytes || bytes->empty() ||
+                    !OmniGhost::Platform::Sha256Bytes(bytes->data(), bytes->size(), value, error))
+                    value.clear();
+                return value;
+            }();
+            return digest;
+        }
+
+        bool HardwareCheckFinished() {
+            return g_hardware.dmaFinished;
+        }
+
+        void ChangeStep(Step step) {
+            g_current_step = step;
+            g_step_started = ImGui::GetTime();
+            if (step == Step::HardwareDetection) g_last_refresh = g_step_started;
+            g_notice = nullptr;
+        }
 
         void InitSteps() {
             g_steps.clear();
@@ -48,7 +88,7 @@ namespace Onboarding {
                 "Please review and accept the license agreement to continue.",
                 "📜",
                 false,
-                []() { return app_settings::config.license_accepted; },
+                []() { return g_acceptance && !AgreementDigest().empty(); },
                 []() {},
                 []() {}
             });
@@ -60,14 +100,8 @@ namespace Onboarding {
                 "Checking connected hardware and input devices.",
                 "🔧",
                 false,
-                []() {
-                    HardwareMonitor::Initialize();
-                    return HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::DMA).connected ||
-                           HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::Makcu).connected ||
-                           HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::KMBoxNet).connected ||
-                           HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::Ferrum).connected;
-                },
-                []() { HardwareMonitor::Initialize(); },
+                HardwareCheckFinished,
+                []() {},
                 []() {}
             });
 
@@ -95,13 +129,18 @@ namespace Onboarding {
 
     bool ShouldRunOnboarding() {
         return !app_settings::config.onboarding_completed ||
-            !app_settings::config.license_accepted;
+            !app_settings::config.license_accepted || AgreementDigest().empty() ||
+            app_settings::config.license_agreement_digest != AgreementDigest();
     }
 
     void Start() {
         if (!ShouldRunOnboarding()) return;
         g_active = true;
-        g_current_step = Step::Welcome;
+        g_acceptance = false;
+        g_finish_pending = false;
+        g_refresh_requested = false;
+        g_last_refresh = ImGui::GetTime();
+        ChangeStep(Step::Welcome);
     }
 
     Step GetCurrentStep() {
@@ -118,9 +157,12 @@ namespace Onboarding {
     }
 
     bool NextStep() {
+        if (!g_active || g_finish_pending || g_current_step >= Step::HardwareDetection)
+            return false;
         const WizardStep& current = GetStepInfo(g_current_step);
         if (current.validator && !current.validator()) {
-            CyberWidgets::Notify("Please complete the current step first", CyberWidgets::ToastType::Warning);
+            CyberWidgets::Notify(Tr("Complete the current step first.", "Conclui primeiro a etapa atual."),
+                                 CyberWidgets::ToastType::Warning);
             return false;
         }
 
@@ -128,7 +170,7 @@ namespace Onboarding {
 
         int next = static_cast<int>(g_current_step) + 1;
         if (next < static_cast<int>(Step::Count)) {
-            g_current_step = static_cast<Step>(next);
+            ChangeStep(static_cast<Step>(next));
             const WizardStep& next_step = GetStepInfo(g_current_step);
             if (next_step.onEnter) next_step.onEnter();
             return true;
@@ -137,12 +179,13 @@ namespace Onboarding {
     }
 
     bool PreviousStep() {
+        if (!g_active || g_finish_pending) return false;
         int prev = static_cast<int>(g_current_step) - 1;
         if (prev >= 0) {
             const WizardStep& current = GetStepInfo(g_current_step);
             if (current.onExit) current.onExit();
 
-            g_current_step = static_cast<Step>(prev);
+            ChangeStep(static_cast<Step>(prev));
             const WizardStep& prev_step = GetStepInfo(g_current_step);
             if (prev_step.onEnter) prev_step.onEnter();
             return true;
@@ -151,33 +194,32 @@ namespace Onboarding {
     }
 
     bool GoToStep(Step step) {
-        if (static_cast<int>(step) >= 0 && static_cast<int>(step) < static_cast<int>(Step::Count)) {
-            const WizardStep& current = GetStepInfo(g_current_step);
-            if (current.onExit) current.onExit();
-
-            g_current_step = step;
-            const WizardStep& next_step = GetStepInfo(g_current_step);
-            if (next_step.onEnter) next_step.onEnter();
-            return true;
-        }
+        if (static_cast<int>(step) == static_cast<int>(g_current_step) - 1) return PreviousStep();
+        if (static_cast<int>(step) == static_cast<int>(g_current_step) + 1) return NextStep();
         return false;
     }
 
     void Complete() {
-        if (!app_settings::config.license_accepted) {
-            CyberWidgets::Notify("Accept the License Agreement before finishing setup", CyberWidgets::ToastType::Warning);
+        if (!g_active || g_finish_pending || g_current_step != Step::HardwareDetection ||
+            !g_acceptance || AgreementDigest().empty() || !HardwareCheckFinished())
             return;
-        }
-        app_settings::config.onboarding_completed = true;
-        std::string save_error;
-        if (!app_settings::SaveGlobal(&save_error)) {
-            app_settings::config.onboarding_completed = false;
-            CyberWidgets::Notify(save_error.empty() ? "Could not save setup. Please try again."
-                : save_error.c_str(), CyberWidgets::ToastType::Error);
-            return;
-        }
-        g_active = false;
-        CyberWidgets::Notify("Onboarding completed!", CyberWidgets::ToastType::Success);
+        g_notice = nullptr;
+        g_finish_pending = true;
+        g_finish_started = ImGui::GetTime();
+    }
+
+    bool UpdateHardware(const OmniGhost::Platform::HardwareState& state) {
+        if (state.dmaFinished && (!g_hardware.dmaFinished || g_last_result == 0.0))
+            g_last_result = ImGui::GetTime();
+        g_hardware = state;
+        if (!g_active || g_finish_pending || g_current_step != Step::HardwareDetection ||
+            state.stage != OmniGhost::Platform::HardwareState::ProbeStage::Complete || !state.makcuFinished)
+            return false;
+        const double now = ImGui::GetTime();
+        if (!g_refresh_requested && now - g_last_refresh < 12.0) return false;
+        g_refresh_requested = false;
+        g_last_refresh = now;
+        return true;
     }
 
     void Skip() {
@@ -195,7 +237,7 @@ namespace Onboarding {
         }
 
         void DrawStepIndicator(Step current, const ImVec2& origin, float width) {
-            static const char* labels[] = { "WELCOME", "LICENSE", "HARDWARE" };
+            const char* labels[] = { Tr("WELCOME", "BOAS-VINDAS"), Tr("LICENSE", "ACORDO"), "HARDWARE" };
             ImDrawList* dl = ImGui::GetWindowDrawList();
             const int active = (std::min)(static_cast<int>(current), 2);
             const float segment = width / 3.0f;
@@ -213,10 +255,17 @@ namespace Onboarding {
                 const ImVec2 dot(x, origin.y + 17.0f);
 
                 if (index > 0) {
-                    const ImU32 lineColor = index <= active
-                        ? CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.72f)
-                        : CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.85f);
-                    dl->AddLine(ImVec2(x - segment + 14.0f, dot.y), ImVec2(x - 14.0f, dot.y), lineColor, 1.5f);
+                    const float left = x - segment + 14.0f;
+                    const float right = x - 14.0f;
+                    dl->AddLine(ImVec2(left, dot.y), ImVec2(right, dot.y),
+                        CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.85f), 1.5f);
+                    if (index <= active) {
+                        const float fill = index == active && app_settings::MotionEnabled()
+                            ? std::clamp(static_cast<float>((ImGui::GetTime() - g_step_started) / 0.22), 0.f, 1.f)
+                            : 1.f;
+                        dl->AddLine(ImVec2(left, dot.y), ImVec2(left + (right - left) * fill, dot.y),
+                            CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.72f), 1.5f);
+                    }
                 }
 
                 if (isCurrent) {
@@ -278,29 +327,26 @@ namespace Onboarding {
             }
         }
 
-        void DrawFeatureCard(const char* id, const char* title, const char* description, int icon) {
+        void DrawFeatureCard(const char* title, const char* description, int icon) {
             ImDrawList* dl = ImGui::GetWindowDrawList();
             const ImVec2 pos = ImGui::GetCursorScreenPos();
             const float width = ImGui::GetContentRegionAvail().x;
-            constexpr float height = 68.0f;
-            ImGui::InvisibleButton(id, ImVec2(width, height));
-            const bool hovered = ImGui::IsItemHovered();
-            const ImGuiID hoverId = ImGui::GetItemID();
-            CyberAnimations::SetHover(hoverId, hovered, 11.0f);
-            const float hover = CyberAnimations::GetHover(hoverId);
-            const ImVec4 surface = CyberTheme::Mix(CyberTheme::Colors.Card, CyberTheme::Colors.CardHover, hover);
-            const ImU32 accent = CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.54f + 0.28f * hover);
-            dl->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + height), CyberTheme::U32(surface), CyberTheme::Radius::Sm);
+            const float textWidth = (std::max)(1.f, width - 76.f);
+            const float titleHeight = ImGui::CalcTextSize(title, nullptr, false, textWidth).y;
+            const float descriptionHeight = ImGui::CalcTextSize(description, nullptr, false, textWidth).y;
+            const float height = (std::max)(63.f, 26.f + titleHeight + descriptionHeight);
+            const ImU32 accent = CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.64f);
+            dl->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + height), CyberTheme::U32(CyberTheme::Colors.Card), CyberTheme::Radius::Sm);
             dl->AddRect(pos, ImVec2(pos.x + width, pos.y + height),
-                CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.65f + 0.35f * hover), CyberTheme::Radius::Sm);
-            if (hover > 0.01f)
-                dl->AddCircleFilled(ImVec2(pos.x + 27.0f, pos.y + height * 0.5f),
-                    14.0f + 3.0f * hover, CyberTheme::WithAlpha(CyberTheme::Colors.GoldGlow, 0.14f * hover), 20);
+                CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.8f), CyberTheme::Radius::Sm);
             dl->AddLine(ImVec2(pos.x, pos.y + 12.0f), ImVec2(pos.x, pos.y + height - 12.0f), accent, 2.0f);
             DrawFeatureGlyph(dl, ImVec2(pos.x + 31.0f, pos.y + height * 0.5f), icon, accent);
-            dl->AddText(ImVec2(pos.x + 62.0f, pos.y + 15.0f), CyberTheme::U32(CyberTheme::Colors.Text), title);
-            dl->AddText(ImVec2(pos.x + 62.0f, pos.y + 39.0f), CyberTheme::U32(CyberTheme::Colors.TextDisabled), description);
-            ImGui::Dummy(ImVec2(0.0f, 7.0f));
+            dl->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2(pos.x + 62.f, pos.y + 11.f),
+                CyberTheme::U32(CyberTheme::Colors.Text), title, nullptr, textWidth);
+            dl->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2(pos.x + 62.f, pos.y + 14.f + titleHeight),
+                CyberTheme::U32(CyberTheme::Mix(CyberTheme::Colors.TextDisabled, CyberTheme::Colors.Text, 0.22f)),
+                description, nullptr, textWidth);
+            ImGui::Dummy(ImVec2(width, height + 4.f));
         }
 
         void DrawStatusBadge(ImDrawList* dl, const ImVec2& right, const char* label, const ImVec4& color) {
@@ -313,57 +359,56 @@ namespace Onboarding {
             dl->AddText(ImVec2(min.x + 17.0f, min.y + 5.0f), CyberTheme::U32(color), label);
         }
 
-        bool OpenLicenseAgreement() {
-            constexpr std::string_view kLicenseResource = "legal/OmniGhost_EULA_and_Terms_of_Use.pdf";
+        bool OpenAgreementPdf() {
             const auto bytes = OmniGhost::LoadEmbeddedResource(kLicenseResource);
-            if (!bytes || bytes->empty()) {
-                CyberWidgets::Notify("Could not load the License Agreement", CyberWidgets::ToastType::Error);
-                return false;
-            }
+            if (!bytes || bytes->empty() || AgreementDigest().empty()) return false;
 
             const std::filesystem::path directory = OmniGhost::Paths::LocalData() / L"documents";
-            const std::filesystem::path destination = directory / L"OmniGhost_EULA_and_Terms_of_Use.pdf";
+            const auto destination = directory / ("OmniGhost_EULA_" + AgreementDigest() + ".pdf");
             std::error_code error;
             std::filesystem::create_directories(directory, error);
-            if (error) {
-                CyberWidgets::Notify("Could not prepare the License Agreement", CyberWidgets::ToastType::Error);
-                return false;
-            }
-
-            std::ofstream output(destination, std::ios::binary | std::ios::trunc);
-            if (!output) {
-                CyberWidgets::Notify("Could not save the License Agreement", CyberWidgets::ToastType::Error);
-                return false;
-            }
-            output.write(reinterpret_cast<const char*>(bytes->data()), static_cast<std::streamsize>(bytes->size()));
-            output.close();
-            if (!output) {
-                CyberWidgets::Notify("Could not save the License Agreement", CyberWidgets::ToastType::Error);
-                return false;
+            if (error) return false;
+            std::string actualDigest, hashError;
+            if (!OmniGhost::Platform::Sha256File(destination, actualDigest, hashError) ||
+                actualDigest != AgreementDigest()) {
+                auto temporary = destination;
+                temporary += L".tmp";
+                std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+                output.write(reinterpret_cast<const char*>(bytes->data()), static_cast<std::streamsize>(bytes->size()));
+                output.close();
+                if (!output || !MoveFileExW(temporary.c_str(), destination.c_str(), MOVEFILE_REPLACE_EXISTING)) {
+                    std::filesystem::remove(temporary, error);
+                    return false;
+                }
             }
 
             const auto result = ShellExecuteW(nullptr, L"open", destination.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-            if (reinterpret_cast<INT_PTR>(result) <= 32) {
-                CyberWidgets::Notify("Could not open the License Agreement", CyberWidgets::ToastType::Error);
-                return false;
-            }
-            return true;
+            return reinterpret_cast<INT_PTR>(result) > 32;
         }
     }
 
-    void DrawHardwareRow(const char* label, const char* role,
-                         const HardwareMonitor::DeviceStatus& status,
-                         bool optional) {
+    bool OpenLicenseAgreement() {
+        if (OpenAgreementPdf()) return true;
+        const char* message = Tr("Could not open the agreement. Check that a PDF viewer is installed and try again.",
+                                 "Não foi possível abrir o acordo. Verifica se tens um leitor de PDF e tenta novamente.");
+        if (g_active) g_notice = message;
+        else CyberWidgets::Notify(message, CyberWidgets::ToastType::Error);
+        return false;
+    }
+
+    void DrawHardwareRow(const char* label, const char* role, bool detected,
+                         bool finished, bool timedOut, bool optional) {
        ImDrawList* dl = ImGui::GetWindowDrawList();
        const ImVec2 pos = ImGui::GetCursorScreenPos();
        const float width = ImGui::GetContentRegionAvail().x;
-        constexpr float height = 82.0f;
-       const ImVec4 stateColor = status.connected
-           ? CyberTheme::Colors.Success
-           : (status.port == "Checking" ? CyberTheme::Colors.Warning : CyberTheme::Colors.TextDisabled);
-       const char* state = status.connected
-            ? "CONNECTED"
-            : (status.port == "Checking" ? "SEARCHING" : "NOT FOUND");
+       constexpr float height = 82.0f;
+       const ImVec4 stateColor = !finished ? CyberTheme::Colors.Warning :
+           timedOut ? CyberTheme::Colors.Error :
+           detected ? CyberTheme::Colors.Success : CyberTheme::Colors.TextDisabled;
+       const char* state = !finished ? Tr("DETECTING", "A DETETAR") :
+           timedOut ? Tr("TIMEOUT", "TEMPO ESGOTADO") :
+           detected ? (optional ? Tr("CONNECTED", "LIGADO") : Tr("DETECTED", "DETETADO")) :
+           Tr("DISCONNECTED", "DESLIGADO");
 
        dl->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + height),
            CyberTheme::U32(CyberTheme::Colors.Card), CyberTheme::Radius::Sm);
@@ -372,10 +417,10 @@ namespace Onboarding {
         DrawFeatureGlyph(dl, ImVec2(pos.x + 28.0f, pos.y + 29.0f), optional ? 1 : 3, CyberTheme::U32(CyberTheme::Colors.Gold));
         dl->AddText(ImVec2(pos.x + 52.0f, pos.y + 16.0f), CyberTheme::U32(CyberTheme::Colors.Text), label);
         dl->AddText(ImVec2(pos.x + 52.0f, pos.y + 39.0f), CyberTheme::U32(CyberTheme::Colors.TextDisabled), role);
-        const char* badge = optional ? "OPTIONAL" : "REQUIRED";
+        const char* badge = optional ? Tr("OPTIONAL", "OPCIONAL") : Tr("REQUIRED IN GAME", "NECESSÁRIO EM JOGO");
         const ImVec4 badgeColor = optional ? CyberTheme::Colors.TextDisabled : CyberTheme::Colors.Gold;
         DrawStatusBadge(dl, ImVec2(pos.x + width - 14.0f, pos.y + 14.0f), state, stateColor);
-        if (status.port == "Checking") {
+        if (!finished && app_settings::MotionEnabled()) {
             const float pulse = 4.0f + (std::sin(static_cast<float>(ImGui::GetTime()) * 5.0f) + 1.0f) * 2.0f;
             dl->AddCircle(ImVec2(pos.x + width - 14.0f - ImGui::CalcTextSize(state).x - 18.0f, pos.y + 25.0f),
                 pulse, CyberTheme::WithAlpha(CyberTheme::Colors.Warning, 0.35f), 16, 1.0f);
@@ -385,12 +430,55 @@ namespace Onboarding {
         ImGui::Dummy(ImVec2(width, height + 9.0f));
     }
 
+    namespace {
+        void SaveCompletedSetup() {
+            auto& settings = app_settings::config;
+            const bool previousCompleted = settings.onboarding_completed;
+            const bool previousAccepted = settings.license_accepted;
+            const auto previousDigest = settings.license_agreement_digest;
+            const auto previousDate = settings.license_accepted_at;
+            settings.onboarding_completed = true;
+            settings.license_accepted = true;
+            settings.license_agreement_digest = AgreementDigest();
+            settings.license_accepted_at = std::to_string(std::time(nullptr));
+            if (!app_settings::SaveGlobal(nullptr)) {
+                settings.onboarding_completed = previousCompleted;
+                settings.license_accepted = previousAccepted;
+                settings.license_agreement_digest = previousDigest;
+                settings.license_accepted_at = previousDate;
+                g_notice = Tr("Could not save setup. Try again.", "Não foi possível guardar a configuração. Tenta novamente.");
+                g_finish_pending = false;
+                return;
+            }
+            g_active = false;
+            g_finish_pending = false;
+            CyberWidgets::Notify(Tr("Setup complete", "Configuração concluída"), CyberWidgets::ToastType::Success);
+        }
+
+        void DrawNavigationIcon(bool back, bool check, bool enabled) {
+            const ImVec2 low = ImGui::GetItemRectMin();
+            const ImVec2 high = ImGui::GetItemRectMax();
+            const ImVec2 center(back ? low.x + 13.f : high.x - 13.f, (low.y + high.y) * 0.5f);
+            const ImU32 color = CyberTheme::U32(!enabled ? CyberTheme::Colors.TextDisabled :
+                back ? CyberTheme::Colors.Text : CyberTheme::Colors.Background);
+            auto* draw = ImGui::GetWindowDrawList();
+            if (check) {
+                DrawCheck(draw, center, color);
+                return;
+            }
+            const float direction = back ? -1.f : 1.f;
+            const ImVec2 tip(center.x + 5.f * direction, center.y);
+            draw->AddLine(ImVec2(center.x - 5.f * direction, center.y), tip, color, 1.5f);
+            draw->AddLine(tip, ImVec2(center.x + direction, center.y - 4.f), color, 1.5f);
+            draw->AddLine(tip, ImVec2(center.x + direction, center.y + 4.f), color, 1.5f);
+        }
+    }
+
     void DrawWizard() {
         if (!g_active) return;
 
         const WizardStep& step = GetStepInfo(g_current_step);
-        int step_idx = static_cast<int>(g_current_step);
-        int total_steps = static_cast<int>(Step::Count) - 1;
+        const bool isLast = g_current_step == Step::HardwareDetection;
 
         ImGui::OpenPopup("##onboarding_wizard");
         ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -399,8 +487,8 @@ namespace Onboarding {
         const ImVec2 wizard_size(
             std::min(780.0f, std::max(1.0f, work_size.x - 40.0f)),
             std::min(610.0f, std::max(1.0f, work_size.y - 40.0f)));
-        ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-        ImGui::SetNextWindowSize(wizard_size, ImGuiCond_Appearing);
+        ImGui::SetNextWindowPos(center, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowSize(wizard_size, ImGuiCond_Always);
         ImGui::PushStyleColor(ImGuiCol_PopupBg, CyberTheme::WithAlpha(CyberTheme::Colors.Surface, 0.99f));
         ImGui::PushStyleColor(ImGuiCol_ModalWindowDimBg, IM_COL32(0, 0, 0, 188));
         ImGui::PushStyleColor(ImGuiCol_Border, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.26f));
@@ -409,7 +497,8 @@ namespace Onboarding {
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 
         if (ImGui::BeginPopupModal("##onboarding_wizard", nullptr,
-            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove)) {
+            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
             ImDrawList* dl = ImGui::GetWindowDrawList();
             ImVec2 win_pos = ImGui::GetWindowPos();
             ImVec2 win_size = ImGui::GetWindowSize();
@@ -436,55 +525,90 @@ namespace Onboarding {
             }
 
             ImGui::SetCursorPos(ImVec2(kContentInset + logo_space, 88.0f));
-            ImGui::TextColored(CyberTheme::Colors.Gold, "OMNIGHOST  /  SETUP");
+            ImGui::TextColored(CyberTheme::Colors.Gold, "%s", Tr("OMNIGHOST  /  SETUP", "OMNIGHOST  /  CONFIGURAÇÃO"));
             ImGui::SetCursorPos(ImVec2(kContentInset + logo_space, 108.0f));
             ImFont* title_font = CyberFonts::GetTitleFont();
             if (title_font) {
                 ImGui::PushFont(title_font);
             }
-            ImGui::TextUnformatted(step.title.c_str());
+            const char* localizedTitle = g_current_step == Step::Welcome ? "Bem-vindo ao OmniGhost" :
+                isLast ? "Deteção de hardware" : "Acordo de licença";
+            ImGui::TextUnformatted(Tr(step.title.c_str(), localizedTitle));
             if (title_font) {
                 ImGui::PopFont();
             }
             ImGui::SetCursorPos(ImVec2(kContentInset + logo_space, 141.0f));
-            ImGui::PushTextWrapPos(win_pos.x + win_size.x - kContentInset);
-            ImGui::TextColored(CyberTheme::Colors.TextDisabled, "%s", step.description.c_str());
+            ImGui::PushTextWrapPos(win_size.x - kContentInset);
+            const char* localizedDescription = g_current_step == Step::Welcome ? "Configura o teu ambiente em poucos passos." :
+                isLast ? "A verificar o hardware ligado e os dispositivos de entrada." :
+                         "Lê e aceita o acordo de licença para continuar.";
+            ImGui::TextColored(CyberTheme::Colors.TextDisabled, "%s", Tr(step.description.c_str(), localizedDescription));
             ImGui::PopTextWrapPos();
 
             ImGui::SetCursorPos(ImVec2(kContentInset, 176.0f));
             dl->AddLine(ImGui::GetCursorScreenPos(), ImVec2(win_pos.x + win_size.x - 28.0f, ImGui::GetCursorScreenPos().y),
                 CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.75f));
 
-            ImGui::SetCursorPos(ImVec2(kContentInset, 193.0f));
-            const float footer_height = 70.0f;
-            ImGui::BeginChild("##onboarding_content", ImVec2(win_size.x - kContentInset * 2.0f, win_size.y - 193.0f - footer_height), false);
+            constexpr float contentTop = 186.f;
+            constexpr float footerHeight = 72.f;
+            const float contentHeight = (std::max)(1.f, win_size.y - contentTop - footerHeight - 5.f);
+            ImGui::SetCursorPos(ImVec2(kContentInset, contentTop));
+            ImGui::PushID(static_cast<int>(g_current_step));
+            ImGui::BeginChild("##onboarding_content", ImVec2(win_size.x - kContentInset * 2.f, contentHeight));
+            const float progress = app_settings::MotionEnabled() ?
+                std::clamp(static_cast<float>((ImGui::GetTime() - g_step_started) / 0.18), 0.35f, 1.f) : 1.f;
+            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, progress);
             DrawStepContent(step);
+            if (g_notice) {
+                ImGui::PushStyleColor(ImGuiCol_Text, CyberTheme::Colors.Error);
+                ImGui::TextWrapped("%s", g_notice);
+                ImGui::PopStyleColor();
+            }
+            ImGui::Dummy(ImVec2(0.f, 4.f));
+            if (ImGui::GetScrollY() + 1.f < ImGui::GetScrollMaxY()) {
+                const ImVec2 child = ImGui::GetWindowPos();
+                const ImVec2 size = ImGui::GetWindowSize();
+                const ImVec2 tip(child.x + size.x - 21.f, child.y + size.y - 6.f);
+                auto* contentDraw = ImGui::GetWindowDrawList();
+                const ImU32 gold = CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.75f);
+                contentDraw->AddLine(ImVec2(tip.x - 4.f, tip.y - 4.f), tip, gold, 1.5f);
+                contentDraw->AddLine(tip, ImVec2(tip.x + 4.f, tip.y - 4.f), gold, 1.5f);
+            }
+            ImGui::PopStyleVar();
             ImGui::EndChild();
+            ImGui::PopID();
 
-            ImGui::SetCursorPos(ImVec2(kContentInset, win_size.y - footer_height));
-            dl->AddLine(ImGui::GetCursorScreenPos(), ImVec2(win_pos.x + win_size.x - 28.0f, ImGui::GetCursorScreenPos().y),
+            ImGui::SetCursorPos(ImVec2(kContentInset, win_size.y - footerHeight));
+            dl->AddLine(ImGui::GetCursorScreenPos(), ImVec2(win_pos.x + win_size.x - kContentInset, ImGui::GetCursorScreenPos().y),
                 CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.75f));
-            ImGui::SetCursorPos(ImVec2(kContentInset, win_size.y - 52.0f));
-            const float btn_width = step_idx >= total_steps - 1 ? 156.0f : 136.0f;
-            if (step_idx > 0) {
-                if (CyberWidgets::Button("←  Back", CyberWidgets::ButtonStyle::Secondary, ImVec2(116.0f, 38.0f))) {
-                    PreviousStep();
-                }
+            ImGui::SetCursorPos(ImVec2(kContentInset, win_size.y - 53.f));
+            const float halfFooterWidth = (std::max)(1.f, (win_size.x - kContentInset * 2.f - 12.f) * 0.5f);
+            bool back = false;
+            if (g_current_step != Step::Welcome) {
+                back = CyberWidgets::Button(Tr("Back", "Voltar"), CyberWidgets::ButtonStyle::Secondary,
+                    ImVec2((std::min)(120.f, halfFooterWidth), 38.f), !g_finish_pending);
+                DrawNavigationIcon(true, false, !g_finish_pending);
             }
 
-            ImGui::SetCursorPos(ImVec2(win_size.x - kContentInset - btn_width, win_size.y - 52.0f));
-            bool is_last = step_idx >= total_steps - 1;
-            const bool license_accepted = app_settings::config.license_accepted;
-            if (is_last) {
-                if (CyberWidgets::Button("Finish Setup  →", CyberWidgets::ButtonStyle::Primary, ImVec2(btn_width, 38.0f))) {
-                    Complete();
-                }
-            } else {
-                const bool enabled = g_current_step != Step::LicenseAgreement || license_accepted;
-                if (CyberWidgets::Button("Continue  →", CyberWidgets::ButtonStyle::Primary, ImVec2(btn_width, 38.0f), enabled)) {
-                    NextStep();
-                }
+            const float buttonWidth = (std::min)(120.f, halfFooterWidth);
+            ImGui::SetCursorPos(ImVec2(win_size.x - kContentInset - buttonWidth, win_size.y - 53.f));
+            const bool enabled = !g_finish_pending && (isLast ? HardwareCheckFinished() && !g_refresh_requested :
+                g_current_step != Step::LicenseAgreement || (g_acceptance && !AgreementDigest().empty()));
+            const bool forward = CyberWidgets::LoadingButton(
+                isLast ? (buttonWidth >= 110.f ? Tr("Finish Setup", "Terminar") : Tr("Finish", "Terminar"))
+                       : Tr("Continue", "Continuar"),
+                Tr("Finishing setup...", "A guardar..."), g_finish_pending,
+                CyberWidgets::ButtonStyle::Primary, ImVec2(buttonWidth, 38.f), enabled);
+            if (!g_finish_pending) DrawNavigationIcon(false, isLast, enabled);
+
+            if (back) PreviousStep();
+            else if (enabled && (forward || (g_current_step == Step::Welcome &&
+                     ImGui::IsKeyPressed(ImGuiKey_Enter, false) && !ImGui::IsAnyItemActive()))) {
+                if (isLast) Complete();
+                else NextStep();
             }
+            if (g_finish_pending && ImGui::GetTime() - g_finish_started >= 0.12)
+                SaveCompletedSetup();
 
             if (!g_active)
                 ImGui::CloseCurrentPopup();
@@ -498,14 +622,14 @@ namespace Onboarding {
     void DrawStepContent(const WizardStep& step) {
         switch (step.id) {
             case Step::Welcome: {
-                ImGui::TextColored(CyberTheme::Colors.Gold, "YOUR OMNIGHOST WORKSPACE");
-                ImGui::SameLine();
-                ImGui::TextColored(CyberTheme::Colors.TextDisabled, "  /  QUICK SETUP");
-                ImGui::Dummy(ImVec2(0.0f, 10.0f));
-                DrawFeatureCard("##feature_realtime", "Real-time workspace", "Clear controls and live system feedback", 0);
-                DrawFeatureCard("##feature_input", "Precision input", "Compatible with supported external devices", 1);
-                DrawFeatureCard("##feature_library", "Multi-game library", "Game-specific settings in one place", 2);
-                DrawFeatureCard("##feature_profiles", "Profiles & preferences", "Keep your configuration organised", 3);
+                DrawFeatureCard(Tr("Real-time workspace", "Área de trabalho em tempo real"),
+                    Tr("Clear controls and live system feedback", "Controlos claros e informação atualizada"), 0);
+                DrawFeatureCard(Tr("Precision input", "Controlos de precisão"),
+                    Tr("Compatible with supported external devices", "Compatível com dispositivos externos suportados"), 1);
+                DrawFeatureCard(Tr("Multi-game library", "Biblioteca de jogos"),
+                    Tr("Game-specific settings in one place", "Definições de cada jogo reunidas num só local"), 2);
+                DrawFeatureCard(Tr("Profiles & preferences", "Perfis e preferências"),
+                    Tr("Keep your configuration organised", "Mantém as tuas configurações organizadas"), 3);
                 break;
             }
             case Step::LicenseAgreement: {
@@ -520,66 +644,78 @@ namespace Onboarding {
                 DrawFeatureGlyph(dl, ImVec2(card_pos.x + 28.0f, card_pos.y + 29.0f), 1,
                     CyberTheme::U32(CyberTheme::Colors.Gold));
                 dl->AddText(ImVec2(card_pos.x + 52.0f, card_pos.y + 17.0f),
-                    CyberTheme::U32(CyberTheme::Colors.Text), "OmniGhost License Agreement");
+                    CyberTheme::U32(CyberTheme::Colors.Text), Tr("OmniGhost License Agreement", "Acordo de licença do OmniGhost"));
                 dl->AddText(ImVec2(card_pos.x + 52.0f, card_pos.y + 42.0f),
-                    CyberTheme::U32(CyberTheme::Colors.TextDisabled), "Terms of use, limitations and conditions.");
+                    CyberTheme::U32(CyberTheme::Colors.TextDisabled), Tr("Terms of use, limitations and conditions.", "Termos de utilização, limites e condições."));
                 dl->AddText(ImVec2(card_pos.x + 52.0f, card_pos.y + 62.0f),
-                    CyberTheme::U32(CyberTheme::Colors.TextDisabled), "Opens in your default PDF viewer.");
+                    CyberTheme::U32(CyberTheme::Colors.TextDisabled), Tr("Opens in your default PDF viewer.", "Abre no teu leitor de PDF predefinido."));
 
                 ImGui::SetCursorPos(ImVec2(14.0f, 96.0f));
-                if (CyberWidgets::Button("Open License Agreement", CyberWidgets::ButtonStyle::Secondary,
-                    ImVec2(202.0f, 34.0f))) {
+                const bool available = !AgreementDigest().empty();
+                if (CyberWidgets::Button(Tr("Open License Agreement", "Abrir acordo de licença"), CyberWidgets::ButtonStyle::Secondary,
+                    ImVec2(202.0f, 34.0f), available)) {
+                    g_notice = nullptr;
                     OpenLicenseAgreement();
                 }
-                ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 14.0f);
+                ImGui::SetCursorPosY(card_height + 8.f);
+                if (!available) {
+                    ImGui::TextWrapped("%s", Tr("The license agreement is unavailable in this build.",
+                                               "O acordo de licença está indisponível nesta versão."));
+                    break;
+                }
 
                 const ImVec2 accept_pos = ImGui::GetCursorScreenPos();
-                constexpr float accept_height = 46.0f;
-                const bool accepted = app_settings::config.license_accepted;
-                ImGui::InvisibleButton("##license_acceptance", ImVec2(width, accept_height));
-                if (ImGui::IsItemClicked()) {
-                    app_settings::config.license_accepted = !accepted;
-                }
-                const bool current = app_settings::config.license_accepted;
+                const char* label = Tr("I have read and accept the License Agreement", "Li e aceito o acordo de licença");
+                const float wrapWidth = (std::max)(1.f, width - 54.f);
+                const float labelHeight = ImGui::CalcTextSize(label, nullptr, false, wrapWidth).y;
+                const float accept_height = (std::max)(46.f, labelHeight + 22.f);
+                if (ImGui::Selectable("##license_acceptance", g_acceptance, 0, ImVec2(width, accept_height)))
+                    g_acceptance = !g_acceptance;
+                const bool current = g_acceptance;
                 const ImVec4 control_color = current ? CyberTheme::Colors.Gold : CyberTheme::Colors.Border;
                 dl->AddRectFilled(accept_pos, ImVec2(accept_pos.x + width, accept_pos.y + accept_height),
                     CyberTheme::WithAlpha(current ? CyberTheme::Colors.Gold : CyberTheme::Colors.Card, current ? 0.12f : 1.0f), CyberTheme::Radius::Sm);
                 dl->AddRect(accept_pos, ImVec2(accept_pos.x + width, accept_pos.y + accept_height),
-                    CyberTheme::WithAlpha(control_color, current ? 0.7f : 0.95f), CyberTheme::Radius::Sm);
+                    CyberTheme::WithAlpha(control_color, ImGui::IsItemFocused() ? 1.f : (current ? 0.7f : 0.95f)),
+                    CyberTheme::Radius::Sm);
                 const ImVec2 check_pos(accept_pos.x + 20.0f, accept_pos.y + accept_height * 0.5f);
                 dl->AddRectFilled(ImVec2(check_pos.x - 8.0f, check_pos.y - 8.0f), ImVec2(check_pos.x + 8.0f, check_pos.y + 8.0f),
                     current ? CyberTheme::U32(CyberTheme::Colors.Gold) : CyberTheme::U32(CyberTheme::Colors.Panel), 4.0f);
                 if (current) DrawCheck(dl, check_pos, CyberTheme::U32(CyberTheme::Colors.Background));
-                dl->AddText(ImVec2(accept_pos.x + 42.0f, accept_pos.y + 15.0f), CyberTheme::U32(CyberTheme::Colors.Text),
-                    "I have read and accept the License Agreement");
+                dl->AddText(ImGui::GetFont(), ImGui::GetFontSize(),
+                    ImVec2(accept_pos.x + 42.f, accept_pos.y + (accept_height - labelHeight) * 0.5f),
+                    CyberTheme::U32(CyberTheme::Colors.Text), label, nullptr, wrapWidth);
                 break;
             }
             case Step::HardwareDetection: {
-                ImGui::TextColored(CyberTheme::Colors.Gold, "CONNECTED DEVICES");
-                ImGui::SameLine();
-                ImGui::TextColored(CyberTheme::Colors.TextDisabled, "  /  LIVE DETECTION");
-                ImGui::Dummy(ImVec2(0.0f, 10.0f));
-                HardwareMonitor::Update();
-                const auto& dma = HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::DMA);
-                const auto& makcu = HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::Makcu);
-                DrawHardwareRow("DMA / FPGA", "Primary hardware interface", dma, false);
-                DrawHardwareRow("MAKCU", "External input controller", makcu, true);
-                const int detected = (dma.connected ? 1 : 0) + (makcu.connected ? 1 : 0);
-                const ImVec4 summaryColor = detected > 0 ? CyberTheme::Colors.Success : CyberTheme::Colors.TextDisabled;
-                ImGui::TextColored(summaryColor, "%d device%s detected", detected, detected == 1 ? "" : "s");
-                ImGui::SameLine();
-                ImGui::TextColored(CyberTheme::Colors.TextDisabled, "  •  Detection continues safely in the background");
-                break;
-            }
-            case Step::Complete: {
-                CyberWidgets::TextLine("🎉 OmniGhost is ready to use!", CyberWidgets::TextTone::Success);
-                ImGui::Spacing();
-                CyberWidgets::TextLine("Quick tips:", CyberWidgets::TextTone::Accent);
-                CyberWidgets::TextLine("• Press INSERT to open/close the menu");
-                CyberWidgets::TextLine("• Use the global search (top-right) to find settings quickly");
-                CyberWidgets::TextLine("• Check the Status page for real-time hardware metrics");
-                CyberWidgets::TextLine("• Configure your ESP/Aim settings per game");
-                CyberWidgets::TextLine("• Save profiles for different playstyles");
+                DrawHardwareRow("DMA / FPGA", Tr("Windows device detection", "Deteção de dispositivo no Windows"),
+                    g_hardware.dmaAvailable, g_hardware.dmaFinished, g_hardware.dmaTimedOut, false);
+                DrawHardwareRow("MAKCU", Tr("External input controller", "Controlador externo"),
+                    g_hardware.makcuAvailable, g_hardware.makcuFinished, g_hardware.makcuTimedOut, true);
+                const int count = (g_hardware.dmaFinished && g_hardware.dmaAvailable ? 1 : 0) +
+                    (g_hardware.makcuFinished && g_hardware.makcuAvailable ? 1 : 0);
+                ImGui::TextColored(count > 0 ? CyberTheme::Colors.Success : CyberTheme::Colors.TextDisabled,
+                    count == 1 ? Tr("%d device detected", "%d dispositivo detetado") :
+                                 Tr("%d devices detected", "%d dispositivos detetados"), count);
+                if (g_hardware.dmaFinished && g_last_result > 0.0)
+                    ImGui::TextDisabled(Tr("Last DMA check: %.0f s ago", "Última verificação de DMA: há %.0f s"),
+                                        (std::max)(0.0, ImGui::GetTime() - g_last_result));
+                ImGui::PushTextWrapPos();
+                if (!g_hardware.dmaFinished)
+                    ImGui::TextWrapped("%s", Tr("Detection runs in the background.", "A deteção decorre em segundo plano."));
+                else if (!g_hardware.dmaAvailable)
+                    ImGui::TextWrapped("%s", Tr("Connect the DMA device and refresh. You can finish setup and connect it before playing.",
+                                               "Liga o dispositivo DMA e volta a verificar. Podes terminar a configuração e ligá-lo antes de jogar."));
+                else
+                    ImGui::TextWrapped("%s", Tr("Windows detected the DMA device. Its connection is checked when a game starts.",
+                                               "O Windows detetou o dispositivo DMA. A ligação é verificada ao iniciar um jogo."));
+                if (g_hardware.dmaTimedOut || g_hardware.makcuTimedOut)
+                    ImGui::TextWrapped("%s", Tr("A device check timed out. Check the connection and refresh detection.",
+                                               "Uma verificação excedeu o tempo limite. Confirma a ligação e repete a deteção."));
+                ImGui::PopTextWrapPos();
+                if (CyberWidgets::Button(Tr("Refresh Detection", "Repetir deteção"), CyberWidgets::ButtonStyle::Secondary,
+                        ImVec2(166.f, 34.f), g_hardware.dmaFinished && !g_refresh_requested && !g_finish_pending))
+                    g_refresh_requested = true;
                 break;
             }
             default:
@@ -592,9 +728,8 @@ namespace Onboarding {
     }
 
     void SetCompleted(bool completed) {
-        app_settings::config.onboarding_completed = completed &&
-            app_settings::config.license_accepted;
-        app_settings::SaveGlobal(nullptr);
+        if (completed) Complete();
+        else Reset();
     }
 
     bool IsCompleted() {

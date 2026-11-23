@@ -14,6 +14,7 @@
 #include "imgui.h"
 
 #include <Windows.h>
+#include <shellapi.h>
 
 #ifdef min
 #undef min
@@ -153,23 +154,9 @@ const char* LicenseKeyHint() {
     return labels[static_cast<std::size_t>(index)];
 }
 
-const char* CredentialsHint() {
-    static constexpr std::array<const char*, 6> labels{{
-        "Indica um email válido e a palavra-passe.",
-        "Enter a valid email and password.",
-        "Gib eine gültige E-Mail-Adresse und dein Passwort ein.",
-        "Introduce un correo válido y la contraseña.",
-        "Saisissez une adresse e-mail valide et le mot de passe.",
-        "Inserisci un indirizzo e-mail valido e la password."
-    }};
-    const int index = std::clamp(static_cast<int>(app_settings::config.language), 0,
-                                 static_cast<int>(labels.size() - 1));
-    return labels[static_cast<std::size_t>(index)];
-}
-
 const char* BackToSignInLabel() {
     static constexpr std::array<const char*, 6> labels{{
-        "Voltar ao início de sessão", "Back to Sign In", "Zurück zur Anmeldung",
+        "Já tens conta? Iniciar sessão", "Already have an account? Sign in", "Zurück zur Anmeldung",
         "Volver al inicio de sesión", "Retour à la connexion", "Torna all'accesso"
     }};
     const int index = std::clamp(static_cast<int>(app_settings::config.language), 0,
@@ -191,6 +178,7 @@ bool g_show_license_key = false;
 bool g_language_open = false;
 bool g_upgrade_mode = false;
 bool g_auto_login_attempt = false;
+bool g_remember_session = false;
 bool g_startup_preparing = true;
 float g_startup_time = 0.0f;
 char g_email[320]{};
@@ -198,6 +186,35 @@ char g_password[256]{};
 char g_confirm[256]{};
 char g_license_key[512]{};
 std::string g_error;
+enum class AuthField { None, Email, Password, License };
+AuthField g_error_field = AuthField::None;
+
+const char* AuthLabel(const char* pt, const char* en) {
+    return app_settings::config.language == app_settings::Language::PT ? pt : en;
+}
+
+std::string_view TrimInput(std::string_view input) {
+    constexpr std::string_view whitespace = " \t\r\n";
+    const auto first = input.find_first_not_of(whitespace);
+    if (first == std::string_view::npos) return {};
+    return input.substr(first, input.find_last_not_of(whitespace) - first + 1);
+}
+
+bool IsValidEmail(std::string_view email) {
+    const auto at = email.find('@');
+    if (email.size() > 254 || at == 0 || at == std::string_view::npos ||
+        email.find('@', at + 1) != std::string_view::npos ||
+        email.find_first_of(" \t\r\n") != std::string_view::npos)
+        return false;
+    const auto domain = email.substr(at + 1);
+    return !domain.empty() && domain.front() != '.' && domain.back() != '.' &&
+           domain.find('.') != std::string_view::npos && email.find("..") == std::string_view::npos;
+}
+
+void SetFieldError(AuthField field, const char* message) {
+    g_error_field = field;
+    g_error = message;
+}
 Completion g_completion = Completion::None;
 float g_completion_time = 0.0f;
 
@@ -207,7 +224,6 @@ enum class RemoteOperation {
 };
 struct RemoteOperationResult {
     bool success{};
-    std::string message;
     Completion completion{Completion::None};
     std::string diagnosticCode;
     bool websiteAccount{};
@@ -219,8 +235,14 @@ std::uint64_t g_operation_generation = 0;
 std::uint64_t g_pending_operation_generation = 0;
 bool g_remote_operation_pending = false;
 
-std::string LocalizedRemoteError(std::string_view code, const std::string& fallback) {
+std::string LocalizedRemoteError(std::string_view code) {
     const AuthUiCopy& ui = UiText();
+    if (code == "website.connection_failed")
+        return AuthLabel("Não foi possível ligar ao servidor. Verifica a ligação e tenta novamente.",
+                         "Could not reach the server. Check your connection and try again.");
+    if (code == "website.timeout")
+        return AuthLabel("O servidor demorou demasiado a responder. Tenta novamente.",
+                         "The server took too long to respond. Try again.");
     if (code == "auth.unavailable" || code == "auth.not_configured" ||
         code == "website.unavailable")
         return ui.serviceUnavailable;
@@ -237,8 +259,6 @@ std::string LocalizedRemoteError(std::string_view code, const std::string& fallb
         return ui.sessionExpired;
     if (code == "website.rejected")
         return ui.invalidCredentials;
-    if (app_settings::config.language == app_settings::Language::PT && !fallback.empty())
-        return fallback;
     return ui.signInFailed;
 }
 
@@ -249,6 +269,7 @@ void SecureClear(char* value, std::size_t size) {
 void SetScreen(Screen screen) {
     if (g_screen == screen) return;
     g_screen = screen;
+    g_error_field = AuthField::None;
     g_transition = 0.0f;
     g_error.clear();
 }
@@ -279,26 +300,27 @@ void StartRemoteOperation(RemoteOperation operation, std::string username,
         return;
     g_remote_operation_pending = true;
     WriteAuthStage("auth-operation-started");
+    g_error_field = AuthField::None;
     g_error.clear();
     if (g_remote_operation.valid())
         g_draining_operations.push_back(std::move(g_remote_operation));
     const std::uint64_t generation = g_operation_generation;
     g_pending_operation_generation = generation;
-    const std::string contactError = UiText().serviceUnavailable;
+    const bool rememberSession = g_remember_session;
     g_remote_operation = std::async(std::launch::async,
-        [operation, generation, username = std::move(username), password = std::move(password),
-         licenseKey = std::move(licenseKey), contactError]() mutable {
+        [operation, generation, rememberSession, username = std::move(username), password = std::move(password),
+         licenseKey = std::move(licenseKey)]() mutable {
             RemoteOperationResult outcome{};
             try {
                 OmniGhost::Auth::LicenseResult result{};
                 switch (operation) {
                 case RemoteOperation::WebsiteLogin:
-                    result = OmniGhost::Licensing::LoginWebsite(username, password);
+                    result = OmniGhost::Licensing::LoginWebsite(username, password, rememberSession);
                     outcome.completion = Completion::Login;
                     outcome.websiteAccount = true;
                     break;
                 case RemoteOperation::WebsiteRegister:
-                    result = OmniGhost::Licensing::RegisterWebsite(username, password, licenseKey);
+                    result = OmniGhost::Licensing::RegisterWebsite(username, password, licenseKey, rememberSession);
                     outcome.completion = Completion::Register;
                     outcome.websiteAccount = true;
                     break;
@@ -318,7 +340,6 @@ void StartRemoteOperation(RemoteOperation operation, std::string username,
                 }
                 WriteAuthStage(result.Ok() ? "auth-service-success" : "auth-service-rejected");
                 outcome.success = result.Ok();
-                outcome.message = std::move(result.userMessage);
                 outcome.diagnosticCode = std::move(result.diagnosticCode);
                 outcome.generation = generation;
 
@@ -327,7 +348,7 @@ void StartRemoteOperation(RemoteOperation operation, std::string username,
             } catch (...) {
                 WriteAuthStage("auth-service-exception");
                 outcome.success = false;
-                outcome.message = contactError;
+                outcome.diagnosticCode = "website.unavailable";
             }
             if (!password.empty()) SecureZeroMemory(password.data(), password.size());
             if (!licenseKey.empty()) SecureZeroMemory(licenseKey.data(), licenseKey.size());
@@ -364,6 +385,8 @@ void PollRemoteOperation() {
         const bool automatic = g_auto_login_attempt;
         if (result.success) {
             g_auto_login_attempt = false;
+            SecureClear(g_password, sizeof(g_password));
+            SecureClear(g_license_key, sizeof(g_license_key));
             BeginCompletion(automatic ? Completion::AutoLogin : result.completion);
         } else {
 
@@ -371,8 +394,16 @@ void PollRemoteOperation() {
                 g_auto_login_attempt = false;
                 SetScreen(Screen::Login);
             }
-            if (result.diagnosticCode != "website.no_saved_session")
-                g_error = LocalizedRemoteError(result.diagnosticCode, result.message);
+            if (result.diagnosticCode == "website.invalid_credentials")
+                SetFieldError(AuthField::Password, UiText().invalidCredentials);
+            else if (result.diagnosticCode == "website.license_not_owned")
+                SetFieldError(AuthField::License, AuthLabel("Verifica se esta chave pertence à tua conta.",
+                                                           "Check that this key belongs to your account."));
+            else if (result.diagnosticCode == "website.license_not_active")
+                SetFieldError(AuthField::License, AuthLabel("Esta chave de licença já não está ativa.",
+                                                           "This license key is no longer active."));
+            else if (result.diagnosticCode != "website.no_saved_session")
+                g_error = LocalizedRemoteError(result.diagnosticCode);
         }
     } catch (...) {
         if (completedGeneration != g_operation_generation)
@@ -393,11 +424,19 @@ void CenterCursor(float width) {
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (available - width) * 0.5f);
 }
 
+float AuthAnimationScale() {
+    static const bool systemAllowsAnimations = [] {
+        BOOL enabled = TRUE;
+        return !SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &enabled, 0) || enabled != FALSE;
+    }();
+    return systemAllowsAnimations ? app_settings::AnimationScale() : 0.f;
+}
+
 float AnimateAuthState(ImGuiID id, bool active, float response = 13.0f) {
     ImGuiStorage* storage = ImGui::GetStateStorage();
     float value = storage->GetFloat(id, active ? 1.0f : 0.0f);
     const float target = active ? 1.0f : 0.0f;
-    if (app_settings::AnimationScale() <= 0.0f) {
+    if (AuthAnimationScale() <= 0.0f) {
         value = target;
     } else {
         const float dt = (std::min)(ImGui::GetIO().DeltaTime, 0.05f);
@@ -418,16 +457,18 @@ void DrawAuthFocusTransition(ImGuiID id, const ImVec2& position,
         CyberTheme::Metrics::ControlRounding, 0, S(1.f));
 }
 
-bool AuthPrimaryButton(const char* label, const ImVec2& size) {
+bool AuthPrimaryButton(const char* label, const ImVec2& size, bool enabled = true, bool busy = false) {
     ImGui::PushID(label);
     const ImVec2 position = ImGui::GetCursorScreenPos();
+    ImGui::BeginDisabled(!enabled);
     const bool pressed = ImGui::InvisibleButton("##auth_primary", size);
+    ImGui::EndDisabled();
     const bool hovered = ImGui::IsItemHovered();
     const bool held = ImGui::IsItemActive();
     const float hover = AnimateAuthState(ImGui::GetID("##hover"), hovered, 10.0f);
     ImDrawList* draw = ImGui::GetWindowDrawList();
     const ImVec2 end = Add(position, size);
-    const ImVec4 fill = ImVec4(
+    const ImVec4 fill = !enabled ? CyberTheme::Colors.Surface : ImVec4(
         CyberTheme::Colors.Gold.x + (CyberTheme::Colors.GoldHover.x - CyberTheme::Colors.Gold.x) * hover * 0.16f,
         CyberTheme::Colors.Gold.y + (CyberTheme::Colors.GoldHover.y - CyberTheme::Colors.Gold.y) * hover * 0.16f,
         CyberTheme::Colors.Gold.z + (CyberTheme::Colors.GoldHover.z - CyberTheme::Colors.Gold.z) * hover * 0.16f,
@@ -436,7 +477,7 @@ bool AuthPrimaryButton(const char* label, const ImVec2& size) {
     draw->AddRect(position, end,
         CyberTheme::WithAlpha(CyberTheme::Colors.GoldHover, 0.20f + hover * 0.10f),
         CyberTheme::Metrics::ControlRounding, 0, S(1.f));
-    if (hover > 0.01f && app_settings::MotionEnabled() &&
+    if (hover > 0.01f && AuthAnimationScale() > 0.f &&
         app_settings::config.animation_intensity == app_settings::EffectLevel::Full) {
         const float phase = std::fmod(static_cast<float>(ImGui::GetTime()) * 0.62f, 1.0f);
         const float sheenX = position.x - S(42.f) + (size.x + S(84.f)) * phase;
@@ -450,10 +491,18 @@ bool AuthPrimaryButton(const char* label, const ImVec2& size) {
     if (held)
         draw->AddRectFilled(position, end, CyberTheme::SafeShadowU32(14), CyberTheme::Metrics::ControlRounding);
     const ImVec2 textSize = ImGui::CalcTextSize(label);
-    const float nudge = CyberAnimations::HoverNudge(ImGui::GetID("##auth_primary_nudge"), hovered);
-    draw->AddText(ImVec2(position.x + (size.x - textSize.x) * 0.5f + nudge,
+    const float nudge = AuthAnimationScale() > 0.f ? CyberAnimations::HoverNudge(ImGui::GetID("##auth_primary_nudge"), hovered) : 0.f;
+    const float labelX = position.x + (size.x - textSize.x) * 0.5f + nudge + (busy ? S(10.f) : 0.f);
+    if (busy) {
+        const float phase = AuthAnimationScale() > 0.f
+            ? static_cast<float>(ImGui::GetTime()) * 5.f : 0.f;
+        draw->PathArcTo(ImVec2(labelX - S(13.f), position.y + size.y * 0.5f),
+                        S(5.f), phase, phase + 4.6f, 16);
+        draw->PathStroke(CyberTheme::U32(CyberTheme::Colors.Gold), 0, S(1.5f));
+    }
+    draw->AddText(ImVec2(labelX,
                          position.y + (size.y - textSize.y) * 0.5f),
-                  IM_COL32(24, 22, 18, 255), label);
+                  enabled ? IM_COL32(24, 22, 18, 255) : CyberTheme::U32(CyberTheme::Colors.TextDisabled), label);
     ImGui::PopID();
     return pressed;
 }
@@ -514,11 +563,14 @@ void DrawAuthFooter(const ImVec2& windowPos, float windowWidth, float windowHeig
     const ImU32 faint = CyberTheme::WithAlpha(CyberTheme::Colors.TextDisabled, 0.58f);
     const ImVec2 copyrightSize = ImGui::CalcTextSize(copyright);
     const ImVec2 versionSize = ImGui::CalcTextSize(version.c_str());
-    const float footerY = windowPos.y + windowHeight - S(43.f);
+    const float footerY = (std::max)(windowPos.y + windowHeight - S(65.f) - ImGui::GetScrollY(),
+                                    ImGui::GetCursorScreenPos().y + S(5.f));
     draw->AddText(ImVec2(windowPos.x + (windowWidth - copyrightSize.x) * 0.5f, footerY),
                   muted, copyright);
     draw->AddText(ImVec2(windowPos.x + (windowWidth - versionSize.x) * 0.5f,
-                         footerY + S(17.f)), faint, version.c_str());
+                         footerY + S(15.f)), faint, version.c_str());
+    ImGui::SetCursorScreenPos(ImVec2(windowPos.x + S(34.f), footerY));
+    ImGui::Dummy(ImVec2(0, S(34.f)));
 }
 
 void DrawPageHeading(const char* title, const char* subtitle) {
@@ -528,9 +580,9 @@ void DrawPageHeading(const char* title, const char* subtitle) {
         ImGui::Dummy(ImVec2(0, S(3.f)));
         DrawCenteredText(subtitle, ImGui::ColorConvertU32ToFloat4(
             CyberTheme::WithAlpha(CyberTheme::Colors.TextDisabled, 0.92f)));
-        ImGui::Dummy(ImVec2(0, S(22.f)));
+        ImGui::Dummy(ImVec2(0, S(14.f)));
     } else {
-        ImGui::Dummy(ImVec2(0, S(22.f)));
+        ImGui::Dummy(ImVec2(0, S(14.f)));
     }
 }
 
@@ -705,7 +757,8 @@ bool DrawBackAction(const char* label) {
             (CyberTheme::Colors.GoldHover.z - CyberTheme::Colors.TextDisabled.z) * hover,
         1.f);
     const ImU32 packed = CyberTheme::U32(color);
-    const ImVec2 arrowTip(position.x + S(2.f), position.y + size.y * 0.5f);
+    const float slide = AuthAnimationScale() > 0.f ? S(2.f) * hover : 0.f;
+    const ImVec2 arrowTip(position.x + S(2.f) - slide, position.y + size.y * 0.5f);
     const ImVec2 arrowEnd(position.x + S(12.f), arrowTip.y);
     draw->AddLine(arrowTip, arrowEnd, packed, S(1.25f));
     draw->AddLine(arrowTip, Add(arrowTip, ImVec2(S(4.f), -S(4.f))), packed, S(1.25f));
@@ -738,7 +791,7 @@ void DrawLanguageSelector(const ImVec2& windowPos, float windowWidth) {
         CyberTheme::U32(CyberTheme::Colors.TextDisabled));
 
     const float languageTarget = g_language_open ? 1.0f : 0.0f;
-    if (app_settings::AnimationScale() <= 0.0f) {
+    if (AuthAnimationScale() <= 0.0f) {
         g_language_transition = languageTarget;
     } else {
         const float dt = (std::min)(ImGui::GetIO().DeltaTime, 0.05f);
@@ -797,7 +850,7 @@ void DrawLanguageSelector(const ImVec2& windowPos, float windowWidth) {
 }
 
 void DrawErrorToast(const ImVec2& windowPos, float windowWidth) {
-    if (g_error.empty())
+    if (g_error.empty() || g_screen == Screen::Login || g_screen == Screen::Register)
         return;
 
     static std::string lastError;
@@ -859,107 +912,156 @@ void DrawLanding() {
         g_close_requested = true;
 }
 
+void DrawFieldError(AuthField field, float width) {
+    if (g_error_field != field || g_error.empty()) return;
+    ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(247, 145, 150, 255));
+    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + width);
+    ImGui::TextUnformatted(g_error.c_str());
+    ImGui::PopTextWrapPos();
+    ImGui::PopStyleColor();
+}
+
+void DrawOfficialLink(const char* label, const wchar_t* url, bool centered = true) {
+    if (DrawTextAction(label, centered))
+        ShellExecuteW(nullptr, L"open", url, nullptr, nullptr, SW_SHOWNORMAL);
+}
+
+void DrawLinkPair(const char* first, const wchar_t* firstUrl, const char* second, const wchar_t* secondUrl) {
+    CenterCursor(ImGui::CalcTextSize(first).x + ImGui::CalcTextSize(second).x + S(16.f));
+    DrawOfficialLink(first, firstUrl, false);
+    ImGui::SameLine(0.f, S(16.f));
+    DrawOfficialLink(second, secondUrl, false);
+}
+
 void DrawLogin() {
     const Copy& text = Text();
     const AuthUiCopy& ui = UiText();
 
 
-    const float contentWidth = S(420.f);
+    const float contentWidth = (std::min)(S(420.f), ImGui::GetContentRegionAvail().x);
 
 
 
 
 
-    ImGui::SetCursorPosY(S(62.f));
+    ImGui::SetCursorPosY(S(42.f));
     DrawBrand(false);
     DrawPageHeading(ui.welcomeTitle, "");
 
     CenterCursor(contentWidth);
     ImGui::BeginGroup();
-    AuthInputField("login_email", g_email, sizeof(g_email), text.email,
-                   contentWidth, true, AuthFieldIcon::Email);
-    ImGui::Dummy(ImVec2(0, S(10.f)));
+    const bool busy = g_remote_operation_pending;
+    ImGui::BeginDisabled(busy);
+    const bool emailEnter = AuthInputField("login_email", g_email, sizeof(g_email), text.email,
+                   contentWidth, true, AuthFieldIcon::Email, ImGuiInputTextFlags_EnterReturnsTrue);
+    DrawFieldError(AuthField::Email, contentWidth);
+    ImGui::Dummy(ImVec2(0, S(6.f)));
     const bool enter = AuthPasswordField("login_password", g_password,
         sizeof(g_password), &g_show_password,
         text.password, contentWidth,
         ImGuiInputTextFlags_EnterReturnsTrue);
-    ImGui::Dummy(ImVec2(0, S(12.f)));
-    ImGui::BeginDisabled(g_remote_operation_pending);
-    const bool submit = AuthPrimaryButton(g_remote_operation_pending ? ReadableStatus(ui.authenticating) : text.enter,
-        ImVec2(contentWidth, S(46.f))) || enter;
+    DrawFieldError(AuthField::Password, contentWidth);
+    ImGui::Checkbox(AuthLabel("Manter sessão iniciada", "Keep me signed in"), &g_remember_session);
     ImGui::EndDisabled();
-    if (submit && !g_remote_operation_pending) {
-        if (std::strchr(g_email, '@') == nullptr || g_password[0] == '\0') {
-            g_error = CredentialsHint();
-        } else {
-            StartRemoteOperation(RemoteOperation::WebsiteLogin, g_email, g_password, {});
-            SecureClear(g_password, sizeof(g_password));
-            ImGui::EndGroup();
-            return;
-        }
+    ImGui::Dummy(ImVec2(0, S(8.f)));
+    const bool submit = AuthPrimaryButton(busy ? ReadableStatus(ui.authenticating) : text.enter,
+        ImVec2(contentWidth, S(46.f)), !busy, busy) || enter || emailEnter;
+    if (submit && !busy) {
+        const auto email = TrimInput(g_email);
+        if (!IsValidEmail(email))
+            SetFieldError(AuthField::Email, AuthLabel("Introduz um endereço de email válido.", "Enter a valid email address."));
+        else if (g_password[0] == '\0')
+            SetFieldError(AuthField::Password, ui.enterPassword);
+        else
+            StartRemoteOperation(RemoteOperation::WebsiteLogin, std::string(email), g_password, {});
     }
+    DrawFieldError(AuthField::None, contentWidth);
     ImGui::EndGroup();
-    ImGui::Dummy(ImVec2(0, S(12.f)));
+    DrawOfficialLink(AuthLabel("Esqueceste-te da palavra-passe?", "Forgot your password?"),
+                     L"https://omnighost.store/entrar");
+    ImGui::Dummy(ImVec2(0, S(4.f)));
     CenterCursor(contentWidth);
+    ImGui::BeginDisabled(busy);
     if (CyberWidgets::Button(text.createAccount, CyberWidgets::ButtonStyle::Secondary,
-            ImVec2(contentWidth, S(46.f))))
+            ImVec2(contentWidth, S(42.f)))) {
+        SecureClear(g_password, sizeof(g_password));
         SetScreen(Screen::Register);
+    }
+    ImGui::EndDisabled();
+    DrawLinkPair(AuthLabel("Suporte", "Support"), L"https://omnighost.store/suporte",
+                 "Discord", L"https://discord.gg/Tr37q4eF");
 }
 
 void DrawRegister() {
-    const Copy& text = Text();
     const AuthUiCopy& ui = UiText();
 
-    const float contentWidth = S(420.f);
+    const float contentWidth = (std::min)(S(420.f), ImGui::GetContentRegionAvail().x);
+    const bool busy = g_remote_operation_pending;
 
 
-    ImGui::SetCursorPosY(S(62.f));
+    ImGui::SetCursorPosY(S(36.f));
     DrawBrand(false);
-    DrawPageHeading(ui.createTitle, "");
+    DrawPageHeading(AuthLabel("Ativa o teu acesso", "Activate your access"), "");
 
     CenterCursor(contentWidth);
     ImGui::BeginGroup();
-    AuthInputField("register_email", g_email, sizeof(g_email), text.email,
-                   contentWidth, true, AuthFieldIcon::Email);
-    ImGui::Dummy(ImVec2(0, S(10.f)));
-    bool submit = AuthPasswordField("register_password", g_password, sizeof(g_password),
+    const Copy& text = Text();
+    ImGui::BeginDisabled(busy);
+    bool submit = AuthInputField("register_email", g_email, sizeof(g_email), text.email,
+                   contentWidth, true, AuthFieldIcon::Email, ImGuiInputTextFlags_EnterReturnsTrue);
+    DrawFieldError(AuthField::Email, contentWidth);
+    ImGui::Dummy(ImVec2(0, S(4.f)));
+    submit = AuthPasswordField("register_password", g_password, sizeof(g_password),
         &g_show_password, text.password,
-        contentWidth, 0);
-    ImGui::Dummy(ImVec2(0, S(10.f)));
+        contentWidth, ImGuiInputTextFlags_EnterReturnsTrue) || submit;
+    if (g_error_field == AuthField::Password) {
+        DrawFieldError(AuthField::Password, contentWidth);
+    } else {
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + contentWidth);
+        ImGui::TextDisabled("%s", AuthLabel("Palavra-passe da conta do site · mínimo de 8 caracteres",
+                                         "Website account password · at least 8 characters"));
+        ImGui::PopTextWrapPos();
+    }
     submit = AuthPasswordField("register_key", g_license_key,
         sizeof(g_license_key), &g_show_license_key, LicenseKeyHint(), contentWidth,
         ImGuiInputTextFlags_EnterReturnsTrue) || submit;
-    ImGui::Dummy(ImVec2(0, S(14.f)));
-    ImGui::BeginDisabled(g_remote_operation_pending);
-    const bool registerPressed = AuthPrimaryButton(
-        g_remote_operation_pending ? ReadableStatus(ui.registering) : text.registerAction,
-        ImVec2(contentWidth, S(46.f))) || submit;
+    DrawFieldError(AuthField::License, contentWidth);
+    ImGui::Checkbox(AuthLabel("Manter sessão iniciada", "Keep me signed in"), &g_remember_session);
     ImGui::EndDisabled();
-    if (registerPressed && !g_remote_operation_pending) {
-        if (g_password[0] == '\0') {
-            g_error = ui.enterPassword;
-        } else if (std::strlen(g_password) < 8) {
-            g_error = ui.passwordTooShort;
-        } else if (std::strchr(g_email, '@') == nullptr || g_license_key[0] == '\0') {
-            g_error = ui.enterEmailLicense;
-        } else {
-            StartRemoteOperation(RemoteOperation::WebsiteRegister, g_email,
-                                 g_password, g_license_key);
-            SecureClear(g_password, sizeof(g_password));
-            SecureClear(g_confirm, sizeof(g_confirm));
-            SecureClear(g_license_key, sizeof(g_license_key));
-            ImGui::EndGroup();
-            return;
-        }
+    ImGui::Dummy(ImVec2(0, S(6.f)));
+    const auto email = TrimInput(g_email);
+    const auto key = TrimInput(g_license_key);
+    const bool ready = !busy && !email.empty() && g_password[0] != '\0' && !key.empty();
+    const bool registerPressed = AuthPrimaryButton(
+        busy ? AuthLabel("A validar acesso…", "Validating access…") : AuthLabel("ATIVAR ACESSO", "ACTIVATE ACCESS"),
+        ImVec2(contentWidth, S(46.f)), ready, busy);
+    if (ready && (registerPressed || submit)) {
+        if (!IsValidEmail(email))
+            SetFieldError(AuthField::Email, AuthLabel("Introduz um endereço de email válido.", "Enter a valid email address."));
+        else if (std::strlen(g_password) < 8)
+            SetFieldError(AuthField::Password, ui.passwordTooShort);
+        else if (key.size() < 12 || key.size() > 100 || key.find_first_of(" \t\r\n") != std::string_view::npos)
+            SetFieldError(AuthField::License, AuthLabel("Verifica o formato da chave de licença.", "Check the license key format."));
+        else
+            StartRemoteOperation(RemoteOperation::WebsiteRegister, std::string(email), g_password, std::string(key));
     }
+    DrawFieldError(AuthField::None, contentWidth);
     ImGui::EndGroup();
-    ImGui::Dummy(ImVec2(0, S(12.f)));
+    ImGui::Dummy(ImVec2(0, S(5.f)));
+    ImGui::BeginDisabled(busy);
     if (DrawBackAction(BackToSignInLabel())) {
         SecureClear(g_password, sizeof(g_password));
         SecureClear(g_confirm, sizeof(g_confirm));
         SecureClear(g_license_key, sizeof(g_license_key));
         SetScreen(Screen::Login);
     }
+    ImGui::EndDisabled();
+    DrawOfficialLink(AuthLabel("Onde encontro a minha chave?", "Where do I find my key?"),
+                     L"https://omnighost.store/conta");
+    DrawLinkPair(AuthLabel("Comprar licença", "Buy a license"), L"https://omnighost.store/comprar",
+                 AuthLabel("Suporte", "Support"), L"https://omnighost.store/suporte");
+    DrawLinkPair(AuthLabel("Termos", "Terms"), L"https://omnighost.store/termos",
+                 AuthLabel("Privacidade", "Privacy"), L"https://omnighost.store/privacidade");
 }
 
 void DrawActivate() {
@@ -1027,7 +1129,7 @@ void DrawStartupPreparation(ImDrawList* draw, const ImVec2& windowPos,
                      CyberTheme::Colors.TextDisabled);
 
     const float lineWidth = S(188.f);
-    const float phase = std::fmod(g_startup_time * 0.72f, 1.0f);
+    const float phase = AuthAnimationScale() > 0.f ? std::fmod(g_startup_time * 0.72f, 1.0f) : 0.5f;
     const ImVec2 lineMin(centerX - lineWidth * 0.5f,
                          ImGui::GetCursorScreenPos().y + S(30.f));
     draw->AddLine(lineMin, ImVec2(lineMin.x + lineWidth, lineMin.y),
@@ -1043,10 +1145,29 @@ void DrawStartupPreparation(ImDrawList* draw, const ImVec2& windowPos,
 
     const float dotY = lineMin.y + S(24.f);
     for (int index = 0; index < 3; ++index) {
-        const float wave = app_settings::AnimationScale() <= 0.f ? 1.f :
+        const float wave = AuthAnimationScale() <= 0.f ? 1.f :
             0.30f + 0.70f * (0.5f + 0.5f * std::sin(g_startup_time * 4.2f - index * 0.9f));
         draw->AddCircleFilled(ImVec2(centerX + S((index - 1) * 16.f), dotY), S(2.2f),
             CyberTheme::WithAlpha(CyberTheme::Colors.Gold, wave), 12);
+    }
+}
+
+void DrawWindowControls(const ImVec2& position, float width) {
+    const HWND window = GetActiveWindow();
+    ImGui::SetCursorScreenPos(Add(position, ImVec2(S(17.f), S(16.f))));
+    if (ImGui::Button("×##auth_close", ImVec2(S(27.f), S(27.f))))
+        g_close_requested = true;
+    ImGui::SameLine(0.f, S(5.f));
+    if (ImGui::Button("-##auth_minimize", ImVec2(S(27.f), S(27.f))) && window)
+        ShowWindow(window, SW_MINIMIZE);
+    ImGui::SameLine(0.f, S(5.f));
+    ImGui::InvisibleButton("##auth_drag", ImVec2((std::max)(S(1.f), width - S(175.f)), S(27.f)));
+    if (window && ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
+        POINT cursor{};
+        if (GetCursorPos(&cursor)) {
+            ReleaseCapture();
+            SendMessageW(window, WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM(cursor.x, cursor.y));
+        }
     }
 }
 
@@ -1091,6 +1212,8 @@ void Reset() {
     g_completion_time = 0.0f;
     g_language_open = false;
     g_show_license_key = false;
+    g_show_password = false;
+    g_remember_session = false;
     g_upgrade_mode = false;
     g_remote_operation_pending = false;
     g_email[0] = '\0';
@@ -1104,7 +1227,8 @@ bool Draw() {
     if (g_authenticated) return true;
     PollRemoteOperation();
 
-    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && g_screen != Screen::Landing) {
+    if (!g_remote_operation_pending && ImGui::IsKeyPressed(ImGuiKey_Escape, false) &&
+        g_screen != Screen::Landing) {
         SecureClear(g_password, sizeof(g_password));
         SecureClear(g_confirm, sizeof(g_confirm));
         SecureClear(g_license_key, sizeof(g_license_key));
@@ -1112,7 +1236,7 @@ bool Draw() {
     }
 
     const float delta = (std::min)(ImGui::GetIO().DeltaTime, 0.05f);
-    const float animation = app_settings::AnimationScale();
+    const float animation = AuthAnimationScale();
     if (animation <= 0.0f)
         g_window_entry = 1.0f;
     else
@@ -1165,10 +1289,9 @@ bool Draw() {
 
     const float desiredWidth = S(564.f);
     const float desiredHeight = S(624.f);
-    const float width = (std::max)(S(340.f), (std::min)(desiredWidth, display.x - S(20.f)));
-    const float availableHeight = (std::max)(S(300.f), display.y - S(24.f));
+    const float width = (std::max)(1.f, (std::min)(desiredWidth, display.x - S(20.f)));
+    const float availableHeight = (std::max)(1.f, display.y - S(24.f));
     const float height = (std::min)(desiredHeight, availableHeight);
-    const bool needsVerticalScroll = desiredHeight > availableHeight + 0.5f;
     const float entryOffset = animation > 0.f ? (1.f - entryEased) * S(5.f) : 0.f;
     const ImVec2 position((display.x - width) * 0.5f,
                           (display.y - height) * 0.5f + entryOffset);
@@ -1181,15 +1304,9 @@ bool Draw() {
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, entryEased);
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.043f, 0.043f, 0.051f, 0.985f));
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.16f, 0.16f, 0.18f, 0.0f));
-    if (!needsVerticalScroll) {
-        ImGui::GetIO().MouseWheel = 0.0f;
-        ImGui::GetIO().MouseWheelH = 0.0f;
-    }
     ImGuiWindowFlags authFlags =
         ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse;
-    if (!needsVerticalScroll)
-        authFlags |= ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
     ImGui::Begin("##omnighost_auth", nullptr,
         authFlags);
 
@@ -1199,11 +1316,12 @@ bool Draw() {
         windowPos, Add(windowPos, ImVec2(width, S(180.f))),
         IM_COL32(18, 18, 20, 38), IM_COL32(18, 18, 20, 38),
         IM_COL32(11, 11, 13, 0), IM_COL32(11, 11, 13, 0));
+    DrawWindowControls(windowPos, width);
     if (!g_startup_preparing)
         DrawLanguageSelector(windowPos, width);
 
     const float pageSlide = animation > 0.f ? (1.f - eased) * S(12.f) : 0.f;
-    ImGui::SetCursorScreenPos(ImVec2(windowPos.x + S(24.f) + pageSlide, windowPos.y + S(19.f)));
+    ImGui::SetCursorScreenPos(ImVec2(windowPos.x + S(34.f) + pageSlide, windowPos.y + S(19.f)));
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, (std::max)(0.06f, eased));
     if (g_startup_preparing) {
         DrawStartupPreparation(draw, windowPos, width, height);
@@ -1219,7 +1337,9 @@ bool Draw() {
                              g_completion == Completion::Register;
         const AuthUiCopy& ui = UiText();
         const char* status = success
-            ? (g_completion == Completion::Register ? ui.accountCreated : ui.accessGranted)
+            ? (g_completion == Completion::Register
+                ? AuthLabel("Acesso ativado com sucesso.", "Access activated successfully.")
+                : AuthLabel("Sessão iniciada com sucesso.", "Signed in successfully."))
             : ReadableStatus(ui.finishing);
         const float centerY = windowPos.y + height * 0.43f;
         if (success) {
@@ -1254,7 +1374,7 @@ bool Draw() {
                          CyberFonts::GetBodyFont());
         if (!success) {
             const float lineWidth = S(112.f);
-            const float phase = std::fmod(g_completion_time * 1.8f, 1.0f);
+            const float phase = animation > 0.f ? std::fmod(g_completion_time * 1.8f, 1.0f) : 0.5f;
             const ImVec2 lineMin(windowPos.x + (width - lineWidth) * 0.5f,
                                  ImGui::GetCursorScreenPos().y + S(18.f));
             draw->AddLine(lineMin, ImVec2(lineMin.x + lineWidth, lineMin.y),
