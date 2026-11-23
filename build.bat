@@ -7,8 +7,9 @@ rem Usage: build.bat [Debug^|Release^|Development^|Publish]
 set "ROOT=%~dp0"
 if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
 
-rem Cada execucao comeca de uma cache CMake limpa para evitar artefactos ou
-rem locks antigos. Isto torna as builds mais lentas, mas garante uma base limpa.
+rem Cada execucao remove a cache CMake e os artifacts anteriores para evitar
+rem artefactos ou locks antigos. Isto torna as builds mais lentas, mas garante
+rem uma base limpa.
 
 call :clear_cache
 if errorlevel 1 (
@@ -116,6 +117,7 @@ if errorlevel 1 (
 set "LOCK_HELD=1"
 
 if /I "%ACTION%"=="clean" (
+    rmdir "%LOCK_DIR%" >nul 2>&1
     echo [OK] A cache total ja foi limpa no inicio desta execucao.
     exit /b 0
 )
@@ -201,8 +203,8 @@ pause
 exit /b 1
 
 :clear_cache
-echo [OmniGhost] A limpar toda a cache do projeto...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\src\project\tools\Clear-BuildCache.ps1" -ProjectDir "%ROOT%" -Scope All -Force
+echo [OmniGhost] A limpar cache e artifacts do projeto...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\src\project\tools\Clear-BuildCache.ps1" -ProjectDir "%ROOT%" -Scope All -RemoveArtifacts -Force
 if errorlevel 1 exit /b 1
-echo [OK] Cache limpa.
+echo [OK] Cache e artifacts limpos.
 exit /b 0
