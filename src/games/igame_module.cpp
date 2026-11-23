@@ -25,7 +25,9 @@ void GameModuleRegistry::RegisterFactory(std::unique_ptr<IGameModuleFactory> fac
     // violation from the static game-module registrar.
     launcherIdMap_[launcherGameId] = factories_[gameId].get();
 
-    OGS_LOG_INFO("[GameModuleRegistry] Registered game module: {}", gameId);
+    // Registration is performed by a static registrar before wWinMain.  The
+    // logging subsystem is not initialized at that point, so logging here can
+    // throw std::system_error and abort the process during CRT startup.
 }
 
 IGameModuleFactory* GameModuleRegistry::GetFactory(std::string_view gameId) const noexcept {

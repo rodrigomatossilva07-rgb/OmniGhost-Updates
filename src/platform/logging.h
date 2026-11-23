@@ -112,10 +112,13 @@ public:
     [[nodiscard]] bool IsInitialized() const noexcept { return initialized_; }
 
 private:
-    LoggerManager() = default;
+    LoggerManager();
     ~LoggerManager() { Shutdown(); }
     LoggerManager(const LoggerManager&) = delete;
     LoggerManager& operator=(const LoggerManager&) = delete;
+
+    bool InitializeLocked(const Config& config);
+    void FlushLocked();
 
     bool initialized_ = false;
     Config config_;

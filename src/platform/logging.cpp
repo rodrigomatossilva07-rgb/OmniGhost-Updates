@@ -14,8 +14,17 @@
 
 namespace OmniGhost::Logging {
 
+LoggerManager::LoggerManager() {
+    // Construct the spdlog registry first so it is available during Shutdown().
+    (void)spdlog::default_logger();
+}
+
 bool LoggerManager::Initialize(const Config& config) {
     std::lock_guard<std::mutex> lock(mutex_);
+    return InitializeLocked(config);
+}
+
+bool LoggerManager::InitializeLocked(const Config& config) {
 
     if (initialized_) {
         return true;
@@ -158,8 +167,8 @@ bool LoggerManager::Initialize(const Config& config) {
     initialized_ = true;
 
 
-    OGS_LOG_INFO("Logging system initialized");
-    OGS_LOG_INFO("Async: {}, Console level: {}, File level: {}",
+    coreLogger_->info("Logging system initialized");
+    coreLogger_->info("Async: {}, Console level: {}, File level: {}",
                  config_.asyncEnabled,
                  spdlog::level::to_string_view(config_.consoleLevel),
                  spdlog::level::to_string_view(config_.fileLevel));
@@ -175,7 +184,7 @@ void LoggerManager::Shutdown() {
     }
 
 
-    Flush();
+    FlushLocked();
 
 
     spdlog::drop_all();
@@ -200,7 +209,7 @@ std::shared_ptr<spdlog::logger> LoggerManager::GetLogger(std::string_view name) 
 
         Config defaultConfig;
         defaultConfig.logDirectory = OmniGhost::Paths::Logs();
-        Initialize(defaultConfig);
+        InitializeLocked(defaultConfig);
     }
 
 
@@ -255,6 +264,10 @@ void LoggerManager::SetLevel(std::string_view name, spdlog::level::level_enum le
 
 void LoggerManager::Flush() {
     std::lock_guard<std::mutex> lock(mutex_);
+    FlushLocked();
+}
+
+void LoggerManager::FlushLocked() {
 
     if (coreLogger_) coreLogger_->flush();
     if (uiLogger_) uiLogger_->flush();
