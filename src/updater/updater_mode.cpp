@@ -137,7 +137,7 @@ std::wstring Quote(const std::wstring& value) {
 
 bool StartApplication(const fs::path& executable, const fs::path& confirmFile,
                       const std::wstring& token, const std::wstring& extraArguments,
-                      DWORD& pid, std::string& error) {
+                      Platform::UniqueHandle& launchedProcess, std::string& error) {
     std::wstring command = Quote(executable.wstring()) + OGS_WIDE(" --update-confirm ") + Quote(token) +
         OGS_WIDE(" --update-confirm-file ") + Quote(confirmFile.wstring());
     if (!extraArguments.empty()) command += L" " + extraArguments;
@@ -148,7 +148,10 @@ bool StartApplication(const fs::path& executable, const fs::path& confirmFile,
         executable.parent_path().c_str(), &startup, process.put())) {
         error = OGS_LIT("A nova versão não conseguiu iniciar: ") + WindowsError(GetLastError()); return false;
     }
-    pid = process.process_id();
+    // Keep the handle returned by CreateProcessW. Reopening the process by PID
+    // can fail on some Windows configurations even though the child is alive,
+    // which previously triggered an incorrect rollback (Win32 error 87).
+    launchedProcess.reset(process.release_process());
     return true;
 }
 
@@ -171,7 +174,11 @@ std::string ExitCodeDescription(DWORD exitCode) {
     }
 }
 
-bool ConfirmStarted(DWORD pid, const fs::path& file, const std::wstring& token, int seconds, std::string& error) {
+bool ConfirmStarted(HANDLE process, const fs::path& file, const std::wstring& token, int seconds, std::string& error) {
+    if (!process || process == INVALID_HANDLE_VALUE) {
+        error = OGS_LIT("Nao foi possivel acompanhar o processo da nova versao: handle de arranque invalido.");
+        return false;
+    }
     for (int attempt = 0; attempt < seconds * 10; ++attempt) {
         std::wifstream stream(file);
         std::wstring value;
@@ -182,15 +189,15 @@ bool ConfirmStarted(DWORD pid, const fs::path& file, const std::wstring& token, 
             fs::remove(file, cleanupError);
             return true;
         }
-        Platform::UniqueHandle process(OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid));
-        if (!process) {
+        const DWORD waitResult = WaitForSingleObject(process, 0);
+        if (waitResult == WAIT_FAILED) {
             error = OGS_LIT("Nao foi possivel acompanhar o processo da nova versao: ") + WindowsError(GetLastError());
             return false;
         }
-        const bool exited = WaitForSingleObject(process.get(), 0) == WAIT_OBJECT_0;
+        const bool exited = waitResult == WAIT_OBJECT_0;
         if (exited) {
             DWORD exitCode = 0;
-            if (GetExitCodeProcess(process.get(), &exitCode))
+            if (GetExitCodeProcess(process, &exitCode))
                 error = OGS_LIT("A nova versao terminou antes de confirmar o arranque: ") + ExitCodeDescription(exitCode);
             else
                 error = OGS_LIT("A nova versao terminou antes de confirmar o arranque.");
@@ -471,24 +478,21 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
         fs::remove(confirmation, cleanup);
     });
     (void)confirmationCleanup;
-    DWORD newPid{};
+    Platform::UniqueHandle newProcess;
     std::wstring successArguments = OGS_WIDE("--updated-from ") + Quote(Platform::Utf8ToWide(fromVersion)) +
         OGS_WIDE(" --updated-to ") + Quote(Platform::Utf8ToWide(targetVersion));
     if (!notesUrl.empty())
         successArguments += OGS_WIDE(" --update-notes-url ") + Quote(Platform::Utf8ToWide(notesUrl));
     const bool applicationStarted = StartApplication(target / executableName, confirmation, token,
-        successArguments, newPid, error);
+        successArguments, newProcess, error);
     const bool startupConfirmed = applicationStarted &&
-        ConfirmStarted(newPid, confirmation, token, configuration.startupConfirmationSeconds, error);
+        ConfirmStarted(newProcess.get(), confirmation, token, configuration.startupConfirmationSeconds, error);
     if (!startupConfirmed) {
 
 
-        if (newPid) {
-            Platform::UniqueHandle process(OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE, FALSE, newPid));
-            if (process) {
-                TerminateProcess(process.get(), 1);
-                (void)WaitForSingleObject(process.get(), 5000);
-            }
+        if (newProcess) {
+            TerminateProcess(newProcess.get(), 1);
+            (void)WaitForSingleObject(newProcess.get(), 5000);
         }
         const std::string restartDetail = error.empty()
             ? OGS_LIT("A nova versao nao confirmou o arranque.")

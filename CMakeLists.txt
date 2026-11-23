@@ -375,6 +375,21 @@ list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*example.*\\.cpp$")
 list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/project/tools/.*\\.cpp$")
 # The FiveM dumper has its own main() and produces a separate command-line EXE.
 list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/games/Fivem/dumper/.*\\.cpp$")
+# Source files retained for standalone/experimental components are not linked
+# into the launcher. Several own static initialisers and are not part of the
+# application lifecycle; linking them made OmniGhost crash before wWinMain.
+list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/config/advanced/.*\\.cpp$")
+list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/updater/auto/.*\\.cpp$")
+list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/launcher/cloud_sync\\.cpp$")
+list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/window/widgets_(core|card|input|layout)\\.cpp$")
+list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/window/localization_extended\\.cpp$")
+list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/config/config_schema_validator\\.cpp$")
+list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/config/config_profiles\\.cpp$")
+list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/security/(anti_debug|anti_tamper|anti_dump|hardware_bp|timing_check|heap_check|peb_check|self_crc|integrity_check|crc32|string_obfuscation|xorstr|compile_time_hash)\\.cpp$")
+# KeyAuth is supplied by its prebuilt SDK library below.  Its vendored source
+# tree must not also be globbed into OmniGhost.exe: that duplicates SDK static
+# initialisers and can crash before wWinMain on a clean machine.
+list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/project/third_party/keyauth/.*\\.cpp$")
 
 # These restored widget-split files are a preserved compatibility layer. The
 # active UI is implemented by window/widgets.cpp, so compile this layer into
@@ -387,10 +402,8 @@ set(OMNIGHOST_LEGACY_WIDGET_SOURCES
 )
 set_source_files_properties(${OMNIGHOST_LEGACY_WIDGET_SOURCES}
     PROPERTIES COMPILE_DEFINITIONS "CyberWidgets=OmniGhostLegacyWidgets")
-# KeyAuth's bundled QR/utility implementation is part of the launcher SDK and
-# is intentionally included.  The duplicate HWID implementation was removed
-# from the SDK utility source; OmniGhost provides the single canonical HWID
-# implementation in auth/keyauth_hwid_override.cpp.
+# OmniGhost uses the KeyAuth SDK binary linked below. The application-owned
+# hardware identifier implementation remains in auth/keyauth_hwid_override.cpp.
 
 # =============================================================================
 # Resources
