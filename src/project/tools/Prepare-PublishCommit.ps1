@@ -10,10 +10,32 @@ Set-StrictMode -Version Latest
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 $git = Get-Command git -ErrorAction Stop
 
+function Ensure-ReleaseGitIdentity {
+    param([string]$GitPath, [string]$Repository)
+
+    $name = @(& $GitPath -C $Repository config --local --get user.name)
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($name -join '').Trim())) {
+        & $GitPath -C $Repository config --local user.name 'Rodrigo Silva'
+        if ($LASTEXITCODE -ne 0) { throw 'Nao foi possivel configurar o nome Git local para Publish.' }
+        Write-Host '[OmniGhost Publish] Identidade Git local: nome configurado automaticamente.'
+    }
+
+    $email = @(& $GitPath -C $Repository config --local --get user.email)
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($email -join '').Trim())) {
+        & $GitPath -C $Repository config --local user.email 'rodrigomatossilva07-rgb@users.noreply.github.com'
+        if ($LASTEXITCODE -ne 0) { throw 'Nao foi possivel configurar o email Git local para Publish.' }
+        Write-Host '[OmniGhost Publish] Identidade Git local: email configurado automaticamente.'
+    }
+}
+
 & $git.Source -C $ProjectDir rev-parse --is-inside-work-tree | Out-Null
 if ($LASTEXITCODE -ne 0) {
     throw 'Publish requer um repositório Git local para criar o commit de release.'
 }
+
+# Publish uses a repository-local identity only. This avoids blocking an
+# automatic release on a fresh PC without changing the user's global Git.
+Ensure-ReleaseGitIdentity -GitPath $git.Source -Repository $ProjectDir
 
 $conflicts = @(& $git.Source -C $ProjectDir diff --name-only --diff-filter=U)
 if ($LASTEXITCODE -ne 0) { throw 'Não foi possível verificar conflitos Git.' }

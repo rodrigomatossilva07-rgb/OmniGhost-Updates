@@ -469,6 +469,11 @@ if (MSVC)
         # resolve them through the single /MD runtime selected above.
         "/NODEFAULTLIB:LIBCMT"
     )
+    # Keep a local map for Release crash diagnosis. It is emitted beside the
+    # executable and is not packaged into customer update archives.
+    if (CMAKE_BUILD_TYPE STREQUAL "Release")
+        target_link_options(OmniGhost PRIVATE "/MAP:${CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE}/OmniGhost.map")
+    endif()
 endif()
 
 # Link libraries (FetchContent + Windows)

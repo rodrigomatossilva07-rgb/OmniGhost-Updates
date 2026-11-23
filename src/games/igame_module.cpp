@@ -12,13 +12,18 @@ namespace OmniGhost::Games {
 
 
 void GameModuleRegistry::RegisterFactory(std::unique_ptr<IGameModuleFactory> factory) {
+    if (!factory)
+        return;
     std::unique_lock lock(mutex_);
 
     const std::string gameId{factory->GetGameId()};
+    const auto launcherGameId = factory->GetLauncherGameId();
     factories_[gameId] = std::move(factory);
 
-
-    launcherIdMap_[factory->GetLauncherGameId()] = factories_[gameId].get();
+    // factory was moved into factories_ above, so use the identifier captured
+    // while it was still valid. Dereferencing it here caused a startup access
+    // violation from the static game-module registrar.
+    launcherIdMap_[launcherGameId] = factories_[gameId].get();
 
     OGS_LOG_INFO("[GameModuleRegistry] Registered game module: {}", gameId);
 }
