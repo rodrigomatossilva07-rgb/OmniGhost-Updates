@@ -29,24 +29,26 @@ function Stop-ProjectBuildProcesses {
     # other projects.
     $all = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)
     $buildNames = @('cmake.exe', 'msbuild.exe', 'cl.exe', 'link.exe', 'rc.exe')
+    $childNames = $buildNames + @('git.exe', 'git-remote-http.exe', 'git-remote-https.exe')
     $ids = [Collections.Generic.HashSet[int]]::new()
+    $repoPath = [regex]::Escape($Root.TrimEnd('\'))
+    $cachePath = [regex]::Escape($Cache.TrimEnd('\'))
+    $projectPath = '(?:^|[\s"=])(?:' + $repoPath + '|' + $cachePath + ')(?=[\s"\\]|$)'
     foreach ($process in $all) {
         if ($buildNames -notcontains $process.Name.ToLowerInvariant()) { continue }
-        $command = [string]$process.CommandLine
-        if ($command.IndexOf($Root, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
-            $command.IndexOf($Cache, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        $command = ([string]$process.CommandLine).Replace('/', '\')
+        if ($command -match $projectPath) {
             [void]$ids.Add([int]$process.ProcessId)
         }
     }
 
-    # Compiler/linker children do not always retain the project path in their
-    # command line, so include descendants of an already identified CMake or
-    # MSBuild process as well.
+    # Git and compiler children can retain open handles after CMake is cancelled.
+    # Match them only through an already identified project build process.
     $added = $true
     while ($added) {
         $added = $false
         foreach ($process in $all) {
-            if ($buildNames -notcontains $process.Name.ToLowerInvariant()) { continue }
+            if ($childNames -notcontains $process.Name.ToLowerInvariant()) { continue }
             if ($ids.Contains([int]$process.ParentProcessId) -and $ids.Add([int]$process.ProcessId)) {
                 $added = $true
             }

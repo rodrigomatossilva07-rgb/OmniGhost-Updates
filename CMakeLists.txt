@@ -113,43 +113,49 @@ set(FETCHCONTENT_DOWNLOAD_EXTRACT_TIMESTAMP ON)
 # nlohmann_json
 FetchContent_Declare(
     nlohmann_json
-    GIT_REPOSITORY https://github.com/nlohmann/json.git
-    GIT_TAG v3.12.0
+    URL https://codeload.github.com/nlohmann/json/zip/refs/tags/v3.12.0
+    TIMEOUT 120
+    INACTIVITY_TIMEOUT 30
 )
 
 # fmt
 FetchContent_Declare(
     fmt
-    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-    GIT_TAG 10.2.1
+    URL https://codeload.github.com/fmtlib/fmt/zip/refs/tags/10.2.1
+    TIMEOUT 120
+    INACTIVITY_TIMEOUT 30
 )
 
 # spdlog - disable tests and external fmt
 FetchContent_Declare(
     spdlog
-    GIT_REPOSITORY https://github.com/gabime/spdlog.git
-    GIT_TAG v1.12.0
+    URL https://codeload.github.com/gabime/spdlog/zip/refs/tags/v1.12.0
+    TIMEOUT 120
+    INACTIVITY_TIMEOUT 30
 )
 
 # tl::expected
 FetchContent_Declare(
     tl_expected
-    GIT_REPOSITORY https://github.com/TartanLlama/expected.git
-    GIT_TAG v1.1.0
+    URL https://codeload.github.com/TartanLlama/expected/zip/refs/tags/v1.1.0
+    TIMEOUT 120
+    INACTIVITY_TIMEOUT 30
 )
 
 # ImGui (docking branch)
 FetchContent_Declare(
     imgui
-    GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG docking
+    URL https://codeload.github.com/ocornut/imgui/zip/refs/heads/docking
+    TIMEOUT 120
+    INACTIVITY_TIMEOUT 30
 )
 
 # GLFW
 FetchContent_Declare(
     glfw
-    GIT_REPOSITORY https://github.com/glfw/glfw.git
-    GIT_TAG 3.3.8
+    URL https://codeload.github.com/glfw/glfw/zip/refs/tags/3.3.8
+    TIMEOUT 120
+    INACTIVITY_TIMEOUT 30
     CMAKE_ARGS
         -DGLFW_BUILD_EXAMPLES=OFF
         -DGLFW_BUILD_TESTS=OFF
