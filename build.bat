@@ -2,13 +2,21 @@
 setlocal EnableExtensions
 
 rem OmniGhost - CMake launcher build
-rem Usage: build.bat [Debug^|Release^|Development^|Publish] [clean]
+rem Usage: build.bat [Debug^|Release^|Development^|Publish]
 
 set "ROOT=%~dp0"
 if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
 
-rem O cache e os comentarios do projeto sao preservados entre builds.
-rem Usa "build.bat <Configuracao> clean" quando precisares de limpar o cache CMake.
+rem Cada execucao comeca de uma cache CMake limpa para evitar artefactos ou
+rem locks antigos. Isto torna as builds mais lentas, mas garante uma base limpa.
+
+call :clear_cache
+if errorlevel 1 (
+    echo.
+    echo [ERRO] Nao foi possivel limpar a cache antes da compilacao.
+    pause
+    exit /b 1
+)
 
 if not "%~1"=="" goto :arguments
 
@@ -33,13 +41,14 @@ if errorlevel 1 set "CONFIG=Release" & set "ACTION=" & goto :build
 :arguments
 set "CONFIG=%~1"
 set "ACTION=%~2"
+if /I "%CONFIG%"=="clean" exit /b 0
 
 :build
 
 for %%C in (Debug Release Development Publish) do if /I "%CONFIG%"=="%%C" set "VALID_CONFIG=1"
 if not defined VALID_CONFIG (
     echo [ERRO] Configuracao invalida: %CONFIG%
-    echo Uso: build.bat [Debug^|Release^|Development^|Publish] [clean]
+    echo Uso: build.bat [Debug^|Release^|Development^|Publish]
     pause
     exit /b 2
 )
@@ -107,9 +116,7 @@ if errorlevel 1 (
 set "LOCK_HELD=1"
 
 if /I "%ACTION%"=="clean" (
-    if exist "%BUILD_DIR%" rmdir /s /q "%BUILD_DIR%"
-    rmdir "%LOCK_DIR%" >nul 2>&1
-    echo [OK] Build CMake limpa: .cache\cmake\%CONFIG%
+    echo [OK] A cache total ja foi limpa no inicio desta execucao.
     exit /b 0
 )
 
@@ -192,3 +199,10 @@ if /I "%BUILD_PHASE%"=="configure" (
 if defined LOCK_HELD rmdir "%LOCK_DIR%" >nul 2>&1
 pause
 exit /b 1
+
+:clear_cache
+echo [OmniGhost] A limpar toda a cache do projeto...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\src\project\tools\Clear-BuildCache.ps1" -ProjectDir "%ROOT%" -Scope All -Force
+if errorlevel 1 exit /b 1
+echo [OK] Cache limpa.
+exit /b 0
