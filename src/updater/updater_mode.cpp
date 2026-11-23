@@ -160,6 +160,8 @@ std::string ExitCodeDescription(DWORD exitCode) {
         return OGS_LIT("STATUS_INVALID_IMAGE_FORMAT (DLL/EXE de arquitetura ou formato incompatível)");
     case 0xC0000142u:
         return OGS_LIT("STATUS_DLL_INIT_FAILED (uma DLL falhou durante a inicializacao)");
+    case 0xC0000005u:
+        return OGS_LIT("STATUS_ACCESS_VIOLATION (falha de acesso durante o arranque; consulta o diagnostico de crash)");
     default:
         return OGS_LIT("exit_code=0x") + [] (DWORD value) {
             char buffer[16]{};

@@ -365,8 +365,12 @@ int RunOmniGhost(int argc, wchar_t** argv) {
 
 
 
-    OmniGhost::Update::ConfirmUpdaterStartupFromCommandLine(argc, argv);
     OmniGhost::Update::CaptureUpdaterStartupNoticeFromCommandLine(argc, argv);
+
+    // Install this before any startup work that can load runtime components.
+    // An updated executable must leave a useful crash record on the target PC
+    // instead of only making the updater report an opaque process exit code.
+    OmniGhost::CrashHandler::Install();
 
 
 
@@ -415,7 +419,10 @@ int RunOmniGhost(int argc, wchar_t** argv) {
     OmniGhost::Logging::InitializeDefaultLogging();
 
     DisableProcessWindowsGhosting();
-    OmniGhost::CrashHandler::Install();
+    // A successful confirmation means the executable has prepared its runtime
+    // and logging, not merely that CreateProcessW managed to launch it.
+    // This keeps the rollback safety net active for early-startup crashes.
+    OmniGhost::Update::ConfirmUpdaterStartupFromCommandLine(argc, argv);
     OGS_LOG_INFO("[RUNTIME] mode=SINGLE_PROCESS_PORTABLE");
     OGS_LOG_INFO("[RUNTIME] self_install=DISABLED");
     OGS_LOG_INFO("[RUNTIME] private_executable=DISABLED");

@@ -59,6 +59,50 @@ std::wstring Timestamp() {
     return buffer;
 }
 
+// Keep a small, plaintext companion record next to the protected minidump.
+// The updater can report a process exit code, but this makes an early crash on
+// another PC diagnosable without asking the customer to decrypt a dump first.
+void WriteCrashSummary(EXCEPTION_POINTERS* exceptionPointers) noexcept {
+    try {
+        Paths::EnsureUserDirectories();
+        std::error_code error;
+        const fs::path directory = CrashDirectory();
+        fs::create_directories(directory, error);
+        if (error) return;
+
+        DWORD exceptionCode = 0;
+        void* exceptionAddress = nullptr;
+        if (exceptionPointers && exceptionPointers->ExceptionRecord) {
+            exceptionCode = exceptionPointers->ExceptionRecord->ExceptionCode;
+            exceptionAddress = exceptionPointers->ExceptionRecord->ExceptionAddress;
+        }
+
+        const fs::path summaryPath = directory /
+            (L"OmniGhost-startup-" + Timestamp() + L"-pid" +
+             std::to_wstring(GetCurrentProcessId()) + L".txt");
+        const std::wstring version = Platform::Utf8ToWide(OmniGhost::Version);
+        wchar_t summary[768]{};
+        const int length = swprintf_s(summary,
+            L"OmniGhost crash diagnostic\r\n"
+            L"version=%ls\r\nprocess_id=%lu\r\nexception_code=0x%08lX\r\n"
+            L"exception_address=%p\r\n"
+            L"The protected minidump, when available, is stored beside this file.\r\n",
+            version.empty() ? L"unknown" : version.c_str(), GetCurrentProcessId(),
+            exceptionCode, exceptionAddress);
+        if (length <= 0) return;
+
+        Platform::UniqueHandle file(CreateFileW(summaryPath.c_str(), GENERIC_WRITE,
+            FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr));
+        if (!file) return;
+        DWORD written = 0;
+        const DWORD bytes = static_cast<DWORD>(length * sizeof(wchar_t));
+        (void)WriteFile(file.get(), summary, bytes, &written, nullptr);
+        (void)FlushFileBuffers(file.get());
+    } catch (...) {
+        // Never let diagnostics interfere with the process termination path.
+    }
+}
+
 bool EncryptDumpInPlace(const fs::path& dumpPath) noexcept {
     try {
         std::ifstream input(dumpPath, std::ios::binary);
@@ -267,11 +311,13 @@ bool WriteMiniDump(EXCEPTION_POINTERS* exceptionPointers) noexcept {
 }
 
 LONG WINAPI UnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionPointers) noexcept {
+    WriteCrashSummary(exceptionPointers);
     (void)WriteMiniDump(exceptionPointers);
     return EXCEPTION_EXECUTE_HANDLER;
 }
 
 [[noreturn]] void TerminateHandler() noexcept {
+    WriteCrashSummary(nullptr);
     (void)WriteMiniDump(nullptr);
     TerminateProcess(GetCurrentProcess(), 3);
     __assume(0);
