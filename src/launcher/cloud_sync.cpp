@@ -2,10 +2,11 @@
 // GitHub Gist / Repository sync with conflict resolution
 
 #include "cloud_sync.h"
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <Windows.h>
 #include <winhttp.h>
-#include <openssl/evp.h>
-#include <openssl/aes.h>
-#include <openssl/rand.h>
 
 #pragma comment(lib, "winhttp.lib")
 
@@ -80,7 +81,7 @@ struct CloudSync::Impl {
             headers += L"Authorization: token " + std::wstring(config.auth_token.begin(), config.auth_token.end()) + L"\r\n";
         }
 
-        if (!WinHttpAddRequestHeaders(request, headers.c_str(), -1, WINHTTP_ADDREQ_FLAG_ADD)) {
+        if (!WinHttpAddRequestHeaders(request, headers.c_str(), static_cast<DWORD>(-1L), WINHTTP_ADDREQ_FLAG_ADD)) {
             return false;
         }
 
@@ -93,15 +94,14 @@ struct CloudSync::Impl {
             return false;
         }
 
-        DWORD status = 0, size = sizeof(DWORD);
+        DWORD httpStatus = 0, size = sizeof(DWORD);
         WinHttpQueryHeaders(request, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-                           WINHTTP_HEADER_NAME_BY_INDEX, &status, &size, WINHTTP_NO_HEADER_INDEX);
+                           WINHTTP_HEADER_NAME_BY_INDEX, &httpStatus, &size, WINHTTP_NO_HEADER_INDEX);
 
-        if (status != 200 && status != 201 && status != 204) {
+        if (httpStatus != 200 && httpStatus != 201 && httpStatus != 204) {
             return false;
         }
 
-        DWORD size = 0;
         do {
             DWORD available = 0;
             if (!WinHttpQueryDataAvailable(request, &available)) break;

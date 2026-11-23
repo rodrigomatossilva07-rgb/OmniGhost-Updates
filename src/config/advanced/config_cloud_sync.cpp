@@ -2,9 +2,12 @@
 // GitHub Gist / GitHub Repository / Custom API sync
 
 #include "config_manager_advanced.h"
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <Windows.h>
 #include <winhttp.h>
-#include <openssl/hmac.h>
-#include <openssl/evp.h>
+#include <thread>
 
 #pragma comment(lib, "winhttp.lib")
 
@@ -146,7 +149,7 @@ private:
                 auto conflict = check_conflict(remote);
                 if (conflict) {
                     conflicts_.push_back(*conflict);
-                    conflicts_++;
+                    ++conflict_count_;
                     continue;
                 }
 
@@ -156,7 +159,7 @@ private:
             }
         }
 
-        return {true, 0, downloaded_, conflicts_, 0, {}, ""};
+        return {true, 0, downloaded_, conflict_count_, 0, {}, ""};
     }
 
     std::vector<nlohmann::json> get_local_configs() {
@@ -212,17 +215,9 @@ private:
         }
     }
 
-    std::string backup_dir_;
-    SyncConfig config_;
-    bool configured_ = false;
-    std::mutex mutex_;
-    SyncStatusInfo status_;
-    std::vector<SyncConflict> conflicts_;
-    std::thread sync_thread_;
-    std::atomic<bool> auto_sync_running_{false};
     uint32_t uploaded_ = 0;
     uint32_t downloaded_ = 0;
-    uint32_t conflicts_ = 0;
+    uint32_t conflict_count_ = 0;
 };
 
 } // namespace omnighost::config

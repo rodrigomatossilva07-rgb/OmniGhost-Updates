@@ -10,9 +10,9 @@
 
 namespace OmniGhost::Platform {
 
-// =============================================================================
-// OffsetManager - Implementation of IOffsetManager wrapping OffsetAuto
-// =============================================================================
+
+
+
 
 class OffsetManager final : public IOffsetManager {
 public:
@@ -21,11 +21,11 @@ public:
 
     Expected<void> Initialize() override {
         OGS_LOG_INFO("[OffsetManager] Initializing...");
-        
-        // Initialize OffsetAuto static state
+
+
         OffsetAuto::g_busy = false;
         OffsetAuto::g_status = "Pronto";
-        
+
         OGS_LOG_INFO("[OffsetManager] Initialized");
         return Success();
     }
@@ -37,20 +37,20 @@ public:
 
     Expected<void> LoadOffsets(ActiveGame game) override {
         OGS_LOG_INFO("[OffsetManager] Loading offsets for game: {}", static_cast<int>(game));
-        
+
         const auto result = OffsetAuto::EnsureOffsets(game, false);
         if (result != OffsetAuto::Result::Ok && result != OffsetAuto::Result::Current &&
             result != OffsetAuto::Result::UsingCached) {
             return Failure<void>(ErrorCode::OffsetsMissing, "Failed to load offsets for game");
         }
-        
+
         return Success();
     }
 
     Expected<void> ReloadOffsets(ActiveGame game) override {
         OGS_LOG_INFO("[OffsetManager] Reloading offsets for game: {}", static_cast<int>(game));
-        
-        // Reset and reload
+
+
         OffsetAuto::MarkChecking(game);
         return LoadOffsets(game);
     }
@@ -116,18 +116,18 @@ public:
     }
 };
 
-// =============================================================================
-// Factory implementation
-// =============================================================================
+
+
+
 
 Expected<std::unique_ptr<IOffsetManager>> OffsetManagerFactory::Create() {
     return Success(std::make_unique<OffsetManager>());
 }
 
-// Registration function
+
 void RegisterOffsetManagerFactory() {
-    // This would be called during DI container setup
-    // For now, we'll use a simple function to get the factory
+
+
 }
 
-} // namespace OmniGhost::Platform
+}

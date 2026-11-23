@@ -16,6 +16,7 @@
 #include <optional>
 #include <filesystem>
 #include <nlohmann/json.hpp>
+#include "platform/secure_annotations.h"
 
 namespace omnighost::updater {
 
@@ -173,8 +174,8 @@ public:
     OMNIGHOST_SECURE_FUNC void shutdown();
 
     // Configuration
-    OMNIGHOST_SECURE_INLINE void set_config(const AutoUpdaterConfig& config) { config_ = config; }
-    OMNIGHOST_SECURE_INLINE const AutoUpdaterConfig& get_config() const { return config_; }
+    OMNIGHOST_SECURE_FUNC void set_config(const AutoUpdaterConfig& config);
+    OMNIGHOST_SECURE_FUNC const AutoUpdaterConfig& get_config() const;
 
     // Update checking
     OMNIGHOST_SECURE_FUNC std::optional<UpdateInfo> check_for_updates(bool force = false);
@@ -193,10 +194,10 @@ public:
     OMNIGHOST_SECURE_FUNC bool can_rollback() const;
 
     // Status
-    OMNIGHOST_SECURE_INLINE bool is_initialized() const { return initialized_; }
-    OMNIGHOST_SECURE_INLINE UpdateStatus get_status() const { return status_; }
-    OMNIGHOST_SECURE_INLINE const UpdateInfo& get_last_update_info() const { return last_update_info_; }
-    OMNIGHOST_SECURE_INLINE std::chrono::system_clock::time_point get_last_check_time() const { return last_check_time_; }
+    OMNIGHOST_SECURE_FUNC bool is_initialized() const;
+    OMNIGHOST_SECURE_FUNC UpdateStatus get_status() const;
+    OMNIGHOST_SECURE_FUNC const UpdateInfo& get_last_update_info() const;
+    OMNIGHOST_SECURE_FUNC std::chrono::system_clock::time_point get_last_check_time() const;
 
     // Scheduling
     OMNIGHOST_SECURE_FUNC void start_auto_check();
@@ -207,13 +208,8 @@ public:
     OMNIGHOST_SECURE_FUNC void force_check();
 
 private:
-    AutoUpdater() = default;
-    ~AutoUpdater() = default;
-
-    AutoUpdater(const AutoUpdater&) = delete;
-    AutoUpdater& operator=(const AutoUpdater&) = delete;
-    AutoUpdater(AutoUpdater&&) = delete;
-    AutoUpdater& operator=(AutoUpdater&&) = delete;
+    AutoUpdater();
+    ~AutoUpdater();
 
     AutoUpdaterConfig config_;
     bool initialized_ = false;

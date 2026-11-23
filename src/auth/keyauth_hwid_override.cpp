@@ -1,7 +1,8 @@
 #include "project/third_party/keyauth/x64/lib/utils.hpp"
-#include <atlsecurity.h>
 #include <Windows.h>
 #include <bcrypt.h>
+#include <sddl.h>
+#pragma comment(lib, "advapi32.lib")
 
 #include <iomanip>
 #include <sstream>
@@ -90,26 +91,40 @@ bool Sha256Hex(const std::string& input, std::string& outHex) {
 
 std::string utils::get_hwid() {
     std::string sidText;
-    ATL::CAccessToken accessToken;
-    ATL::CSid currentUserSid;
-    const bool haveSid =
-        accessToken.GetProcessToken(TOKEN_READ | TOKEN_QUERY) &&
-        accessToken.GetUser(&currentUserSid);
-    if (haveSid)
-        sidText = std::string(CT2A(currentUserSid.Sid()));
+
+
+    HANDLE hToken = nullptr;
+    std::string sidTextLocal;
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_READ | TOKEN_QUERY, &hToken)) {
+        DWORD dwSize = 0;
+        GetTokenInformation(hToken, TokenUser, nullptr, 0, &dwSize);
+        if (dwSize > 0) {
+            std::vector<BYTE> tokenInfo(dwSize);
+            if (GetTokenInformation(hToken, TokenUser, tokenInfo.data(), dwSize, &dwSize)) {
+                PTOKEN_USER pTokenUser = reinterpret_cast<PTOKEN_USER>(tokenInfo.data());
+                LPWSTR sidString = nullptr;
+                if (ConvertSidToStringSidW(pTokenUser->User.Sid, &sidString)) {
+                    sidTextLocal = NarrowGuid(std::wstring(sidString));
+                    LocalFree(sidString);
+                }
+            }
+        }
+        CloseHandle(hToken);
+    }
 
     std::wstring machineGuid;
     const bool haveGuid = ReadMachineGuid(machineGuid);
+    const bool haveSid = !sidTextLocal.empty();
 
     if (!haveSid && !haveGuid)
         return {};
 
     std::ostringstream mixer;
-    mixer << sidText << '|';
+    mixer << sidTextLocal << '|';
     if (haveGuid)
         mixer << NarrowGuid(machineGuid);
     std::string hex;
     if (!Sha256Hex(mixer.str(), hex))
-        return haveSid ? sidText : NarrowGuid(machineGuid);
+        return haveSid ? sidTextLocal : NarrowGuid(machineGuid);
     return hex;
 }

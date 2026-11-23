@@ -2368,6 +2368,6 @@ bool DrawProgressDialogInternal(ProgressDialog& dialog) {
 
     return true;
 }
-} // namespace
+}
 
-} // namespace CyberWidgets
+}

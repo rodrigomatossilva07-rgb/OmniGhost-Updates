@@ -39,7 +39,6 @@ void BeginCard(const char* title, bool collapsible) {
     ImGuiWindow* window = ImGui::GetCurrentWindow();
     if (window->SkipItems) return;
 
-    const ImGuiID id = window->GetID(title);
     const ImVec2 pos = ImGui::GetCursorScreenPos();
     const float width = ImGui::GetContentRegionAvail().x;
 
@@ -121,7 +120,7 @@ void BeginSurfaceList(const char* id, float height) {
     ImGuiWindow* window = ImGui::GetCurrentWindow();
     if (window->SkipItems) return;
 
-    const ImGuiID id = window->GetID(id);
+    const ImGuiID childId = window->GetID(id);
     const ImVec2 pos = ImGui::GetCursorScreenPos();
     const float width = ImGui::GetContentRegionAvail().x;
 
@@ -132,72 +131,12 @@ void BeginSurfaceList(const char* id, float height) {
 
     g_surface_lists.push_back(state);
 
-    ImGui::BeginChild(id, ImVec2(width, height), true, ImGuiWindowFlags_NoScrollbar);
+    ImGui::BeginChild(childId, ImVec2(width, height), true, ImGuiWindowFlags_NoScrollbar);
 }
 
 void EndSurfaceList() {
     ImGui::EndChild();
     if (!g_surface_lists.empty()) g_surface_lists.pop_back();
-}
-
-} // anonymous namespace
-
-// =============================================================================
-// Layout Helpers Implementation
-// =============================================================================
-
-void DrawCheckers(ImDrawList* dl, const ImVec2& a, const ImVec2& b, float rounding) {
-    dl->AddRectFilled(a, b, IM_COL32(44, 46, 54, 255), rounding);
-    const float cell = 5.0f;
-    for (float y = a.y; y < b.y; y += cell) {
-        for (float x = a.x; x < b.x; x += cell) {
-            const int ix = static_cast<int>((x - a.x) / cell);
-            const int iy = static_cast<int>((y - a.y) / cell);
-            if (((ix + iy) & 1) == 0) {
-                dl->AddRectFilled(
-                    ImVec2(x, y),
-                    ImVec2(std::min(x + cell, b.x), std::min(y + cell, b.y)),
-                    IM_COL32(72, 74, 84, 255));
-            }
-        }
-    }
-}
-
-void ApplyCursorForItem(bool enabled, ImGuiMouseCursor cursor) {
-    if (enabled && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-        ImGui::SetMouseCursor(cursor);
-}
-
-void DrawFocusRing(float rounding) {
-    if (!ImGui::IsItemFocused() && !ImGui::IsItemActive()) return;
-    ImDrawList* dl = ImGui::GetWindowDrawList();
-    const ImVec2 a = ImGui::GetItemRectMin();
-    const ImVec2 b = ImGui::GetItemRectMax();
-    dl->AddRect(
-        ImVec2(a.x - 1.0f, a.y - 1.0f),
-        ImVec2(b.x + 1.0f, b.y + 1.0f),
-        WithAlpha(CyberTheme::Colors.Gold, 0.58f),
-        rounding >= 0.0f ? rounding : CyberTheme::Radius::Lg,
-        0, 1.2f);
-}
-
-void DrawSpinner(ImDrawList* dl, const ImVec2& center, float radius, float thickness, TextTone tone) {
-    const ImU32 color = ToneColor(tone);
-    const int segments = 12;
-    const float speed = 3.0f;
-    const float time = static_cast<float>(ImGui::GetTime());
-    const float angle = time * speed;
-
-    for (int i = 0; i < segments; ++i) {
-        const float a = (i * 2.0f * IM_PI / segments) + angle;
-        const float a2 = ((i + 1) * 2.0f * IM_PI / segments) + angle;
-        const float r1 = radius * 0.6f;
-        const float r2 = radius;
-        dl->AddLine(
-            ImVec2(center.x + r1 * std::cos(a), center.y + r1 * std::sin(a)),
-            ImVec2(center.x + r2 * std::cos(a2), center.y + r2 * std::sin(a2)),
-            color, 2.0f);
-    }
 }
 
 } // namespace CyberWidgets

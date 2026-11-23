@@ -9,9 +9,9 @@
 
 namespace OmniGhost::Config {
 
-// =============================================================================
-// ConfigManagerImpl - Implementation of IConfigManager wrapping config_manager
-// =============================================================================
+
+
+
 
 class ConfigManagerImpl final : public IConfigManager {
 public:
@@ -27,7 +27,7 @@ public:
 
     Expected<void> Shutdown() override {
         OGS_LOG_INFO("[ConfigManagerImpl] Shutting down...");
-        // config_manager doesn't have explicit shutdown, but we can flush
+
         config_manager::FlushActiveConfig();
         OGS_LOG_INFO("[ConfigManagerImpl] Shutdown complete");
         return Success();
@@ -77,8 +77,8 @@ public:
 
     Expected<void> LoadGameConfig(std::string_view gameId) override {
         OGS_LOG_INFO("[ConfigManagerImpl] Loading game config for: {}", gameId);
-        // This would require mapping gameId to launcher GameId
-        // For now, just activate current
+
+
         config_manager::ActivateCurrentGameConfig();
         return Success();
     }
@@ -151,13 +151,13 @@ public:
     }
 };
 
-// =============================================================================
-// Factory implementation
-// =============================================================================
+
+
+
 
 Expected<std::unique_ptr<IConfigManager>> ConfigManagerFactory::Create() {
     std::unique_ptr<IConfigManager> manager = std::make_unique<ConfigManagerImpl>();
     return Success(std::move(manager));
 }
 
-} // namespace OmniGhost::Config
+}

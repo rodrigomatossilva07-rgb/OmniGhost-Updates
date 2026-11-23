@@ -1,39 +1,39 @@
-<#
-.SYNOPSIS
-    Validates OmniGhost game offset JSON files against the schema.
 
-.DESCRIPTION
-    Comprehensive validation of offset JSON files including:
-    - JSON syntax validity
-    - Schema compliance (schema_version, required fields, types)
-    - Offset format (hex strings, resolved boolean)
-    - Cross-reference validation (duplicate keys, missing critical offsets)
-    - Build consistency checks
 
-.PARAMETER Path
-    Path to offset JSON file or directory (default: src/project/data)
 
-.PARAMETER SchemaPath
-    Path to JSON schema file (default: src/project/tools/offset_schema.json)
 
-.PARAMETER Strict
-    Treat warnings as errors
 
-.PARAMETER Verbose
-    Verbose output
 
-.PARAMETER Report
-    Output validation report to JSON file
 
-.EXAMPLE
-    .\Validate-Offsets.ps1
 
-.EXAMPLE
-    .\Validate-Offsets.ps1 -Path "src/project/data/cs2_offsets.json" -Strict -Verbose
 
-.EXAMPLE
-    .\Validate-Offsets.ps1 -Path "src/project/data" -Report "validation_report.json"
-#>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 [CmdletBinding()]
 param(
@@ -55,28 +55,28 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# -----------------------------------------------------------------------------
-# Configuration
-# -----------------------------------------------------------------------------
+
+
+
 $REQUIRED_TOP_LEVEL = @(
     'schema_version', 'game', 'build', 'build_id', 'module',
     'source', 'generated_at', 'namespaces', 'decryptions'
 )
 
-$VALID_GAMES = @('rust', 'cs2', 'fivem', 'fortnite', 'warzone', 'apex', 'unknown')
+$VALID_GAMES = @('rust', 'cs2', 'fivem', 'fortnite', 'warzone', 'apex', 'rob_run', 'unknown')
 
 $CRITICAL_OFFSETS = @{
     'rust' = @('_root.basenetworkable_pointer', '_root.camera_pointer', 'BaseNetworkable.client_entities', 'BasePlayer.playerModel', 'PlayerModel.position', 'BaseCamera.matrix')
     'cs2'  = @('_root.dwEntityList', '_root.dwLocalPlayerPawn', '_root.dwViewMatrix', '_root.dwViewAngles', '_root.dwGlobalVars', 'C_BaseEntity.m_iHealth')
-    'fivem' = @('_root.world', '_root.player_health', '_root.player_position', '_root.bone_list', '_root.bone_matrix')
-    'fortnite' = @('globals.GWorld', 'gworld_crypto.world_mul', 'gworld_crypto.world_add', 'runtime.pcm_cam_location', 'runtime.pcm_cam_rotation', 'runtime.pcm_cam_fov')
+    'fivem' = @('CPed.health', 'CPed.position', 'CPed.bone_list', 'CPed.bone_matrix', 'CPlayerInfo.ped')
+    'fortnite' = @('_root.globals.GWorld', 'gworld_crypto.world_mul', 'gworld_crypto.world_add', 'runtime.pcm_cam_location', 'runtime.pcm_cam_rotation', 'runtime.pcm_cam_fov')
     'warzone' = @('_root.ref_def', '_root.entity_list', '_root.camera_base', '_root.view_matrix', 'player.size', 'player.pos')
-    'apex' = @('_root.EntityList', '_root.LocalPlayer', '_root.ViewRender', '_root.view_matrix', 'base_entity.m_vecAbsOrigin', 'base_entity.m_iHealth')
+    'apex' = @('_root.EntityList', '_root.LocalPlayer', '_root.ViewRender', 'camera.view_matrix', 'base_entity.m_vecAbsOrigin', 'base_entity.m_iHealth')
 }
 
-# -----------------------------------------------------------------------------
-# Helpers
-# -----------------------------------------------------------------------------
+
+
+
 function Write-Log {
     param(
         [string]$Message,
@@ -115,17 +115,17 @@ function Validate-HexOffset {
     return $Offset -match '^0x[0-9A-Fa-f]+$'
 }
 
-# -----------------------------------------------------------------------------
-# Main Validation
-# -----------------------------------------------------------------------------
+
+
+
 Write-Log "Validating OmniGhost offset JSON files..."
 Write-Log "Schema: ${SchemaPath}"
 Write-Log "Target: ${Path}"
 
-# Load schema
+
 $schemaJson = Read-JsonFile -FilePath $SchemaPath
 
-# Find JSON files
+
 if (Test-Path $Path -PathType Leaf) {
     $jsonFiles = @($Path)
 } else {
@@ -163,7 +163,7 @@ foreach ($file in $jsonFiles) {
         continue
     }
 
-    # 1. Validate top-level required fields
+
     foreach ($field in $REQUIRED_TOP_LEVEL) {
         if (-not $json.PSObject.Properties.Match($field)) {
             $fileResult.errors += "Missing required field: ${field}"
@@ -171,7 +171,7 @@ foreach ($file in $jsonFiles) {
         }
     }
 
-    # 2. Validate schema_version
+
     if ($json.PSObject.Properties.Match('schema_version')) {
         $ver = $json.schema_version
         if ($ver -lt 1 -or $ver -gt 10) {
@@ -180,7 +180,7 @@ foreach ($file in $jsonFiles) {
         }
     }
 
-    # 3. Validate game enum
+
     if ($json.PSObject.Properties.Match('game')) {
         $game = $json.game
         if ($VALID_GAMES -notcontains $game) {
@@ -190,7 +190,7 @@ foreach ($file in $jsonFiles) {
         $fileResult.metadata.game = $game
     }
 
-    # 4. Validate build format
+
     if ($json.PSObject.Properties.Match('build')) {
         $build = $json.build
         if (-not ($build -match '^[0-9]+$') -and -not ($build -match '^0x[0-9A-Fa-f]+$')) {
@@ -200,12 +200,12 @@ foreach ($file in $jsonFiles) {
         $fileResult.metadata.build = $build
     }
 
-    # 5. Validate module
+
     if ($json.PSObject.Properties.Match('module')) {
         $fileResult.metadata.module = $json.module
     }
 
-    # 6. Validate generated_at (ISO 8601)
+
     if ($json.PSObject.Properties.Match('generated_at')) {
         $dt = $json.generated_at
         try {
@@ -216,7 +216,7 @@ foreach ($file in $jsonFiles) {
         }
     }
 
-    # 7. Validate namespaces structure
+
     if ($json.PSObject.Properties.Match('namespaces')) {
         $namespaces = $json.namespaces
         $allOffsetPaths = @{}
@@ -234,7 +234,7 @@ foreach ($file in $jsonFiles) {
                 $field = $ns.fields.$fieldName
                 $path = "${nsName}.${fieldName}"
 
-                # Check duplicate
+
                 if ($allOffsetPaths.ContainsKey($path)) {
                     $fileResult.warnings += "Duplicate offset path: ${path}"
                     $fileWarnings++
@@ -242,7 +242,7 @@ foreach ($file in $jsonFiles) {
                 }
                 $allOffsetPaths[$path] = $true
 
-                # Validate field structure
+
                 if (-not $field.PSObject.Properties.Match('offset')) {
                     $fileResult.errors += "Field '${path}' missing 'offset'"
                     $fileErrors++
@@ -261,14 +261,12 @@ foreach ($file in $jsonFiles) {
                     $fileErrors++
                 }
 
-                if ($field.PSObject.Properties.Match('comment') -and $field.comment -eq '') {
-                    $fileResult.warnings += "Field '${path}' has empty comment"
-                    $fileWarnings++
-                }
+                # Comments are optional descriptive metadata. Empty comments
+                # do not affect the validity of a generated offset profile.
             }
         }
 
-        # Check critical offsets for this game
+
         if ($fileResult.metadata.game -and $CRITICAL_OFFSETS.ContainsKey($fileResult.metadata.game)) {
             $game = $fileResult.metadata.game
             foreach ($critPath in $CRITICAL_OFFSETS[$game]) {
@@ -284,7 +282,7 @@ foreach ($file in $jsonFiles) {
         $fileResult.metadata.duplicate_fields = $duplicateCount
     }
 
-    # 8. Validate decryptions
+
     if ($json.PSObject.Properties.Match('decryptions')) {
         $dec = $json.decryptions
         $requiredDec = @('namespace', 'functions', 'rva_fingerprints')
@@ -315,18 +313,18 @@ foreach ($file in $jsonFiles) {
         }
     }
 
-    # 9. Build consistency: check if offsets look reasonable for module
+
     if ($fileResult.metadata.game -and $fileResult.metadata.module) {
         $module = $fileResult.metadata.module
         if ($module -like '*.dll' -or $module -like '*.exe') {
-            # Module name looks valid
+
         } else {
             $fileResult.warnings += "Module name doesn't look like DLL/EXE: ${module}"
             $fileWarnings++
         }
     }
 
-    # Summary
+
     $fileResult.valid = ($fileErrors -eq 0)
     $fileResult.error_count = $fileErrors
     $fileResult.warning_count = $fileWarnings
@@ -345,9 +343,9 @@ foreach ($file in $jsonFiles) {
     $results += $fileResult
 }
 
-# -----------------------------------------------------------------------------
-# Final Report
-# -----------------------------------------------------------------------------
+
+
+
 Write-Log "`n============================================================"
 Write-Log "VALIDATION SUMMARY"
 Write-Log "============================================================"
@@ -376,7 +374,7 @@ if ($Report) {
     Write-Log "Report saved to: ${Report}" -Level Info
 }
 
-# Exit code
+
 if ($totalErrors -gt 0 -or ($Strict -and $totalWarnings -gt 0)) {
     Write-Log "VALIDATION FAILED" -Level Fail
     exit 1

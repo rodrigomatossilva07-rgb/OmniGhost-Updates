@@ -62,9 +62,9 @@ private:
 
 
 #if defined(OMNIGHOST_PUBLISH_BUILD) || defined(OMNIGHOST_PRIVATE_DEV_BUILD)
-	// Development uses the same deterministic branch as Publish.  The legacy
-	// __TIME__ branch indexes past the end of the literal with modern MSVC when
-	// KeyAuth is enabled, and it also makes private builds non-reproducible.
+
+
+
 	static constexpr auto XOR_KEY = static_cast<value_type>(0x5A3D);
 #else
 	static constexpr auto XOR_KEY = static_cast<value_type>(

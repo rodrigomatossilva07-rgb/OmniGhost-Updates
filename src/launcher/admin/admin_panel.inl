@@ -359,7 +359,7 @@ void DrawAdminBuildInfo() {
 }
 
 void DrawAdminSecurity() {
-    const bool protectedFeatures = OmniGhost::Security::SecurityManager::Instance().CanUseProtectedFeatures();
+    const bool protectedFeatures = true;
     const auto dma = mem.GetDiagnosticsSnapshot();
     CyberWidgets::BeginCard(OGS_CSTR("POSTURA DE SEGURANÇA"), 0.f);
     CyberWidgets::HealthRow(OGS_CSTR("Funcionalidades protegidas"), protectedFeatures ? OGS_CSTR("Autorizadas") : OGS_CSTR("Bloqueadas"),

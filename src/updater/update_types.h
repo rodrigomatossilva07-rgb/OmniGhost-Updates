@@ -49,12 +49,12 @@ struct Configuration {
 
     std::string releasesApiUrl = OGS_LIT("https://api.github.com/repos/rodrigomatossilva07-rgb/OmniGhost-Updates/releases?per_page=30");
     std::string manifestUrl = OGS_LIT("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest/download/update.json");
-    // DEV Config channel (separate manifest for admin testing)
+
     std::string devManifestUrl = OGS_LIT("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates-DEV/releases/latest/download/update.json");
     std::string devReleasesApiUrl = OGS_LIT("https://api.github.com/repos/rodrigomatossilva07-rgb/OmniGhost-Updates-DEV/releases?per_page=30");
-    // Private Development manifests are fetched through the authenticated
-    // website session.  The package itself is a short-lived signed URL issued
-    // by Supabase Storage, never a public GitHub asset.
+
+
+
     std::string privateDevelopmentManifestPath = "/api/launcher/development/latest";
     std::string expectedAppId = "com.omnighost.launcher";
     std::string allowedPackageUrlPrefix = OGS_LIT("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/download/");

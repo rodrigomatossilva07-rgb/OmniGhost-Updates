@@ -1,35 +1,35 @@
-﻿<#
-.SYNOPSIS
-    Verifies that a build is reproducible by building twice and comparing outputs.
+﻿
 
-.DESCRIPTION
-    Performs a clean build, records the binary hash, rebuilds from scratch in a
-    separate directory, and compares the resulting binaries byte-for-byte.
 
-.PARAMETER ProjectDir
-    Path to project root (default: current directory)
 
-.PARAMETER PrimaryExecutable
-    Path to the primary executable to verify (relative to ProjectDir)
 
-.PARAMETER MSBuildPath
-    Path to MSBuild.exe (auto-detected if not provided)
 
-.PARAMETER Config
-    Build configuration to test (default: Publish)
 
-.PARAMETER CleanBetweenBuilds
-    Whether to do a full clean between builds (default: true)
 
-.PARAMETER ComparePDBs
-    Whether to compare PDB files as well (default: false)
 
-.EXAMPLE
-    .\Verify-ReproducibleBuild.ps1 -ProjectDir "." -PrimaryExecutable "build/Publish/OmniGhost.exe"
 
-.EXAMPLE
-    .\Verify-ReproducibleBuild.ps1 -Config Release -ComparePDBs
-#>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 [CmdletBinding()]
 param(
@@ -54,9 +54,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# -----------------------------------------------------------------------------
-# Helpers
-# -----------------------------------------------------------------------------
+
+
+
 function Write-Log {
     param(
         [string]$Message,
@@ -78,7 +78,7 @@ function Get-MSBuildPath {
     if ($MSBuildPath -and (Test-Path $MSBuildPath)) {
         return $MSBuildPath
     }
-    # Try VS 2022
+
     $vsWhere = "${env:ProgramFiles}\Microsoft Visual Studio\Installer\vswhere.exe"
     if (Test-Path $vsWhere) {
         $vsPath = & $vsWhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
@@ -87,7 +87,7 @@ function Get-MSBuildPath {
             if (Test-Path $msbuild) { return $msbuild }
         }
     }
-    # Fallback
+
     $candidates = @(
         "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe",
         "${env:ProgramFiles}\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe",
@@ -124,9 +124,9 @@ function Compare-Files {
     }
 }
 
-# -----------------------------------------------------------------------------
-# Main
-# -----------------------------------------------------------------------------
+
+
+
 $projectRoot = Resolve-Path $ProjectDir
 $exePath = Join-Path $projectRoot $PrimaryExecutable
 $msbuild = Get-MSBuildPath
@@ -145,7 +145,7 @@ if (-not (Test-Path $exePath)) {
 $buildDir1 = Join-Path $projectRoot "build_repro_1"
 $buildDir2 = Join-Path $projectRoot "build_repro_2"
 
-# Build 1
+
 Write-Log "`n=== BUILD 1 ===" -Level Info
 if ($CleanBetweenBuilds -and (Test-Path $buildDir1)) {
     Remove-Item -Recurse -Force $buildDir1 -ErrorAction SilentlyContinue
@@ -166,7 +166,7 @@ if ($LASTEXITCODE -ne 0) {
 $exe1 = Join-Path $buildDir1 "OmniGhost.exe"
 $pdb1 = Join-Path $buildDir1 "OmniGhost.pdb"
 
-# Build 2
+
 Write-Log "`n=== BUILD 2 ===" -Level Info
 if ($CleanBetweenBuilds -and (Test-Path $buildDir2)) {
     Remove-Item -Recurse -Force $buildDir2 -ErrorAction SilentlyContinue
@@ -187,7 +187,7 @@ if ($LASTEXITCODE -ne 0) {
 $exe2 = Join-Path $buildDir2 "OmniGhost.exe"
 $pdb2 = Join-Path $buildDir2 "OmniGhost.pdb"
 
-# Compare
+
 Write-Log "`n=== COMPARISON ===" -Level Info
 
 $allMatch = $true
@@ -198,7 +198,7 @@ if ($ComparePDBs) {
     $allMatch = Compare-Files -File1 $pdb1 -File2 $pdb2 -Label "OmniGhost.pdb" -and $allMatch
 }
 
-# Also compare any other DLLs in output
+
 $dlls1 = Get-ChildItem -Path $buildDir1 -Filter "*.dll" -File
 $dlls2 = Get-ChildItem -Path $buildDir2 -Filter "*.dll" -File
 
@@ -209,7 +209,7 @@ foreach ($dll1 in $dlls1) {
     }
 }
 
-# Summary
+
 Write-Log "`n============================================================"
 Write-Log "REPRODUCIBLE BUILD VERIFICATION RESULT"
 Write-Log "============================================================"

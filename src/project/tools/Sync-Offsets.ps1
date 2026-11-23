@@ -1,32 +1,32 @@
-<#
-.SYNOPSIS
-    Synchronizes OmniGhost game offsets from upstream sources.
 
-.DESCRIPTION
-    Fetches latest offsets from known upstream sources (a2x/dumper repos, rustoffsets.com, etc.)
-    and updates local offset JSON files. Validates against schema v7 before committing.
 
-.PARAMETER Game
-    Specific game to sync (cs2, fivem, fortnite, warzone, apex, rust). Empty = all.
 
-.PARAMETER Force
-    Force update even if local offsets appear current.
 
-.PARAMETER DryRun
-    Show what would be updated without making changes.
 
-.PARAMETER Verbose
-    Verbose output.
 
-.EXAMPLE
-    .\Sync-Offsets.ps1
 
-.EXAMPLE
-    .\Sync-Offsets.ps1 -Game cs2 -Force -Verbose
 
-.EXAMPLE
-    .\Sync-Offsets.ps1 -DryRun
-#>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 [CmdletBinding()]
 param(
@@ -46,9 +46,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# -----------------------------------------------------------------------------
-# Configuration
-# -----------------------------------------------------------------------------
+
+
+
 $OFFSET_SOURCES = @{
     'cs2' = @{
         Url = 'https://raw.githubusercontent.com/a2x/cs2-dumper/main/output/offsets.json'
@@ -85,9 +85,9 @@ $OFFSET_SOURCES = @{
 $SCHEMA_VERSION = 7
 $DATA_DIR = "src/project/data"
 
-# -----------------------------------------------------------------------------
-# Helpers
-# -----------------------------------------------------------------------------
+
+
+
 function Write-Log {
     param(
         [string]$Message,
@@ -147,15 +147,15 @@ function Fetch-UpstreamOffsets {
 
 function Merge-Offsets {
     param($Local, $Upstream, [string]$Game)
-    # For now, we preserve local structure and only update values from upstream
-    # that match our schema. Full merge logic would be more complex.
-    # This is a placeholder - real implementation would do proper merge.
+
+
+
     return $Local
 }
 
-# -----------------------------------------------------------------------------
-# Main
-# -----------------------------------------------------------------------------
+
+
+
 Write-Log "OmniGhost Offset Synchronization"
 Write-Log "Target game(s): ${Game}"
 Write-Log "Force update: ${Force}"
@@ -176,7 +176,7 @@ foreach ($gameName in $gamesToSync) {
 
     Write-Log "`nProcessing: ${gameName}"
 
-    # Fetch upstream
+
     Write-Log "  Fetching from ${source.Url}..."
     $upstream = Fetch-UpstreamOffsets -Source $source
     if (-not $upstream) {
@@ -185,7 +185,7 @@ foreach ($gameName in $gamesToSync) {
         continue
     }
 
-    # Load local
+
     if (-not (Test-Path $localFile)) {
         Write-Log "  Local file not found: ${localFile}" -Level Warn
         $results[$gameName] = @{ status = 'local_missing' }
@@ -194,7 +194,7 @@ foreach ($gameName in $gamesToSync) {
 
     $local = Read-JsonFile -FilePath $localFile
 
-    # Check if update needed (compare build/version)
+
     $localBuild = $local.build ?? $local.version ?? 'unknown'
     $upstreamBuild = $upstream.build ?? $upstream.version ?? $upstream.build_id ?? 'unknown'
 
@@ -218,14 +218,14 @@ foreach ($gameName in $gamesToSync) {
         continue
     }
 
-    # TODO: Implement proper merge logic based on game-specific structure
-    # For now, we log the availability but don't auto-merge
+
+
     Write-Log "  MANUAL MERGE REQUIRED: Review upstream changes and merge into ${localFile}" -Level Warn
     $results[$gameName] = @{ status = 'manual_merge_required', from = $localBuild, to = $upstreamBuild }
     $changed = $true
 }
 
-# Summary
+
 Write-Log "`n============================================================"
 Write-Log "SYNC SUMMARY"
 Write-Log "============================================================"
@@ -241,11 +241,11 @@ foreach ($gameName in $results.Keys) {
     }
 }
 
-# Exit code for CI
+
 $anyUpdates = $results.Values | Where-Object { $_.status -in @('would_update', 'manual_merge_required') }
 if ($anyUpdates) {
     Write-Log "CHANGES DETECTED" -Level Info
-    exit 0  # Exit 0 with changes detected
+    exit 0
 } else {
     Write-Log "NO CHANGES" -Level Pass
     exit 0

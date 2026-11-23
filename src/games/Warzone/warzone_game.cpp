@@ -16,7 +16,7 @@ Config config{};
 Runtime runtime{};
 std::atomic_bool ready{false};
 
-// Snapshot de offsets carregado do JSON
+
 OmniGhost::EmbeddedOffsets::Snapshot g_offset_snapshot{};
 
 namespace {
@@ -58,7 +58,7 @@ void AddUnique(std::vector<std::uintptr_t>& values, std::uintptr_t value) {
         values.push_back(value);
 }
 
-// Helper para obter offset do snapshot
+
 inline std::uintptr_t GetOffset(const char* path, std::uintptr_t fallback = 0) {
     std::uint64_t value = 0;
     if (g_offset_snapshot.TryGet(path, value) && value != 0)
@@ -66,7 +66,7 @@ inline std::uintptr_t GetOffset(const char* path, std::uintptr_t fallback = 0) {
     return fallback;
 }
 
-// Offsets resolvidos em runtime
+
 struct RuntimeOffsets {
     std::uintptr_t ref_def = 0;
     std::uintptr_t name_array = 0;
@@ -76,7 +76,7 @@ struct RuntimeOffsets {
     std::uintptr_t max_player_count = 0;
     std::uintptr_t game_mode = 0;
 
-    // Decrypt RVAs
+
     std::uintptr_t client_info_enc = 0;
     std::uintptr_t client_info_key = 0;
     std::uintptr_t client_base_enc = 0;
@@ -87,7 +87,7 @@ struct RuntimeOffsets {
     std::uintptr_t stub_client_base = 0;
     std::uintptr_t stub_bone_base = 0;
 
-    // Camera offsets
+
     std::uintptr_t cam_pos = 0;
     std::uintptr_t cam_pos_enc = 0;
     std::uintptr_t cam_pos_key = 0;
@@ -95,7 +95,7 @@ struct RuntimeOffsets {
     std::uintptr_t cam_angles_b = 0;
     std::uintptr_t cam_angles_c = 0;
 
-    // Local player
+
     std::uintptr_t local_index = 0;
     std::uintptr_t local_index_pos = 0;
     std::uintptr_t visible_client_bits = 0;
@@ -103,7 +103,7 @@ struct RuntimeOffsets {
     std::uintptr_t scoreboard = 0;
     std::uintptr_t scoreboard_size = 0;
 
-    // Player struct
+
     std::uintptr_t player_size = 0;
     std::uintptr_t player_valid = 0;
     std::uintptr_t player_pos = 0;
@@ -116,7 +116,7 @@ struct RuntimeOffsets {
     std::uintptr_t player_health = 0;
     std::uintptr_t player_armor = 0;
 
-    // Bone
+
     std::uintptr_t bone_base_pos = 0;
     std::uintptr_t bone_size = 0;
     std::uintptr_t bone_offset = 0;
@@ -134,7 +134,7 @@ bool LoadRuntimeOffsets() {
     }
     g_offset_snapshot = std::move(result.snapshot);
 
-    // Root offsets
+
     g_offsets.ref_def = GetOffset("_root.ref_def");
     g_offsets.name_array = GetOffset("_root.name_array");
     g_offsets.camera_base = GetOffset("_root.camera_base");
@@ -143,7 +143,7 @@ bool LoadRuntimeOffsets() {
     g_offsets.max_player_count = GetOffset("_root.max_player_count");
     g_offsets.game_mode = GetOffset("_root.game_mode");
 
-    // Decrypt RVAs
+
     g_offsets.client_info_enc = GetOffset("decrypt_rva.client_info_enc");
     g_offsets.client_info_key = GetOffset("decrypt_rva.client_info_key");
     g_offsets.client_base_enc = GetOffset("decrypt_rva.client_base_enc");
@@ -154,7 +154,7 @@ bool LoadRuntimeOffsets() {
     g_offsets.stub_client_base = GetOffset("decrypt_rva.stub_client_base");
     g_offsets.stub_bone_base = GetOffset("decrypt_rva.stub_bone_base");
 
-    // Camera
+
     g_offsets.cam_pos = GetOffset("camera.pos");
     g_offsets.cam_pos_enc = GetOffset("camera.pos_enc");
     g_offsets.cam_pos_key = GetOffset("camera.pos_key");
@@ -162,7 +162,7 @@ bool LoadRuntimeOffsets() {
     g_offsets.cam_angles_b = GetOffset("camera.angles_b");
     g_offsets.cam_angles_c = GetOffset("camera.angles_c");
 
-    // Local
+
     g_offsets.local_index = GetOffset("local.index");
     g_offsets.local_index_pos = GetOffset("local.index_pos");
     g_offsets.visible_client_bits = GetOffset("local.visible_client_bits");
@@ -170,7 +170,7 @@ bool LoadRuntimeOffsets() {
     g_offsets.scoreboard = GetOffset("local.scoreboard");
     g_offsets.scoreboard_size = GetOffset("local.scoreboard_size");
 
-    // Player
+
     g_offsets.player_size = GetOffset("player.size");
     g_offsets.player_valid = GetOffset("player.valid");
     g_offsets.player_pos = GetOffset("player.pos");
@@ -183,7 +183,7 @@ bool LoadRuntimeOffsets() {
     g_offsets.player_health = GetOffset("player.health");
     g_offsets.player_armor = GetOffset("player.armor");
 
-    // Bone
+
     g_offsets.bone_base_pos = GetOffset("bone.base_pos");
     g_offsets.bone_size = GetOffset("bone.size");
     g_offsets.bone_offset = GetOffset("bone.offset");
@@ -192,7 +192,7 @@ bool LoadRuntimeOffsets() {
     g_offsets.bone_chest = GetOffset("bone.chest", 5);
     g_offsets.bone_pelvis = GetOffset("bone.pelvis", 2);
 
-    // Valida offsets críticos
+
     if (!g_offsets.ref_def || !g_offsets.entity_list || !g_offsets.camera_base ||
         !g_offsets.view_matrix || !g_offsets.player_size || !g_offsets.player_pos) {
         runtime.status = "Offsets críticos ausentes no JSON";
@@ -203,7 +203,7 @@ bool LoadRuntimeOffsets() {
     return true;
 }
 
-// Warzone usa XOR decryption para client info
+
 inline std::uint64_t DecryptClientInfo(std::uint64_t enc, std::uint64_t key) {
     return enc ^ key;
 }
@@ -213,15 +213,15 @@ inline std::uint64_t DecryptBone(std::uint64_t enc, std::uint64_t key) {
 }
 
 bool TryPlayer(std::uintptr_t entity, Player& player) {
-    // Validação básica
+
     if (!entity) return false;
 
-    // Lê player struct
+
     std::uint8_t valid = 0;
     if (!ReadValue(entity + g_offsets.player_valid, valid) || !valid)
         return false;
 
-    // Posição
+
     std::uintptr_t posData = 0;
     if (!ReadValue(entity + g_offsets.player_pos_data, posData) || !posData)
         return false;
@@ -230,22 +230,22 @@ bool TryPlayer(std::uintptr_t entity, Player& player) {
     if (!ReadValue(posData + g_offsets.player_pos, position) || !IsVector(position))
         return false;
 
-    // Health/Armor
+
     float health = 0.f, armor = 0.f;
     if (!ReadValue(entity + g_offsets.player_health, health) ||
         !ReadValue(entity + g_offsets.player_armor, armor) ||
         health <= 0.f || health > 1000.f)
         return false;
 
-    // Team
+
     std::int16_t team = 0;
     ReadValue(entity + g_offsets.player_team, team);
 
-    // Weapon
+
     std::int16_t weaponIdx = 0;
     ReadValue(entity + g_offsets.player_weapon_index, weaponIdx);
 
-    // Stance
+
     std::uint8_t stance = 0;
     ReadValue(entity + g_offsets.player_stance, stance);
 
@@ -307,7 +307,7 @@ void ReadPlayers(const std::vector<std::uintptr_t>& raw) {
         ? "Sem jogadores validos" : "Posicoes validadas";
 }
 
-// Warzone camera decryption helper
+
 bool DecryptCamera(float* outPos, float* outRot) {
     if (!g_offsets.camera_base) return false;
 
@@ -315,7 +315,7 @@ bool DecryptCamera(float* outPos, float* outRot) {
     if (!ReadPointer(runtime.game_base + g_offsets.camera_base, camBase) || !camBase)
         return false;
 
-    // Posição (pode ser encrypted)
+
     std::uint64_t posEnc = 0;
     std::uint64_t posKey = 0;
     if (!ReadValue(camBase + g_offsets.cam_pos_enc, posEnc) ||
@@ -327,7 +327,7 @@ bool DecryptCamera(float* outPos, float* outRot) {
     if (!ReadExact(reinterpret_cast<std::uintptr_t>(&posDec), pos, sizeof(pos)))
         return false;
 
-    // Ângulos
+
     float angles[3]{};
     if (!ReadValue(camBase + g_offsets.cam_angles_a, angles[0]) ||
         !ReadValue(camBase + g_offsets.cam_angles_b, angles[1]) ||
@@ -346,7 +346,7 @@ bool ReadCamera() {
         return false;
     }
 
-    // View matrix
+
     float matrix[16]{};
     if (!ReadExact(runtime.game_base + g_offsets.view_matrix, matrix, sizeof(matrix))) {
         runtime.camera_status = "Falha ao ler view matrix";
@@ -399,7 +399,7 @@ void Update(bool processProbe) {
     else runtime.status = "Warzone ESP ativa";
 }
 
-} // namespace
+}
 
 bool Attach() {
     Shutdown();
@@ -446,4 +446,4 @@ bool IsGameProcessAlive() { return mem.GetPidFromName(kProcessName) != 0; }
 bool ValidateLiveOffsets() { Update(true); return runtime.modules_ok && runtime.offset_catalog_ok; }
 const char* StatusLine() { return runtime.status.c_str(); }
 
-} // namespace Warzone
+}

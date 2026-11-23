@@ -4,9 +4,9 @@
 #include "platform/app_paths.h"
 
 #include <nlohmann/json.hpp>
-#include <nlohmann/json_schema.hpp>
 #include <fstream>
 #include <shared_mutex>
+#include <utility>
 
 namespace OmniGhost::Config {
 
@@ -54,8 +54,7 @@ Expected<void> ConfigSchemaValidator::Initialize(const std::filesystem::path& sc
             nlohmann::json schemaJson;
             file >> schemaJson;
 
-            auto validator = std::make_unique<JsonSchemaValidator>(schemaJson);
-            validators_[static_cast<size_t>(id)] = std::move(validator);
+            schemas_[static_cast<size_t>(id)] = std::move(schemaJson);
             initialized_[static_cast<size_t>(id)] = true;
 
             OGS_LOG_INFO("[ConfigSchemaValidator] Loaded schema: {} ({})", filename, SchemaIdToString(id));
@@ -78,21 +77,45 @@ ConfigSchemaValidator::ValidationResult ConfigSchemaValidator::Validate(
     std::shared_lock lock(mutex_);
     const size_t index = static_cast<size_t>(schemaId);
 
-    if (!initialized_[index] || !validators_[index]) {
+    if (!initialized_[index]) {
         result.valid = false;
         result.errors.push_back("Schema not initialized: " + std::string(SchemaIdToString(schemaId)));
         return result;
     }
 
-    try {
-        validators_[index]->validate(json);
-        result.valid = true;
-    } catch (const nlohmann::json_schema::validation_error& ex) {
+    const auto& schema = schemas_[index];
+    if (!json.is_object()) {
         result.valid = false;
-        result.errors.push_back(ex.what());
-    } catch (const std::exception& ex) {
-        result.valid = false;
-        result.errors.push_back("Validation error: " + std::string(ex.what()));
+        result.errors.push_back("Configuration root must be an object");
+        return result;
+    }
+
+    if (const auto required = schema.find("required"); required != schema.end() && required->is_array()) {
+        for (const auto& key : *required) {
+            if (key.is_string() && !json.contains(key.get_ref<const std::string&>())) {
+                result.valid = false;
+                result.errors.push_back("Missing required property: " + key.get<std::string>());
+            }
+        }
+    }
+
+    if (const auto properties = schema.find("properties"); properties != schema.end() && properties->is_object()) {
+        for (const auto& [key, rule] : properties->items()) {
+            const auto value = json.find(key);
+            if (value == json.end() || !rule.is_object()) continue;
+            const auto type = rule.value("type", std::string{});
+            const bool matches = type.empty() ||
+                (type == "string" && value->is_string()) ||
+                (type == "boolean" && value->is_boolean()) ||
+                (type == "integer" && value->is_number_integer()) ||
+                (type == "number" && value->is_number()) ||
+                (type == "object" && value->is_object()) ||
+                (type == "array" && value->is_array());
+            if (!matches) {
+                result.valid = false;
+                result.errors.push_back("Invalid type for property: " + key);
+            }
+        }
     }
 
     return result;
@@ -110,12 +133,13 @@ Expected<ConfigSchemaValidator::ValidationResult> ConfigSchemaValidator::Validat
         std::ifstream file(filePath);
         nlohmann::json json;
         file >> json;
-        return Success(Validate(json, schemaId));
+        ValidationResult validation = Validate(json, schemaId);
+        return Success<ValidationResult>(std::move(validation));
     } catch (const nlohmann::json::parse_error& ex) {
         ValidationResult result;
         result.valid = false;
         result.errors.push_back("JSON parse error: " + std::string(ex.what()));
-        return Success(result);
+        return Success<ValidationResult>(std::move(result));
     } catch (const std::exception& ex) {
         return Failure<ValidationResult>(ErrorCode::IOError, "Failed to read file: " + std::string(ex.what()));
     }
@@ -124,11 +148,7 @@ Expected<ConfigSchemaValidator::ValidationResult> ConfigSchemaValidator::Validat
 std::optional<nlohmann::json> ConfigSchemaValidator::GetSchema(SchemaId id) const noexcept {
     std::shared_lock lock(mutex_);
     const size_t index = static_cast<size_t>(id);
-    if (initialized_[index] && validators_[index]) {
-        // Return the schema JSON (we'd need to store it separately)
-        // For now, return empty
-        return std::nullopt;
-    }
+    if (initialized_[index]) return schemas_[index];
     return std::nullopt;
 }
 

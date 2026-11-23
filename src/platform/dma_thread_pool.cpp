@@ -3,7 +3,7 @@
 namespace OmniGhost::Platform {
 
 DmaThreadPool::DmaThreadPool(size_t threadCount) {
-    // std::thread::hardware_concurrency() is allowed to return zero.
+
     if (threadCount == 0) {
         threadCount = 1;
     }
@@ -19,4 +19,4 @@ DmaThreadPool::~DmaThreadPool() {
     Shutdown();
 }
 
-} // namespace OmniGhost::Platform
+}

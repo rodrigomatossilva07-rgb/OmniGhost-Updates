@@ -14,55 +14,55 @@
 
 namespace OmniGhost::Games {
 
-// =============================================================================
-// IGameModule - Interface for game-specific modules
-// =============================================================================
-// Each game (CS2, Rust, FiveM, etc.) implements this interface
-// to provide its specific functionality through dependency injection.
+
+
+
+
+
 
 class IGameModule {
 public:
     virtual ~IGameModule() = default;
 
-    // Game identification
+
     [[nodiscard]] virtual std::string_view GetGameId() const noexcept = 0;
     [[nodiscard]] virtual std::string_view GetGameName() const noexcept = 0;
     [[nodiscard]] virtual ::Launcher::GameId GetLauncherGameId() const noexcept = 0;
 
-    // Lifecycle
+
     virtual Expected<void> Initialize(OmniGhost::Platform::ServiceContainer& container) = 0;
     virtual Expected<void> Shutdown() = 0;
     virtual Expected<void> Update(float deltaTime) = 0;
 
-    // Game state
+
     [[nodiscard]] virtual bool IsGameRunning() const noexcept = 0;
     [[nodiscard]] virtual bool IsAttached() const noexcept = 0;
     [[nodiscard]] virtual bool IsInGame() const noexcept = 0;
 
-    // Offsets
+
     virtual Expected<void> LoadOffsets() = 0;
     virtual Expected<void> ReloadOffsets() = 0;
     [[nodiscard]] virtual bool HasValidOffsets() const noexcept = 0;
 
-    // Features
+
     virtual Expected<void> EnableFeatures() = 0;
     virtual Expected<void> DisableFeatures() = 0;
 
-    // UI/Config
+
     virtual void DrawSettings() = 0;
     virtual void DrawDebugInfo() = 0;
 
-    // Serialization
+
     virtual Expected<void> SaveConfig() = 0;
     virtual Expected<void> LoadConfig() = 0;
 
-    // Diagnostics
+
     [[nodiscard]] virtual std::string GetDiagnosticsInfo() const = 0;
 };
 
-// =============================================================================
-// IGameModuleFactory - Factory for creating game modules
-// =============================================================================
+
+
+
 
 class IGameModuleFactory {
 public:
@@ -74,9 +74,9 @@ public:
     [[nodiscard]] virtual ::Launcher::GameId GetLauncherGameId() const noexcept = 0;
 };
 
-// =============================================================================
-// GameModuleRegistry - Registry for game modules
-// =============================================================================
+
+
+
 
 class GameModuleRegistry {
 public:
@@ -85,22 +85,22 @@ public:
         return instance;
     }
 
-    // Register a game module factory
+
     void RegisterFactory(std::unique_ptr<IGameModuleFactory> factory);
 
-    // Get factory by game ID
+
     [[nodiscard]] IGameModuleFactory* GetFactory(std::string_view gameId) const noexcept;
     [[nodiscard]] IGameModuleFactory* GetFactory(::Launcher::GameId launcherGameId) const noexcept;
 
-    // Create module instance
+
     [[nodiscard]] Expected<std::unique_ptr<IGameModule>> CreateModule(
         std::string_view gameId,
         OmniGhost::Platform::ServiceContainer& container);
 
-    // Get all registered game IDs
+
     [[nodiscard]] std::vector<std::string_view> GetRegisteredGameIds() const noexcept;
 
-    // Check if game is registered
+
     [[nodiscard]] bool IsRegistered(std::string_view gameId) const noexcept;
 
 private:
@@ -114,9 +114,9 @@ private:
     std::unordered_map<::Launcher::GameId, IGameModuleFactory*> launcherIdMap_;
 };
 
-// =============================================================================
-// Registration Macro
-// =============================================================================
+
+
+
 
 #define OGS_REGISTER_GAME_MODULE(GameModuleClass) \
     namespace { \
@@ -130,7 +130,7 @@ private:
         static GameModuleClass##_Registrar g_##GameModuleClass##_registrar; \
     }
 
-// Template factory implementation
+
 template <typename T>
 class GameModuleFactoryImpl : public OmniGhost::Games::IGameModuleFactory {
 public:
@@ -148,7 +148,7 @@ public:
     }
 };
 
-// Base class for game modules (optional helper)
+
 class GameModuleBase : public IGameModule {
 public:
     explicit GameModuleBase(OmniGhost::Platform::ServiceContainer& container)
@@ -170,4 +170,4 @@ protected:
     }
 };
 
-} // namespace OmniGhost::Games
+}

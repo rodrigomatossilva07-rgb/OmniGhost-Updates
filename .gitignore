@@ -61,3 +61,7 @@ imgui.ini
 
 /src/project/data/fivem/collision*/
 
+# Local collision-map staging output.  These generated copies are embedded by
+# the build pipeline and must never be committed to the source repository.
+/src/project/src/
+

@@ -30,11 +30,11 @@ inline constexpr std::array<EmbeddedResourceDescriptor, 0> kEmbeddedResourceCata
 
 namespace OmniGhost {
 
-// Use standard std::span-based types
+
 using EmbeddedByteView = OmniGhost::ByteSpan;
 using MutableEmbeddedByteView = OmniGhost::MutableByteSpan;
 
-// Helper to create EmbeddedByteView from vector (for compatibility)
+
 [[nodiscard]] inline EmbeddedByteView MakeEmbeddedByteView(const std::vector<std::uint8_t>& data) noexcept {
     return OmniGhost::AsBytes(data);
 }

@@ -1,24 +1,24 @@
-<#
-.SYNOPSIS
-    Validates OmniGhost project structure and conventions.
 
-.DESCRIPTION
-    Comprehensive validation of project structure including:
-    - Required directories and files
-    - Source file encoding (UTF-8 without BOM)
-    - Line endings (CRLF for Windows)
-    - JSON file validity
-    - CMakeLists.txt consistency
-    - vcpkg.json consistency
-    - Forbidden patterns (hardcoded paths, TODO/FIXME/HACK comments)
-    - License headers
 
-.EXAMPLE
-    .\Validate-Structure.ps1
 
-.EXAMPLE
-    .\Validate-Structure.ps1 -Verbose
-#>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 [CmdletBinding()]
 param(
@@ -28,9 +28,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# -----------------------------------------------------------------------------
-# Configuration
-# -----------------------------------------------------------------------------
+
+
+
 $REQUIRED_DIRS = @(
     "src/auth",
     "src/config",
@@ -98,9 +98,9 @@ $REQUIRED_HEADERS = @(
 
 $EXCLUDED_DIRS = @('third_party', '.cache', 'build', '.vs', '.git', 'vcpkg', 'packages', 'dumper', 'node_modules', 'target')
 
-# -----------------------------------------------------------------------------
-# Helpers
-# -----------------------------------------------------------------------------
+
+
+
 function Write-Log {
     param(
         [string]$Message,
@@ -154,15 +154,15 @@ function Get-CrlfFiles {
 
 function Get-JsonFiles {
     $files = Get-ChildItem -Path "." -Recurse -Filter "*.json" -File -ErrorAction SilentlyContinue
-    return $files | Where-Object { 
-        -not (Is-Excluded $_.FullName) -and 
+    return $files | Where-Object {
+        -not (Is-Excluded $_.FullName) -and
         $_.Name -ne "package-lock.json"
     }
 }
 
-# -----------------------------------------------------------------------------
-# Validation Functions
-# -----------------------------------------------------------------------------
+
+
+
 function Check-Directories {
     $errors = @()
     foreach ($dir in $REQUIRED_DIRS) {
@@ -187,7 +187,7 @@ function Check-SourceFiles {
     $errors = @()
     $warnings = @()
     $files = Get-SourceFiles
-    
+
     foreach ($file in $files) {
         try {
             $content = Get-Content $file.FullName -Raw -Encoding UTF8
@@ -202,10 +202,10 @@ function Check-SourceFiles {
                 continue
             }
         }
-        
+
         $relPath = $file.FullName.Replace((Get-Location).Path + "\", "")
-        
-        # Check forbidden patterns
+
+
         foreach ($fp in $FORBIDDEN_PATTERNS) {
             if ($content -match $fp.Pattern) {
                 if ($fp.Pattern -in @('TODO:', 'FIXME:', 'HACK:', 'XXX:', 'TEMP:')) {
@@ -216,8 +216,8 @@ function Check-SourceFiles {
                 }
             }
         }
-        
-        # Check license header
+
+
         if ($file.Extension -in @('.cpp', '.h', '.hpp', '.inl')) {
             $hasHeader = $false
             foreach ($header in $REQUIRED_HEADERS) {
@@ -230,8 +230,8 @@ function Check-SourceFiles {
                 $warnings += "${relPath}: Missing license header"
             }
         }
-        
-        # Check BOM
+
+
         if ($content.StartsWith([char]0xFEFF)) {
             $warnings += "${relPath}: UTF-8 BOM detected"
         }
@@ -242,7 +242,7 @@ function Check-SourceFiles {
 function Check-Encoding {
     $warnings = @()
     $files = Get-TextFiles
-    
+
     foreach ($file in $files) {
         try {
             $bytes = [System.IO.File]::ReadAllBytes($file.FullName)
@@ -265,7 +265,7 @@ $warnings += "${relPath}: UTF-16 BOM detected (should be UTF-8)"
 function Check-LineEndings {
     $warnings = @()
     $files = Get-CrlfFiles
-    
+
     foreach ($file in $files) {
         try {
             $content = [System.IO.File]::ReadAllBytes($file.FullName)
@@ -292,26 +292,26 @@ function Check-LineEndings {
 function Check-JsonFiles {
     $errors = @()
     $files = Get-JsonFiles
-    
+
     foreach ($file in $files) {
         try {
             $bytes = [System.IO.File]::ReadAllBytes($file.FullName)
             $hasBom = $false
-            
+
             if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
                 $hasBom = $true
                 $basePath = (Get-Location).Path
 $relPath = $file.FullName.Replace($basePath + "\", "")
 $errors += "${relPath}: UTF-8 BOM in JSON file"
             }
-            
-            # Remove BOM if present before parsing JSON
+
+
             if ($hasBom) {
                 $content = [System.Text.Encoding]::UTF8.GetString($bytes, 3, $bytes.Length - 3)
             } else {
                 $content = [System.Text.Encoding]::UTF8.GetString($bytes)
             }
-            
+
             $json = $content | ConvertFrom-Json
         }
         catch {
@@ -329,9 +329,9 @@ function Check-CmakeConsistency {
     if (-not (Test-Path $cmakeFile)) {
         return @("CMakeLists.txt not found")
     }
-    
+
     $content = Get-Content $cmakeFile -Raw -Encoding UTF8
-    
+
     if ($content -match 'C:\\\\') {
         $warnings += "CMakeLists.txt: Contains hardcoded Windows paths"
     }
@@ -350,11 +350,11 @@ function Check-VcpkgConsistency {
     if (-not (Test-Path $vcpkgFile)) {
         return @("vcpkg.json not found")
     }
-    
+
     try {
         $content = Get-Content $vcpkgFile -Raw -Encoding UTF8
         $vcpkg = $content | ConvertFrom-Json -Depth 100
-        
+
         $deps = $vcpkg.dependencies
         if ($deps) {
             $unpinned = $deps | Where-Object { $_ -is [System.Collections.Hashtable] -and $_.ContainsKey('version>=') -and -not $_.ContainsKey('version') }
@@ -362,7 +362,7 @@ function Check-VcpkgConsistency {
                 $warnings += "vcpkg.json: $($unpinned.Count) dependencies use version>= without explicit version"
             }
         }
-        
+
         if (-not $vcpkg.PSObject.Properties.Match('builtin-baseline')) {
             $warnings += "vcpkg.json: Missing builtin-baseline for reproducibility"
         }
@@ -373,9 +373,9 @@ function Check-VcpkgConsistency {
     return $warnings
 }
 
-# -----------------------------------------------------------------------------
-# Main
-# -----------------------------------------------------------------------------
+
+
+
 Write-Log ("=" * 60)
 Write-Log "OmniGhost Project Structure Validation"
 Write-Log ("=" * 60)

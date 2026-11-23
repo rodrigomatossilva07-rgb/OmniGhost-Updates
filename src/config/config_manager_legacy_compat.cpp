@@ -292,4 +292,4 @@ bool ReportCommunityConfig(const std::string&, const std::string&) { SetStatus("
 bool WithdrawCommunityConfig(const std::string&) { SetStatus("Comunidade ainda nao esta configurada."); return false; }
 bool RevertCommunityConfig() { SetStatus("Nao existe configuracao comunitaria para reverter."); return false; }
 
-} // namespace config_manager
+}

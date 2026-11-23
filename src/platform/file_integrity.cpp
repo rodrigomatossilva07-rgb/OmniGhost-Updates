@@ -145,7 +145,7 @@ bool Sha256Bytes(OmniGhost::ByteSpan data, std::string& hexDigest, std::string& 
     return Sha256Text(std::string_view(reinterpret_cast<const char*>(data.data()), data.size()), hexDigest, error);
 }
 
-// Legacy compatibility
+
 bool Sha256Bytes(const void* data, std::size_t size, std::string& hexDigest, std::string& error) {
     if (!data && size != 0) {
         hexDigest.clear();

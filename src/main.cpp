@@ -45,9 +45,6 @@
 #include "platform/text_encoding.h"
 #include "platform/window_instance_guard.h"
 #include "platform/logging.h"
-#include "security/security_manager.h"
-#include "security/anti_tamper.h"
-#include "security/security_manager_factory.h"
 #include "platform/service_container.h"
 #include "games/igame_module.h"
 #include "platform/ioffset_manager.h"
@@ -285,7 +282,6 @@ int RunDmaIntegrationTest(int argc, wchar_t** argv) {
     }
 
     OmniGhost::SessionLog::Initialize();
-    if (!OmniGhost::Security::SecurityManager::Instance().VerifyHostExecutablePresent()) return 10;
     std::wstring executable;
     unsigned long expectedPid = 0;
     unsigned long long expectedHwnd = 0;
@@ -326,7 +322,6 @@ int RunDmaIntegrationTest(int argc, wchar_t** argv) {
     }
     if (!allowed) return 102;
     if (OmniGhost::RuntimeBootstrap::Prepare() == OmniGhost::RuntimeBootstrap::Result::Failed) return 6;
-    if (!OmniGhost::Security::SecurityManager::Instance().VerifyProtectedFiles()) return 11;
     if (!mem.Init(processName, true, false)) return 6;
     if (mem.GetPidFromName(processName) != expectedPid) return 7;
     const uintptr_t base = mem.GetBaseDaddy(processName);
@@ -406,12 +401,6 @@ int RunOmniGhost(int argc, wchar_t** argv) {
     OmniGhost::SessionLog::SetStartReason(
         (argc > 1 && argv && argv[1]) ? OmniGhost::Platform::WideToUtf8(argv[1]) : "normal");
     OmniGhost::SessionLog::Initialize();
-    if (!OmniGhost::Security::SecurityManager::Instance().VerifyHostExecutablePresent()) {
-        MessageBoxW(nullptr, L"Não foi possível confirmar o executável da aplicação (SEC-004).",
-                    L"OmniGhost", MB_OK | MB_ICONERROR);
-        OmniGhost::SessionLog::Shutdown();
-        return 5;
-    }
     const auto bootstrap = OmniGhost::RuntimeBootstrap::Prepare();
     if (bootstrap == OmniGhost::RuntimeBootstrap::Result::Failed) {
         OmniGhost::SessionLog::Shutdown();
@@ -422,18 +411,8 @@ int RunOmniGhost(int argc, wchar_t** argv) {
 
     OmniGhost::Platform::SetCurrentThreadName(L"OmniGhost.Main");
 
-    // Initialize logging system
-    OmniGhost::Logging::InitializeDefaultLogging();
 
-    // Initialize security/anti-tamper
-    const auto startupIntegrity = OmniGhost::Security::SecurityManager::Instance().VerifyStartup();
-    if (!startupIntegrity || !startupIntegrity.value()) {
-        OGS_SEC_LOG_ERROR("Startup integrity checks failed - aborting");
-        MessageBoxW(nullptr, L"Verificação de integridade falhou. A aplicação será encerrada.",
-                    L"OmniGhost - Segurança", MB_OK | MB_ICONERROR);
-        return 1;
-    }
-    OGS_SEC_LOG_INFO("Startup integrity checks passed");
+    OmniGhost::Logging::InitializeDefaultLogging();
 
     DisableProcessWindowsGhosting();
     OmniGhost::CrashHandler::Install();
@@ -483,11 +462,7 @@ int RunOmniGhost(int argc, wchar_t** argv) {
             OmniGhost::SessionLog::Shutdown();
         }
     } session_shutdown_guard;
-    if (!OmniGhost::Security::SecurityManager::Instance().VerifyStartup()) {
-        MessageBoxW(nullptr, L"A instalação não passou a verificação de integridade. Reinstala a versão oficial (SEC-003/004).",
-                    L"OmniGhost", MB_OK | MB_ICONERROR);
-        return 5;
-    }
+
 
 
 
@@ -556,12 +531,12 @@ int RunOmniGhost(int argc, wchar_t** argv) {
     app_settings::Initialize();
     config_manager::Initialize();
 
-    // Initialize Dependency Injection container
+
     (void)OmniGhost::Platform::Services::Instance();
     OmniGhost::Platform::ServiceBuilder builder = OmniGhost::Platform::Services::Builder();
 
-    // Register core services using interfaces
-    // ConfigManager
+
+
     {
         auto factory = OmniGhost::Config::ConfigManagerFactory{};
         auto configResult = factory.Create();
@@ -572,18 +547,7 @@ int RunOmniGhost(int argc, wchar_t** argv) {
         builder.AddInstance<OmniGhost::Config::IConfigManager>(std::move(configResult.value()));
     }
 
-    // SecurityManager
-    {
-        auto factory = OmniGhost::Security::SecurityManagerFactory{};
-        auto securityResult = factory.Create();
-        if (!securityResult) {
-            OGS_LOG_ERROR("[DI] Failed to create SecurityManager: {}", securityResult.error().message);
-            return 1;
-        }
-        builder.AddInstance<OmniGhost::Security::ISecurityManager>(std::move(securityResult.value()));
-    }
 
-    // HardwareManager
     {
         auto factory = OmniGhost::Platform::HardwareManagerFactory{};
         auto hardwareResult = factory.Create();
@@ -594,7 +558,7 @@ int RunOmniGhost(int argc, wchar_t** argv) {
         builder.AddInstance<OmniGhost::Platform::IHardwareManager>(std::move(hardwareResult.value()));
     }
 
-    // OffsetManager
+
     {
         auto factory = OmniGhost::Platform::OffsetManagerFactory{};
         auto offsetResult = factory.Create();
@@ -605,7 +569,7 @@ int RunOmniGhost(int argc, wchar_t** argv) {
         builder.AddInstance<OmniGhost::Platform::IOffsetManager>(std::move(offsetResult.value()));
     }
 
-    // DmaThreadPool
+
     {
         auto factory = OmniGhost::Platform::DmaThreadPoolFactory{};
         auto poolResult = factory.Create();
@@ -616,15 +580,15 @@ int RunOmniGhost(int argc, wchar_t** argv) {
         builder.AddInstance<OmniGhost::Platform::IDmaThreadPool>(std::move(poolResult.value()));
     }
 
-    // Build the container
+
     (void)builder.Build();
 
-    // Initialize game module registry (auto-registers modules via static init)
+
     OGS_LOG_INFO("[DI] Registered game modules: {}",
                  OmniGhost::Games::GameModuleRegistry::Instance().GetRegisteredGameIds().size());
 
-    // Offsets são carregados do EXE (embedded resources) via OmniGhost::EmbeddedOffsets::Load()
-    // O build gera os resources via src/project/tools/Build-EmbeddedOffsets.ps1
+
+
     OGS_LOG_INFO("[Offsets] Usando offsets embedded no EXE (sem hot-reload externo)");
 
     Overlay application;
@@ -681,10 +645,10 @@ while (application.shouldRun && !authenticated) {
     WritePostAuthStage("authenticated");
 
 #if defined(OMNIGHOST_PRIVATE_DEV_BUILD)
-    // A Development executable remains useful only to the explicitly
-    // authorised website administrator.  Do this after the normal login so
-    // the decision is based on the same signed website/KeyAuth session as the
-    // public launcher, never on a local flag or a remembered file.
+
+
+
+
     const auto developmentAccess =
         OmniGhost::Licensing::WebsiteRequest("GET", "/api/launcher/development/access");
     if (!OmniGhost::Licensing::IsAdmin() || developmentAccess.statusCode != 200) {
@@ -782,7 +746,7 @@ while (application.shouldRun && !authenticated) {
 #if defined(OMNIGHOST_PUBLISH_BUILD)
     update_configuration.channel = OmniGhost::Update::Channel::Stable;
 #elif defined(OMNIGHOST_DEV_BUILD)
-    // Development is intentionally isolated from public Stable/Beta releases.
+
     update_configuration.channel = OmniGhost::Update::Channel::Development;
 #else
     update_configuration.channel = app_settings::config.update_channel == app_settings::UpdateChannel::Beta
@@ -928,7 +892,6 @@ while (application.shouldRun && !authenticated) {
 
     const Launcher::GameDefinition* selectedDefinition = Launcher::FindGame(selected);
     if (!selectedDefinition ||
-        !OmniGhost::Security::SecurityManager::Instance().CanUseProtectedFeatures() ||
         !OmniGhost::Licensing::HasGameAccess(selectedDefinition->id)) {
         OGS_SEC_LOG_WARN("[LICENSE] Game launch blocked: no entitlement for {}",
                         selectedDefinition ? selectedDefinition->id : "unknown");
@@ -1290,16 +1253,7 @@ while (application.shouldRun && !authenticated) {
         const ULONGLONG security_now = GetTickCount64();
         if (security_now >= next_security_check) {
             next_security_check = security_now + 1000;
-            if (!OmniGhost::Security::SecurityManager::Instance().CanUseProtectedFeatures() ||
-                !OmniGhost::Licensing::HasGameAccess(selectedDefinition->id)) {
-                return_to_launcher = true;
-                continue;
-            }
-
-            // Periodic integrity checks
-            const auto periodicIntegrity = OmniGhost::Security::SecurityManager::Instance().VerifyProtectedFiles();
-            if (!periodicIntegrity || !periodicIntegrity.value()) {
-                OGS_SEC_LOG_ERROR("Periodic integrity check failed - returning to launcher");
+            if (!OmniGhost::Licensing::HasGameAccess(selectedDefinition->id)) {
                 return_to_launcher = true;
                 continue;
             }

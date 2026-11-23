@@ -1,16 +1,5 @@
 #include "utils.hpp"
 
-#include <atlsecurity.h> 
-
-std::string utils::get_hwid() {
-	ATL::CAccessToken accessToken;
-	ATL::CSid currentUserSid;
-	if (accessToken.GetProcessToken(TOKEN_READ | TOKEN_QUERY) &&
-		accessToken.GetUser(&currentUserSid))
-		return std::string(CT2A(currentUserSid.Sid()));
-	return "none";
-}
-
 std::time_t utils::string_to_timet(std::string timestamp) {
 	char* end = nullptr;
 	auto cv = strtol(timestamp.c_str(), &end, 10);

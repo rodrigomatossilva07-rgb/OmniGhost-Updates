@@ -7,9 +7,8 @@ rem Usage: build.bat [Debug^|Release^|Development^|Publish] [clean]
 set "ROOT=%~dp0"
 if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
 
-rem Limpar pasta .cache inteira no INICIO (antes de tudo, para build limpo)
-echo [OmniGhost] A limpar pasta .cache completa...
-if exist "%ROOT%\.cache" rmdir /s /q "%ROOT%\.cache" >nul 2>&1
+rem O cache e os comentarios do projeto sao preservados entre builds.
+rem Usa "build.bat <Configuracao> clean" quando precisares de limpar o cache CMake.
 
 if not "%~1"=="" goto :arguments
 
@@ -24,7 +23,7 @@ echo   [3] Development
 echo   [4] Publish
 echo   [5] Sair
 echo.
-choice /C 12345 /N /M "Escolhe a configuracao"
+choice /C 12345 /N /M "Escolhe a configuracao:"
 if errorlevel 5 exit /b 0
 if errorlevel 4 set "CONFIG=Publish" & set "ACTION=" & goto :build
 if errorlevel 3 set "CONFIG=Development" & set "ACTION=" & goto :build
@@ -115,25 +114,39 @@ if /I "%ACTION%"=="clean" (
 )
 
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1
+if /I "%CONFIG%"=="Publish" (
+    echo [OmniGhost] A preparar a release...
+    set "BUILD_PHASE=prepare-commit"
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\src\project\tools\Prepare-PublishCommit.ps1" -ProjectDir "%ROOT%" > "%LOG_DIR%\prepare-publish-commit.log" 2>&1
+    if errorlevel 1 goto :failure
+    echo [OK] Fonte da release preparada.
+)
 echo [OmniGhost] A configurar CMake (%CONFIG%)...
 set "BUILD_PHASE=configure"
 "%CMAKE_EXE%" -S "%ROOT%" -B "%BUILD_DIR%" -G "Visual Studio 18 2026" -A x64 -DCMAKE_BUILD_TYPE=%CONFIG% > "%LOG_FILE%" 2>&1
 if errorlevel 1 goto :failure
 
 echo [OmniGhost] A compilar (%CONFIG%)...
-echo [OmniGhost] A usar 8 processos. Os ficheiros compilados aparecem abaixo.
+echo [OmniGhost] A usar 8 processos...
 set "BUILD_PHASE=compile"
-"%CMAKE_EXE%" --build "%BUILD_DIR%" --target OmniGhost --config %CONFIG% --parallel 8
+"%CMAKE_EXE%" --build "%BUILD_DIR%" --target OmniGhost --config %CONFIG% --parallel 8 > "%LOG_DIR%\build-%CONFIG%.log" 2>&1
 if errorlevel 1 goto :failure
 
 echo [OK] Compilacao concluida.
 echo Executavel: build\%OUTPUT_CONFIG%\OmniGhost.exe
 if /I "%CONFIG%"=="Publish" (
-    echo [OmniGhost] A preparar e publicar a release stable no GitHub...
+    echo [OmniGhost] A validar e publicar a release stable...
     set "BUILD_PHASE=publish"
-    powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\src\project\tools\Publish-Build.ps1" -ProjectDir "%ROOT%" -BuildDir "%ROOT%\build\publish" -ExplicitConfirmed
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\src\project\tools\Publish-Build.ps1" -ProjectDir "%ROOT%" -BuildDir "%ROOT%\build\publish" -ExplicitConfirmed > "%LOG_DIR%\publish.log" 2>&1
     if errorlevel 1 goto :failure
     echo [OK] Release stable publicada no GitHub.
+    echo Log: .cache\logs\publish.log
+    echo.
+    echo ============================================================
+    echo  PUBLICACAO CONCLUIDA COM SUCESSO
+    echo  Pressione qualquer tecla para fechar esta janela...
+    echo ============================================================
+    pause >nul
 )
 if /I "%CONFIG%"=="Development" (
     echo [OmniGhost] A preparar a release privada Development...
@@ -141,9 +154,15 @@ if /I "%CONFIG%"=="Development" (
     powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\src\project\tools\Publish-Development.ps1" -ProjectDir "%ROOT%" -BuildDir "%ROOT%\build\development"
     if errorlevel 1 goto :failure
     echo [OK] Release Development publicada no canal privado.
+    echo.
+    echo ============================================================
+    echo  PUBLICACAO DEVELOPMENT CONCLUIDA COM SUCESSO
+    echo  Pressione qualquer tecla para fechar esta janela...
+    echo ============================================================
+    pause >nul
 )
 
-rem Limpar locks (pasta .cache já foi limpa no inicio)
+rem Limpar locks temporários, preservando o cache entre builds.
 rmdir "%LOCK_DIR%" >nul 2>&1
 exit /b 0
 
@@ -153,15 +172,22 @@ if /I "%BUILD_PHASE%"=="configure" (
     echo [ERRO] A configuracao CMake falhou. Detalhes:
     type "%LOG_FILE%"
     echo Log: .cache\logs\cmake-%CONFIG%.log
+) else if /I "%BUILD_PHASE%"=="prepare-commit" (
+    echo [ERRO] Nao foi possivel preparar o commit automatico da release. Detalhes:
+    type "%LOG_DIR%\prepare-publish-commit.log"
+    echo Log: .cache\logs\prepare-publish-commit.log
 ) else if /I "%BUILD_PHASE%"=="publish" (
     echo [ERRO] A compilacao terminou, mas a publicacao stable no GitHub falhou.
-    echo Consulta a saida acima; a release anterior continua intacta.
+    findstr /I /N /C:"[ERROR]" /C:"[FAIL]" /C:"fatal" /C:" error " "%LOG_DIR%\publish.log"
+    echo Log completo: .cache\logs\publish.log
+    echo A release anterior continua intacta.
 ) else if /I "%BUILD_PHASE%"=="development-publish" (
     echo [ERRO] A compilacao Development terminou, mas a publicacao privada falhou.
     echo Confirma as variaveis Supabase e consulta a saida acima.
 ) else (
     echo [ERRO] A compilacao falhou. Os erros relevantes estao acima.
-    echo Log da configuracao: .cache\logs\cmake-%CONFIG%.log
+    findstr /I /N /C:"error " /C:"fatal error" /C:"warning C" "%LOG_DIR%\build-%CONFIG%.log"
+    echo Log completo: .cache\logs\build-%CONFIG%.log
 )
 if defined LOCK_HELD rmdir "%LOCK_DIR%" >nul 2>&1
 pause

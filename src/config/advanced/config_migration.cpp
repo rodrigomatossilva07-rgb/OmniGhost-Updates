@@ -149,7 +149,7 @@ private:
     void register_default_migrations() {
         // v0 -> v1: Initial schema
         migration_steps_.push_back({0, 1, "Initialize default schema",
-            [](nlohmann::json& config) {
+            [this](nlohmann::json& config) {
                 auto defaults = get_default_config();
                 config = defaults;
                 config["schema_version"] = 1;

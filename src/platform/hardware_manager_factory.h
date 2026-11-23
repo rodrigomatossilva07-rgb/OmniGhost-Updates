@@ -6,9 +6,9 @@
 
 namespace OmniGhost::Platform {
 
-// =============================================================================
-// HardwareManagerFactory - Factory for creating HardwareManager instances
-// =============================================================================
+
+
+
 
 class HardwareManagerFactory final {
 public:
@@ -17,4 +17,4 @@ public:
     }
 };
 
-} // namespace OmniGhost::Platform
+}

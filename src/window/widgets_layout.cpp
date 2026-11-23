@@ -3,7 +3,8 @@
 #include "animations.h"
 #include "localization.h"
 #include "ui_feedback.h"
-#include "app_settings.h"
+#include "config/app_settings.h"
+#include "platform/logging.h"
 #include "src/project/third_party/ImGui/imgui_internal.h"
 
 namespace CyberWidgets {
@@ -168,7 +169,8 @@ void TableHeadersRow() {
 }
 
 bool TableNextRow(ImGuiTableRowFlags flags, float min_row_height) {
-    return ImGui::TableNextRow(flags, min_row_height);
+    ImGui::TableNextRow(flags, min_row_height);
+    return true;
 }
 
 void TableNextColumn() {
@@ -324,7 +326,7 @@ void NotifyError(const char* message, float duration) {
 void NotifyInfo(const char* message, float duration) {
     if (!message) return;
     OGS_LOG_INFO("[NotifyInfo] {}", message);
-    OmniGhost::UiFeedback::Play(OmniGhost::UiFeedback::SoundEvent::Info);
+    OmniGhost::UiFeedback::Play(OmniGhost::UiFeedback::SoundEvent::Navigate);
 }
 
 } // namespace CyberWidgets

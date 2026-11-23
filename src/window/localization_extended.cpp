@@ -1,6 +1,11 @@
 #include "localization_extended.h"
-#include "app_paths.h"
-#include "logging.h"
+#include "platform/app_paths.h"
+#include "platform/logging.h"
+
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <Windows.h>
 
 #include <fstream>
 #include <sstream>
@@ -387,7 +392,7 @@ void ExtendedLocalizationManager::UpdateCompletionStats(Language lang) {
 const char* ExtendedLocalizationManager::Tr(std::string_view key, std::string_view context) const noexcept {
     std::shared_lock lock(mutex_);
 
-    auto entryIt = entries_.find(key);
+    auto entryIt = entries_.find(std::string(key));
     if (entryIt == entries_.end()) {
         return key.data();
     }
@@ -419,7 +424,7 @@ const char* ExtendedLocalizationManager::Tr(std::string_view key, std::string_vi
 const char* ExtendedLocalizationManager::TrPlural(std::string_view key, int64_t count, std::string_view context) const noexcept {
     std::shared_lock lock(mutex_);
 
-    auto entryIt = entries_.find(key);
+    auto entryIt = entries_.find(std::string(key));
     if (entryIt == entries_.end()) {
         return key.data();
     }
@@ -433,14 +438,14 @@ const char* ExtendedLocalizationManager::TrPlural(std::string_view key, int64_t 
     PluralCategory category = GetPluralCategory(currentLang_, count);
 
     auto pluralIt = entry.pluralForms.find(currentLang_);
-    if (pluralIt != entry.pluralForms.end() && category < pluralIt->second.size()) {
+    if (pluralIt != entry.pluralForms.end() && static_cast<size_t>(category) < pluralIt->second.size()) {
         return pluralIt->second[static_cast<size_t>(category)].c_str();
     }
 
     // Fallback to Portuguese
     if (currentLang_ != Language::Portuguese) {
         auto defaultPluralIt = entry.pluralForms.find(Language::Portuguese);
-        if (defaultPluralIt != entry.pluralForms.end() && category < defaultPluralIt->second.size()) {
+        if (defaultPluralIt != entry.pluralForms.end() && static_cast<size_t>(category) < defaultPluralIt->second.size()) {
             return defaultPluralIt->second[static_cast<size_t>(category)].c_str();
         }
     }
@@ -519,9 +524,17 @@ Language ExtendedLocalizationManager::GetLanguage() const noexcept {
 
 Language ExtendedLocalizationManager::DetectSystemLanguage() const {
     // Get system locale
-    char localeName[LOCALE_NAME_MAX_LENGTH];
+    wchar_t localeName[LOCALE_NAME_MAX_LENGTH]{};
     if (GetUserDefaultLocaleName(localeName, LOCALE_NAME_MAX_LENGTH) > 0) {
-        std::string locale(localeName);
+        const int utf8Length = WideCharToMultiByte(
+            CP_UTF8, 0, localeName, -1, nullptr, 0, nullptr, nullptr);
+        if (utf8Length <= 1) return Language::Portuguese;
+
+        std::string locale(static_cast<size_t>(utf8Length), '\0');
+        WideCharToMultiByte(
+            CP_UTF8, 0, localeName, -1, locale.data(), utf8Length,
+            nullptr, nullptr);
+        locale.pop_back(); // remove the terminating NUL included by -1
         std::transform(locale.begin(), locale.end(), locale.begin(), ::tolower);
 
         // Map Windows locale to our Language enum
@@ -560,7 +573,7 @@ std::optional<LocaleMetadata> ExtendedLocalizationManager::GetLocaleMetadata(Lan
 std::optional<TranslationEntry> ExtendedLocalizationManager::GetTranslationEntry(std::string_view key) const {
     std::shared_lock lock(mutex_);
 
-    auto it = entries_.find(key);
+    auto it = entries_.find(std::string(key));
     if (it != entries_.end()) {
         return it->second;
     }
@@ -651,7 +664,7 @@ bool ExtendedLocalizationManager::SetPluralForm(std::string_view key, Language l
 bool ExtendedLocalizationManager::RemoveTranslation(std::string_view key, Language lang) {
     std::unique_lock lock(mutex_);
 
-    auto it = entries_.find(key);
+    auto it = entries_.find(std::string(key));
     if (it == entries_.end()) {
         return false;
     }

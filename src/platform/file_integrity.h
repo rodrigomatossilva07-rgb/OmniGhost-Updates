@@ -19,7 +19,7 @@ namespace OmniGhost::Platform {
 [[nodiscard]] bool Sha256Bytes(OmniGhost::ByteSpan data,
                                std::string& hexDigest,
                                std::string& error);
-// Legacy compatibility
+
 [[nodiscard]] bool Sha256Bytes(const void* data, std::size_t size,
                                std::string& hexDigest,
                                std::string& error);

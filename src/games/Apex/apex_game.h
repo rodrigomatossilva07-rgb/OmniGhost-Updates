@@ -78,4 +78,4 @@ bool IsGameProcessAlive();
 bool ValidateLiveOffsets();
 const char* StatusLine();
 
-} // namespace Apex
+}

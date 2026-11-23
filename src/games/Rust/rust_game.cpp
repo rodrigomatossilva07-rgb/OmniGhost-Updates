@@ -16,7 +16,7 @@ Config config{};
 Runtime runtime{};
 std::atomic_bool ready{false};
 
-// Snapshot de offsets carregado do JSON
+
 OmniGhost::EmbeddedOffsets::Snapshot g_offset_snapshot{};
 
 namespace {
@@ -52,7 +52,7 @@ void AddPointerAt(std::vector<std::uintptr_t>& values, std::uintptr_t base, std:
     if (ReadPointer(base + offset, value)) AddUnique(values, value);
 }
 
-// Helper para obter offset do snapshot
+
 inline std::uintptr_t GetOffset(const char* path, std::uintptr_t fallback = 0) {
     std::uint64_t value = 0;
     if (g_offset_snapshot.TryGet(path, value) && value != 0)
@@ -60,7 +60,7 @@ inline std::uintptr_t GetOffset(const char* path, std::uintptr_t fallback = 0) {
     return fallback;
 }
 
-// Offsets resolvidos em runtime
+
 struct RuntimeOffsets {
     std::uintptr_t baseNetworkableRva = 0;
     std::uintptr_t cameraRva = 0;
@@ -90,7 +90,7 @@ struct RuntimeOffsets {
 } g_offsets;
 
 bool LoadRuntimeOffsets() {
-    // Carrega do JSON externo ou embedded
+
     auto result = OmniGhost::OffsetSource::LoadSnapshot(OmniGhost::OffsetSource::GameId::Rust);
     if (!result.ok) {
         runtime.status = "Falha ao carregar offsets: " + result.detail;
@@ -98,7 +98,7 @@ bool LoadRuntimeOffsets() {
     }
     g_offset_snapshot = std::move(result.snapshot);
 
-    // Resolve offsets necessários
+
     g_offsets.baseNetworkableRva = GetOffset("_root.basenetworkable_pointer");
     g_offsets.cameraRva = GetOffset("_root.camera_pointer");
     g_offsets.baseNetworkable_staticFields = GetOffset("BaseNetworkable.static_fields");
@@ -125,7 +125,7 @@ bool LoadRuntimeOffsets() {
     g_offsets.managedArray_length = GetOffset("ManagedArray.length", 0x18);
     g_offsets.managedArray_data = GetOffset("ManagedArray.data", 0x20);
 
-    // Valida offsets críticos
+
     if (!g_offsets.baseNetworkableRva || !g_offsets.cameraRva ||
         !g_offsets.baseNetworkable_clientEntities || !g_offsets.basePlayer_playerModel ||
         !g_offsets.playerModel_position || !g_offsets.baseCamera_matrix) {
@@ -338,13 +338,13 @@ void Update(bool processProbe) {
     else runtime.status = "Rust Box 2D ativa";
 }
 
-} // namespace
+}
 
 bool Attach() {
     Shutdown();
     runtime.status = "A ligar ao Rust...";
 
-    // Carrega offsets do JSON
+
     if (!LoadRuntimeOffsets()) {
         Update(true);
         return false;

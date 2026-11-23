@@ -9,9 +9,9 @@
 
 namespace OmniGhost::ThemeEngine {
 
-// =============================================================================
-// ThemeMetrics Serialization
-// =============================================================================
+
+
+
 
 nlohmann::json ThemeMetrics::ToJson() const {
     nlohmann::json j;
@@ -103,9 +103,9 @@ ThemeMetrics ThemeMetrics::FromJson(const nlohmann::json& j) {
     return m;
 }
 
-// =============================================================================
-// ThemeColors Serialization
-// =============================================================================
+
+
+
 
 nlohmann::json ThemeColors::ToJson() const {
     nlohmann::json j;
@@ -163,9 +163,9 @@ ThemeColors ThemeColors::FromJson(const nlohmann::json& j) {
     return c;
 }
 
-// =============================================================================
-// ThemeFonts Serialization
-// =============================================================================
+
+
+
 
 nlohmann::json ThemeFonts::ToJson() const {
     nlohmann::json j;
@@ -197,9 +197,9 @@ ThemeFonts ThemeFonts::FromJson(const nlohmann::json& j) {
     return f;
 }
 
-// =============================================================================
-// ThemeDefinition Serialization
-// =============================================================================
+
+
+
 
 nlohmann::json ThemeDefinition::ToJson() const {
     nlohmann::json j;
@@ -231,27 +231,27 @@ ThemeDefinition ThemeDefinition::FromJson(const nlohmann::json& j) {
     return t;
 }
 
-// =============================================================================
-// ThemeManager Implementation
-// =============================================================================
+
+
+
 
 bool ThemeManager::Initialize() {
     if (initialized_) {
         return true;
     }
 
-    // Create theme directories
+
     std::error_code ec;
     std::filesystem::create_directories(GetThemeDirectory(), ec);
     std::filesystem::create_directories(GetBuiltInThemeDirectory(), ec);
 
-    // Load themes from disk
+
     LoadThemesFromDisk();
 
-    // Initialize built-in themes
+
     InitializeBuiltInThemes();
 
-    // Apply active theme if set
+
     if (!activeThemeId_.empty()) {
         ApplyActiveTheme();
     }
@@ -285,7 +285,7 @@ bool ThemeManager::RegisterTheme(const ThemeDefinition& theme) {
 
     themes_[theme.id] = theme;
 
-    // Save to disk if user theme
+
     if (!theme.builtIn) {
         std::filesystem::path filePath = GetThemeDirectory() / (theme.id + ".json");
         nlohmann::json j = theme.ToJson();
@@ -307,18 +307,18 @@ bool ThemeManager::UnregisterTheme(std::string_view themeId) {
         return false;
     }
 
-    // Don't unregister built-in themes
+
     if (it->second.builtIn) {
         OGS_LOG_WARN("[ThemeEngine] Cannot unregister built-in theme: {}", themeId);
         return false;
     }
 
-    // Remove from disk
+
     std::filesystem::path filePath = GetThemeDirectory() / (std::string(themeId) + ".json");
     std::error_code ec;
     std::filesystem::remove(filePath, ec);
 
-    // Clear active if it was this theme
+
     if (activeThemeId_ == themeId) {
         activeThemeId_.clear();
     }
@@ -347,7 +347,7 @@ std::vector<ThemeDefinition> ThemeManager::GetAllThemes() const {
         result.push_back(theme);
     }
 
-    // Sort: built-in first, then by name
+
     std::sort(result.begin(), result.end(),
         [](const ThemeDefinition& a, const ThemeDefinition& b) {
             if (a.builtIn != b.builtIn) {
@@ -414,7 +414,7 @@ std::optional<ThemeDefinition> ThemeManager::GetActiveTheme() const {
 }
 
 void ThemeManager::ApplyTheme(const ThemeDefinition& theme) {
-    // Apply colors to CyberTheme namespace
+
     auto& colors = CyberTheme::Colors;
 
     colors.Background = theme.colors.background.ToVec4();
@@ -434,7 +434,7 @@ void ThemeManager::ApplyTheme(const ThemeDefinition& theme) {
     colors.Error = theme.colors.error.ToVec4();
     colors.Info = theme.colors.info.ToVec4();
 
-    // Apply metrics
+
     using namespace CyberTheme::Metrics;
     WindowWidth = theme.metrics.windowWidth;
     WindowHeight = theme.metrics.windowHeight;
@@ -460,7 +460,7 @@ void ThemeManager::ApplyTheme(const ThemeDefinition& theme) {
     SidebarItemHeight = theme.metrics.sidebarItemHeight;
     PageTransitionSeconds = theme.metrics.pageTransitionSeconds;
 
-    // Apply spacing/radius/typography/shadow
+
     using namespace CyberTheme::Spacing;
     Xs = theme.metrics.spacingXs;
     Sm = theme.metrics.spacingSm;
@@ -485,8 +485,8 @@ void ThemeManager::ApplyTheme(const ThemeDefinition& theme) {
     SoftRadius = theme.metrics.shadowRadius;
     SoftAlpha = theme.metrics.shadowAlpha;
 
-    // Apply fonts (would need font loading integration)
-    // For now, just log
+
+
     OGS_LOG_DEBUG("[ThemeEngine] Applied theme: {} (v{})", theme.name, theme.version);
 }
 
@@ -510,7 +510,7 @@ ThemeDefinition ThemeManager::CreateThemeFromCurrent(std::string_view id,
     theme.baseTheme = activeThemeId_.empty() ? "Omni" : activeThemeId_;
     theme.builtIn = false;
 
-    // Capture current CyberTheme state
+
     theme.colors.background = CyberTheme::Colors.Background;
     theme.colors.surface = CyberTheme::Colors.Surface;
     theme.colors.card = CyberTheme::Colors.Card;
@@ -528,7 +528,7 @@ ThemeDefinition ThemeManager::CreateThemeFromCurrent(std::string_view id,
     theme.colors.error = CyberTheme::Colors.Error;
     theme.colors.info = CyberTheme::Colors.Info;
 
-    // Capture metrics
+
     using namespace CyberTheme::Metrics;
     theme.metrics.windowWidth = WindowWidth;
     theme.metrics.windowHeight = WindowHeight;
@@ -590,7 +590,7 @@ bool ThemeManager::ImportTheme(const std::filesystem::path& inputPath) {
 
     ThemeDefinition theme = ThemeDefinition::FromJson(j);
 
-    // Ensure unique ID
+
     std::string baseId = theme.id;
     int counter = 1;
     while (themes_.contains(theme.id)) {
@@ -629,12 +629,12 @@ bool ThemeManager::DeleteTheme(std::string_view themeId) {
         return false;
     }
 
-    // Remove from disk
+
     std::filesystem::path filePath = GetThemeDirectory() / (std::string(themeId) + ".json");
     std::error_code ec;
     std::filesystem::remove(filePath, ec);
 
-    // Clear active if it was this theme
+
     if (activeThemeId_ == themeId) {
         activeThemeId_.clear();
     }
@@ -672,7 +672,7 @@ void ThemeManager::InitializeBuiltInThemes() {
         }
     }
 
-    // Set default active theme if none selected
+
     if (activeThemeId_.empty() && themes_.contains("omni")) {
         activeThemeId_ = "omni";
     }
@@ -687,7 +687,7 @@ ThemeDefinition ThemeManager::BlendThemes(const ThemeDefinition& a,
     result.description = "Blended theme";
     factor = std::clamp(factor, 0.0f, 1.0f);
 
-    // Blend colors
+
     auto blendColor = [factor](const ThemeColor& ca, const ThemeColor& cb) {
         return ThemeColor(
             ca.r + (cb.r - ca.r) * factor,
@@ -728,7 +728,7 @@ ThemeDefinition ThemeManager::CreateVariant(const ThemeDefinition& base,
     variant.version = "1.0.0";
     variant.builtIn = false;
 
-    // Adjust brightness
+
     auto adjustColor = [brightnessFactor](const ThemeColor& c) {
         return ThemeColor(
             std::clamp(c.r * brightnessFactor, 0.0f, 1.0f),
@@ -782,7 +782,7 @@ bool ThemeManager::LoadThemesFromDisk() {
         }
     }
 
-    // Also load built-in themes from data directory
+
     std::filesystem::path builtInDir = GetBuiltInThemeDirectory();
     if (std::filesystem::exists(builtInDir)) {
         for (const auto& entry : std::filesystem::directory_iterator(builtInDir, ec)) {
@@ -797,7 +797,7 @@ bool ThemeManager::LoadThemesFromDisk() {
                         themes_[theme.id] = theme;
                     }
                 } catch (...) {
-                    // Ignore
+                    OGS_LOG_WARN("[ThemeEngine] Failed to load built-in theme: {}", entry.path().string());
                 }
             }
         }
@@ -831,9 +831,9 @@ bool ThemeManager::SaveThemesToDisk() const {
     return true;
 }
 
-// =============================================================================
-// Built-in Theme Presets
-// =============================================================================
+
+
+
 
 ThemeDefinition CreateOmniTheme() {
     ThemeDefinition t;
@@ -844,14 +844,14 @@ ThemeDefinition CreateOmniTheme() {
     t.version = "1.0.0";
     t.builtIn = true;
 
-    // Gold accent colors
+
     t.colors.background = ThemeColor(0.03f, 0.03f, 0.04f);
     t.colors.surface = ThemeColor(0.06f, 0.06f, 0.08f);
     t.colors.card = ThemeColor(0.08f, 0.08f, 0.10f);
     t.colors.cardHover = ThemeColor(0.10f, 0.10f, 0.12f);
     t.colors.panel = ThemeColor(0.07f, 0.07f, 0.09f);
     t.colors.panelHover = ThemeColor(0.09f, 0.09f, 0.11f);
-    t.colors.accent = ThemeColor(0.83f, 0.69f, 0.22f);  // Gold
+    t.colors.accent = ThemeColor(0.83f, 0.69f, 0.22f);
     t.colors.accentHover = ThemeColor(0.90f, 0.75f, 0.25f);
     t.colors.accentGlow = ThemeColor(0.83f, 0.69f, 0.22f, 0.3f);
     t.colors.text = ThemeColor(0.95f, 0.95f, 0.96f);
@@ -870,7 +870,7 @@ ThemeDefinition CreateObsidianTheme() {
     t.id = "obsidian";
     t.name = "Obsidian";
     t.description = "Tema escuro azul/cinza elegante";
-    t.colors.accent = ThemeColor(0.30f, 0.55f, 0.85f);  // Blue
+    t.colors.accent = ThemeColor(0.30f, 0.55f, 0.85f);
     t.colors.accentHover = ThemeColor(0.40f, 0.65f, 0.90f);
     t.colors.accentGlow = ThemeColor(0.30f, 0.55f, 0.85f, 0.3f);
     t.colors.background = ThemeColor(0.02f, 0.02f, 0.03f);
@@ -884,7 +884,7 @@ ThemeDefinition CreateAzureTheme() {
     t.id = "azure";
     t.name = "Azure";
     t.description = "Tema azul brilhante";
-    t.colors.accent = ThemeColor(0.0f, 0.65f, 1.0f);  // Bright blue
+    t.colors.accent = ThemeColor(0.0f, 0.65f, 1.0f);
     t.colors.accentHover = ThemeColor(0.2f, 0.75f, 1.0f);
     t.colors.accentGlow = ThemeColor(0.0f, 0.65f, 1.0f, 0.3f);
     t.colors.success = ThemeColor(0.0f, 1.0f, 0.5f);
@@ -896,7 +896,7 @@ ThemeDefinition CreateVioletTheme() {
     t.id = "violet";
     t.name = "Violet";
     t.description = "Tema roxo místico";
-    t.colors.accent = ThemeColor(0.65f, 0.30f, 0.95f);  // Purple
+    t.colors.accent = ThemeColor(0.65f, 0.30f, 0.95f);
     t.colors.accentHover = ThemeColor(0.75f, 0.40f, 1.0f);
     t.colors.accentGlow = ThemeColor(0.65f, 0.30f, 0.95f, 0.3f);
     t.colors.border = ThemeColor(0.20f, 0.12f, 0.25f);
@@ -908,7 +908,7 @@ ThemeDefinition CreateMatrixTheme() {
     t.id = "matrix";
     t.name = "Matrix";
     t.description = "Tema verde terminal/hacker";
-    t.colors.accent = ThemeColor(0.0f, 1.0f, 0.2f);  // Matrix green
+    t.colors.accent = ThemeColor(0.0f, 1.0f, 0.2f);
     t.colors.accentHover = ThemeColor(0.2f, 1.0f, 0.4f);
     t.colors.accentGlow = ThemeColor(0.0f, 1.0f, 0.2f, 0.3f);
     t.colors.background = ThemeColor(0.0f, 0.05f, 0.0f);
@@ -926,7 +926,7 @@ ThemeDefinition CreateCrimsonTheme() {
     t.id = "crimson";
     t.name = "Crimson";
     t.description = "Tema vermelho sangue";
-    t.colors.accent = ThemeColor(0.95f, 0.15f, 0.25f);  // Red
+    t.colors.accent = ThemeColor(0.95f, 0.15f, 0.25f);
     t.colors.accentHover = ThemeColor(1.0f, 0.25f, 0.35f);
     t.colors.accentGlow = ThemeColor(0.95f, 0.15f, 0.25f, 0.3f);
     t.colors.background = ThemeColor(0.08f, 0.02f, 0.02f);
@@ -947,7 +947,7 @@ ThemeDefinition CreateArcticTheme() {
     t.colors.cardHover = ThemeColor(0.85f, 0.85f, 0.88f);
     t.colors.panel = ThemeColor(0.92f, 0.92f, 0.94f);
     t.colors.panelHover = ThemeColor(0.88f, 0.88f, 0.90f);
-    t.colors.accent = ThemeColor(0.20f, 0.50f, 0.90f);  // Ice blue
+    t.colors.accent = ThemeColor(0.20f, 0.50f, 0.90f);
     t.colors.accentHover = ThemeColor(0.30f, 0.60f, 1.0f);
     t.colors.accentGlow = ThemeColor(0.20f, 0.50f, 0.90f, 0.2f);
     t.colors.text = ThemeColor(0.10f, 0.10f, 0.12f);
@@ -967,7 +967,7 @@ ThemeDefinition CreateHighContrastTheme() {
     t.colors.background = ThemeColor(0.0f, 0.0f, 0.0f);
     t.colors.surface = ThemeColor(0.05f, 0.05f, 0.05f);
     t.colors.card = ThemeColor(0.10f, 0.10f, 0.10f);
-    t.colors.accent = ThemeColor(1.0f, 1.0f, 0.0f);  // Yellow
+    t.colors.accent = ThemeColor(1.0f, 1.0f, 0.0f);
     t.colors.accentHover = ThemeColor(1.0f, 1.0f, 0.2f);
     t.colors.text = ThemeColor(1.0f, 1.0f, 1.0f);
     t.colors.textDisabled = ThemeColor(0.7f, 0.7f, 0.7f);
@@ -978,4 +978,4 @@ ThemeDefinition CreateHighContrastTheme() {
     return t;
 }
 
-} // namespace OmniGhost::ThemeEngine
+}

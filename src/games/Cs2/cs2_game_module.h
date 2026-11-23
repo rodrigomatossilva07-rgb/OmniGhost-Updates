@@ -11,9 +11,9 @@
 
 namespace OmniGhost::Games {
 
-// =============================================================================
-// CS2GameModule - CS2-specific game module implementation
-// =============================================================================
+
+
+
 
 class CS2GameModule : public GameModuleBase {
 public:
@@ -23,7 +23,7 @@ public:
     explicit CS2GameModule(OmniGhost::Platform::ServiceContainer& container);
     ~CS2GameModule() override = default;
 
-    // IGameModule interface
+
     [[nodiscard]] std::string_view GetGameId() const noexcept override { return StaticGameId(); }
     [[nodiscard]] std::string_view GetGameName() const noexcept override { return "Counter-Strike 2"; }
     [[nodiscard]] Launcher::GameId GetLauncherGameId() const noexcept override { return StaticLauncherGameId(); }
@@ -52,22 +52,22 @@ public:
     [[nodiscard]] std::string GetDiagnosticsInfo() const override;
 
 private:
-    // CS2-specific state
+
     bool offsetsLoaded_ = false;
     bool featuresEnabled_ = false;
     bool attached_ = false;
     bool inGame_ = false;
 
-    // References to CS2 runtime (will be injected via DI)
+
     struct CS2RuntimeRef {
         bool* ready = nullptr;
         bool* offsetsLoaded = nullptr;
     } runtimeRef_;
 
-    // Helpers
+
     Expected<void> AttachToGame();
     Expected<void> DetachFromGame();
     Expected<void> ProbeGameState();
 };
 
-} // namespace OmniGhost::Games
+}

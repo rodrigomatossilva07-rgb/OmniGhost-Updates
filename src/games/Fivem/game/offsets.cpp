@@ -313,23 +313,23 @@ int LoadOffsetsFromJsonImpl(const char* explicit_path) {
     g_offsetsLoaded = false;
     ResetLoadedFieldOffsets();
 
-    // 1. PRIMEIRO: Tentar carregar do EXE (embedded resources) - single EXE mode
+
     if (LoadFromEmbeddedSnapshot()) {
         OGS_LOG_INFO("[FiveM] Offsets carregados do EXE (embedded resources)");
         g_offsetsLoaded = true;
         return static_cast<int>(g_buildOffsets.size());
     }
 
-    // 2. FALLBACK: JSON externo (apenas para desenvolvimento)
+
     if (explicit_path && explicit_path[0]) {
         std::string data;
         if (ReadEntireFile(explicit_path, data) && !data.empty()) {
             OGS_LOG_INFO("[FiveM] Offsets carregados de JSON externo: {}", explicit_path);
-            // Parse JSON aqui... (código existente)
+
         }
     }
 
-    // Fallback automático para JSONs locais (dev only)
+
     std::vector<std::string> candidates = {"data/fivem_offsets.json"};
     try {
         char mod[MAX_PATH]{};
@@ -339,13 +339,15 @@ int LoadOffsetsFromJsonImpl(const char* explicit_path) {
             if (slash != std::string::npos) dir.resize(slash);
             candidates.push_back(dir + "\\data\\fivem_offsets.json");
         }
-    } catch (...) { /* ignored: best-effort module path resolution */ }
+    } catch (...) {
+        OGS_LOG_WARN("[FiveM] Não foi possível determinar a pasta do executável para procurar offsets externos.");
+    }
 
     std::string data;
     for (const auto& c : candidates) {
         if (ReadEntireFile(c, data) && !data.empty()) {
             OGS_LOG_WARN("[FiveM] Usando JSON externo (dev mode): {}", c);
-            // Parse JSON aqui... (código existente)
+
             break;
         }
     }

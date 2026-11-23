@@ -237,10 +237,11 @@ namespace Changelog {
         if (last_viewed_version.empty()) return !g_entries.empty();
 
         for (const auto& entry : g_entries) {
-            if (entry.version == last_viewed_version) break;
-            return true;
+            if (entry.version == last_viewed_version) {
+                return false;
+            }
         }
-        return false;
+        return true;
     }
 
     void MarkVersionViewed(const std::string& version) {

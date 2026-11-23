@@ -11,7 +11,7 @@ namespace OmniGhost::Games {
 
 CS2GameModule::CS2GameModule(OmniGhost::Platform::ServiceContainer& container)
     : GameModuleBase(container) {
-    // Initialize runtime references from CS2 namespace
+
     runtimeRef_.ready = &CS2::ready;
     runtimeRef_.offsetsLoaded = &offsetsLoaded_;
 }
@@ -19,13 +19,13 @@ CS2GameModule::CS2GameModule(OmniGhost::Platform::ServiceContainer& container)
 Expected<void> CS2GameModule::Initialize(OmniGhost::Platform::ServiceContainer& container) {
     OGS_LOG_INFO("[CS2GameModule] Initializing...");
 
-    // Load configuration
+
     auto loadResult = LoadConfig();
     if (!loadResult) {
         OGS_LOG_WARN("[CS2GameModule] Failed to load config: {}", loadResult.error().message);
     }
 
-    // Load offsets
+
     auto offsetResult = LoadOffsets();
     if (!offsetResult) {
         OGS_LOG_ERROR("[CS2GameModule] Failed to load offsets: {}", offsetResult.error().message);
@@ -54,7 +54,7 @@ Expected<void> CS2GameModule::Shutdown() {
 Expected<void> CS2GameModule::Update(float deltaTime) {
     if (!attached_) return Success();
 
-    // Probe game state periodically
+
     static float probeTimer = 0.0f;
     probeTimer += deltaTime;
     if (probeTimer > 1.0f) {
@@ -105,7 +105,7 @@ Expected<void> CS2GameModule::EnableFeatures() {
 
     OGS_LOG_INFO("[CS2GameModule] Enabling features...");
 
-    // Enable CS2-specific features
+
     featuresEnabled_ = true;
     OGS_LOG_INFO("[CS2GameModule] Features enabled");
     return Success();
@@ -122,21 +122,21 @@ Expected<void> CS2GameModule::DisableFeatures() {
 }
 
 void CS2GameModule::DrawSettings() {
-    // Draw CS2-specific settings UI
-    // This would be called from the main UI loop
+
+
 }
 
 void CS2GameModule::DrawDebugInfo() {
-    // Draw debug information
+
 }
 
 Expected<void> CS2GameModule::SaveConfig() {
-    // Save CS2-specific configuration
+
     return Success();
 }
 
 Expected<void> CS2GameModule::LoadConfig() {
-    // Load CS2-specific configuration
+
     return Success();
 }
 
@@ -149,14 +149,14 @@ std::string CS2GameModule::GetDiagnosticsInfo() const {
     return info;
 }
 
-// Private helpers
+
 
 Expected<void> CS2GameModule::AttachToGame() {
     if (attached_) return Success();
 
     OGS_LOG_INFO("[CS2GameModule] Attaching to game...");
 
-    // Use existing CS2 attach logic
+
     if (CS2::Attach()) {
         attached_ = true;
         *runtimeRef_.ready = true;
@@ -172,7 +172,7 @@ Expected<void> CS2GameModule::DetachFromGame() {
 
     OGS_LOG_INFO("[CS2GameModule] Detaching from game...");
 
-    // Use existing CS2 detach logic
+
     CS2::Shutdown();
     CS2::ready = false;
     attached_ = false;
@@ -185,10 +185,10 @@ Expected<void> CS2GameModule::DetachFromGame() {
 Expected<void> CS2GameModule::ProbeGameState() {
     if (!attached_) return Success();
 
-    // Check if we're in a match
-    // This would use existing CS2 logic to detect game state
-    // For now, just return success
+
+
+
     return Success();
 }
 
-} // namespace OmniGhost::Games
+}

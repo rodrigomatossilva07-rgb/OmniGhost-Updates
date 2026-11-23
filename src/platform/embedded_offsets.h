@@ -11,11 +11,11 @@
 
 namespace OmniGhost::EmbeddedOffsets {
 
-// Use standard std::span-based types
+
 using ByteView = OmniGhost::ByteSpan;
 using MutableByteView = OmniGhost::MutableByteSpan;
 
-// Helper to create ByteView from vector (for compatibility)
+
 [[nodiscard]] inline ByteView MakeByteView(const std::vector<std::uint8_t>& data) noexcept {
     return OmniGhost::AsBytes(data);
 }

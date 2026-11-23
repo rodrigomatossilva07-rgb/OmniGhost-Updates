@@ -24,7 +24,7 @@
     },
     "game": {
       "type": "string",
-      "enum": ["rust", "cs2", "fivem", "fortnite", "warzone", "apex", "unknown"],
+      "enum": ["rust", "cs2", "fivem", "fortnite", "warzone", "apex", "rob_run", "unknown"],
       "description": "Game identifier"
     },
     "build": {

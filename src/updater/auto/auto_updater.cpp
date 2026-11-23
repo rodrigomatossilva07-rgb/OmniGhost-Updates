@@ -2,10 +2,11 @@
 // GitHub Releases auto-updater with signature verification
 
 #include "auto_updater.h"
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <Windows.h>
 #include <winhttp.h>
-#include <openssl/evp.h>
-#include <openssl/pem.h>
-#include <openssl/err.h>
 #include <shellapi.h>
 #include <shlobj.h>
 
@@ -39,7 +40,7 @@ static UpdateCompleteCallback g_complete_callback;
 // Helper Functions
 // =============================================================================
 
-static std::string get_timestamp_iso() {
+[[maybe_unused]] static std::string get_timestamp_iso() {
     auto now = std::chrono::system_clock::now();
     auto time_t = std::chrono::system_clock::to_time_t(now);
     std::stringstream ss;
@@ -47,7 +48,7 @@ static std::string get_timestamp_iso() {
     return ss.str();
 }
 
-static std::string get_executable_path() {
+[[maybe_unused]] static std::string get_executable_path() {
     wchar_t path[MAX_PATH];
     GetModuleFileNameW(nullptr, path, MAX_PATH);
     return std::string(path, path + wcslen(path));
@@ -59,7 +60,7 @@ static std::string get_temp_dir() {
     return std::string(path, path + wcslen(path));
 }
 
-static std::string get_app_data_dir() {
+[[maybe_unused]] static std::string get_app_data_dir() {
     wchar_t path[MAX_PATH];
     SHGetFolderPathW(nullptr, CSIDL_LOCAL_APPDATA, nullptr, 0, path);
     return std::string(path, path + wcslen(path)) + "\\OmniGhost";
@@ -140,7 +141,7 @@ public:
         }
 
         if (!header_str.empty()) {
-            WinHttpAddRequestHeaders(request, header_str.c_str(), -1, WINHTTP_ADDREQ_FLAG_ADD);
+            WinHttpAddRequestHeaders(request, header_str.c_str(), static_cast<DWORD>(-1L), WINHTTP_ADDREQ_FLAG_ADD);
         }
 
         // Send request
@@ -161,7 +162,6 @@ public:
         status_code = status;
 
         // Read body
-        DWORD size = 0;
         do {
             DWORD available = 0;
             if (!WinHttpQueryDataAvailable(request, &available)) break;
@@ -228,43 +228,14 @@ public:
 // Signature Verification
 // =============================================================================
 
-static bool verify_rsa_signature(const std::string& file_path, const std::string& signature_b64, const std::string& public_key_pem) {
-    // Load public key
-    BIO* bio = BIO_new_mem_buf(public_key_pem.c_str(), -1);
-    if (!bio) return false;
-
-    EVP_PKEY* pkey = PEM_read_bio_PUBKEY(bio, nullptr, nullptr, nullptr);
-    BIO_free(bio);
-    if (!pkey) return false;
-
-    // Create verification context
-    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
-    if (!ctx) { EVP_PKEY_free(pkey); return false; }
-
-    if (EVP_DigestVerifyInit(ctx, nullptr, EVP_sha256(), nullptr, pkey) != 1) {
-        EVP_MD_CTX_free(ctx);
-        EVP_PKEY_free(pkey);
-        return false;
-    }
-
-    // Read file and compute hash
-    std::ifstream file(file_path, std::ios::binary);
-    if (!file) { EVP_MD_CTX_free(ctx); EVP_PKEY_free(pkey); return false; }
-
-    EVP_DigestVerifyUpdate(ctx, std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
-
-    // Decode signature
-    std::string signature;
-    // Base64 decode signature_b64 to binary
-    // ... base64 decode implementation ...
-
-    // Verify
-    int result = EVP_DigestVerifyFinal(ctx, nullptr, 0); // Placeholder
-
-    EVP_MD_CTX_free(ctx);
-    EVP_PKEY_free(pkey);
-
-    return false; // Placeholder
+[[maybe_unused]] static bool verify_rsa_signature(const std::string& file_path, const std::string& signature_b64, const std::string& public_key_pem) {
+    // This retired updater was never wired to a signature decoder.  The active
+    // UpdateService performs integrity verification; this compatibility path
+    // fails closed rather than accepting an undecoded signature.
+    (void)file_path;
+    (void)signature_b64;
+    (void)public_key_pem;
+    return false;
 }
 
 // =============================================================================

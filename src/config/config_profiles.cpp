@@ -119,8 +119,8 @@ bool ProfileManager::CreateProfile(const ProfileData& profile) {
         return false;
     }
 
-    auto& gameProfiles = profiles_[gameId];
-    if (gameProfiles.contains(profileName)) {
+    auto& gameProfiles = profiles_[std::string(gameId)];
+    if (gameProfiles.contains(std::string(profileName))) {
         OGS_LOG_WARN("[ProfileManager] Profile already exists: {} for {}", profileName, gameId);
         return false;
     }
@@ -137,7 +137,7 @@ bool ProfileManager::CreateProfile(const ProfileData& profile) {
     file << j.dump(4);
 
     // Add to memory
-    gameProfiles[profileName] = profile;
+    gameProfiles[std::string(profileName)] = profile;
     OGS_LOG_INFO("[ProfileManager] Created profile: {} for {}", profileName, gameId);
     return true;
 }
@@ -147,10 +147,10 @@ bool ProfileManager::CreateProfileFromCurrent(std::string_view name,
                                                ProfileType type,
                                                std::string_view description) {
     ProfileData profile;
-    profile.metadata.name = name;
-    profile.metadata.gameId = gameId;
+    profile.metadata.name = std::string(name);
+    profile.metadata.gameId = std::string(gameId);
     profile.metadata.type = type;
-    profile.metadata.description = description;
+    profile.metadata.description = std::string(description);
     profile.metadata.author = "User";
     profile.metadata.createdAt = std::chrono::system_clock::now();
     profile.metadata.updatedAt = std::chrono::system_clock::now();
@@ -160,7 +160,7 @@ bool ProfileManager::CreateProfileFromCurrent(std::string_view name,
     profile.metadata.favorite = false;
 
     // Serialize current settings
-    profile.settings = config_manager::SerializeAllToJson();
+    profile.settings = SerializeAllToJson();
 
     return CreateProfile(profile);
 }
@@ -169,12 +169,12 @@ std::optional<ProfileData> ProfileManager::GetProfile(std::string_view gameId,
                                                        std::string_view profileName) const {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    auto gameIt = profiles_.find(gameId);
+    auto gameIt = profiles_.find(std::string(gameId));
     if (gameIt == profiles_.end()) {
         return std::nullopt;
     }
 
-    auto profileIt = gameIt->second.find(profileName);
+    auto profileIt = gameIt->second.find(std::string(profileName));
     if (profileIt == gameIt->second.end()) {
         return std::nullopt;
     }
@@ -186,7 +186,7 @@ std::vector<ProfileData> ProfileManager::GetProfilesForGame(std::string_view gam
     std::lock_guard<std::mutex> lock(mutex_);
 
     std::vector<ProfileData> result;
-    auto it = profiles_.find(gameId);
+    auto it = profiles_.find(std::string(gameId));
     if (it != profiles_.end()) {
         result.reserve(it->second.size());
         for (const auto& [name, profile] : it->second) {
@@ -226,12 +226,12 @@ bool ProfileManager::UpdateProfile(std::string_view gameId,
                                     const ProfileData& profile) {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    auto gameIt = profiles_.find(gameId);
+    auto gameIt = profiles_.find(std::string(gameId));
     if (gameIt == profiles_.end()) {
         return false;
     }
 
-    auto profileIt = gameIt->second.find(profileName);
+    auto profileIt = gameIt->second.find(std::string(profileName));
     if (profileIt == gameIt->second.end()) {
         return false;
     }
@@ -262,12 +262,12 @@ bool ProfileManager::DeleteProfile(std::string_view gameId,
                                     std::string_view profileName) {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    auto gameIt = profiles_.find(gameId);
+    auto gameIt = profiles_.find(std::string(gameId));
     if (gameIt == profiles_.end()) {
         return false;
     }
 
-    auto profileIt = gameIt->second.find(profileName);
+    auto profileIt = gameIt->second.find(std::string(profileName));
     if (profileIt == gameIt->second.end()) {
         return false;
     }
@@ -287,7 +287,7 @@ bool ProfileManager::DeleteProfile(std::string_view gameId,
     gameIt->second.erase(profileIt);
 
     // Clear active profile if it was this one
-    auto activeIt = activeProfiles_.find(gameId);
+    auto activeIt = activeProfiles_.find(std::string(gameId));
     if (activeIt != activeProfiles_.end() && activeIt->second == profileName) {
         activeProfiles_.erase(activeIt);
     }
@@ -301,18 +301,18 @@ bool ProfileManager::RenameProfile(std::string_view gameId,
                                     std::string_view newName) {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    auto gameIt = profiles_.find(gameId);
+    auto gameIt = profiles_.find(std::string(gameId));
     if (gameIt == profiles_.end()) {
         return false;
     }
 
-    auto profileIt = gameIt->second.find(oldName);
+    auto profileIt = gameIt->second.find(std::string(oldName));
     if (profileIt == gameIt->second.end()) {
         return false;
     }
 
     // Check if new name already exists
-    if (gameIt->second.contains(newName)) {
+    if (gameIt->second.contains(std::string(newName))) {
         return false;
     }
 
@@ -323,7 +323,7 @@ bool ProfileManager::RenameProfile(std::string_view gameId,
 
     // Create new entry with new name
     ProfileData updated = profileIt->second;
-    updated.metadata.name = newName;
+    updated.metadata.name = std::string(newName);
     updated.metadata.updatedAt = std::chrono::system_clock::now();
 
     // Save new file
@@ -342,12 +342,12 @@ bool ProfileManager::RenameProfile(std::string_view gameId,
 
     // Update in memory
     gameIt->second.erase(profileIt);
-    gameIt->second[newName] = std::move(updated);
+    gameIt->second[std::string(newName)] = std::move(updated);
 
     // Update active profile reference
-    auto activeIt = activeProfiles_.find(gameId);
+    auto activeIt = activeProfiles_.find(std::string(gameId));
     if (activeIt != activeProfiles_.end() && activeIt->second == oldName) {
-        activeIt->second = newName;
+        activeIt->second = std::string(newName);
     }
 
     OGS_LOG_INFO("[ProfileManager] Renamed profile: {} -> {} for {}", oldName, newName, gameId);
@@ -359,23 +359,23 @@ bool ProfileManager::DuplicateProfile(std::string_view gameId,
                                        std::string_view newName) {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    auto gameIt = profiles_.find(gameId);
+    auto gameIt = profiles_.find(std::string(gameId));
     if (gameIt == profiles_.end()) {
         return false;
     }
 
-    auto profileIt = gameIt->second.find(sourceName);
+    auto profileIt = gameIt->second.find(std::string(sourceName));
     if (profileIt == gameIt->second.end()) {
         return false;
     }
 
-    if (gameIt->second.contains(newName)) {
+    if (gameIt->second.contains(std::string(newName))) {
         return false;
     }
 
     // Create duplicate
     ProfileData duplicate = profileIt->second;
-    duplicate.metadata.name = newName;
+    duplicate.metadata.name = std::string(newName);
     duplicate.metadata.type = ProfileType::Custom;
     duplicate.metadata.builtIn = false;
     duplicate.metadata.createdAt = std::chrono::system_clock::now();
@@ -396,7 +396,7 @@ bool ProfileManager::ApplyProfile(std::string_view gameId,
     const auto& profile = *profileOpt;
 
     // Deserialize settings
-    if (!config_manager::DeserializeAllFromJson(profile.settings.dump())) {
+    if (!DeserializeAllFromJson(profile.settings.dump())) {
         OGS_LOG_ERROR("[ProfileManager] Failed to deserialize profile settings");
         return false;
     }
@@ -410,7 +410,7 @@ bool ProfileManager::ApplyProfile(std::string_view gameId,
 
 bool ProfileManager::ApplyProfileByType(ProfileType type) {
     // Get current game from config_manager
-    std::string currentGame = config_manager::GetCurrentGameName();
+    std::string currentGame = GetCurrentGameName();
     if (currentGame.empty()) {
         return false;
     }
@@ -430,12 +430,12 @@ bool ProfileManager::ToggleFavorite(std::string_view gameId,
                                      std::string_view profileName) {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    auto gameIt = profiles_.find(gameId);
+    auto gameIt = profiles_.find(std::string(gameId));
     if (gameIt == profiles_.end()) {
         return false;
     }
 
-    auto profileIt = gameIt->second.find(profileName);
+    auto profileIt = gameIt->second.find(std::string(profileName));
     if (profileIt == gameIt->second.end()) {
         return false;
     }
@@ -460,12 +460,12 @@ bool ProfileManager::ExportProfile(std::string_view gameId,
                                     const std::filesystem::path& outputPath) const {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    auto gameIt = profiles_.find(gameId);
+    auto gameIt = profiles_.find(std::string(gameId));
     if (gameIt == profiles_.end()) {
         return false;
     }
 
-    auto profileIt = gameIt->second.find(profileName);
+    auto profileIt = gameIt->second.find(std::string(profileName));
     if (profileIt == gameIt->second.end()) {
         return false;
     }
@@ -497,7 +497,7 @@ bool ProfileManager::ImportProfile(const std::filesystem::path& inputPath,
 
     // Override name if provided
     if (!newName.empty()) {
-        profile.metadata.name = newName;
+        profile.metadata.name = std::string(newName);
     }
 
     // Mark as user profile
@@ -523,7 +523,7 @@ std::size_t ProfileManager::ImportProfilesFromDirectory(const std::filesystem::p
 }
 
 std::filesystem::path ProfileManager::GetProfileDirectory() const {
-    return OmniGhost::Paths::ConfigDirectory() / "profiles";
+    return OmniGhost::Paths::Configs() / "profiles";
 }
 
 std::filesystem::path ProfileManager::GetBuiltInProfileDirectory() const {
@@ -542,19 +542,19 @@ void ProfileManager::InitializeBuiltInProfiles() {
         if (!hasLegit) {
             ProfileData legit = CreateLegitProfile(game);
             legit.metadata.builtIn = true;
-            CreateProfile(legit);
+            (void)CreateProfile(legit);
         }
 
         if (!hasRage) {
             ProfileData rage = CreateRageProfile(game);
             rage.metadata.builtIn = true;
-            CreateProfile(rage);
+            (void)CreateProfile(rage);
         }
 
         if (!hasDefault) {
             ProfileData def = CreateDefaultProfile(game);
             def.metadata.builtIn = true;
-            CreateProfile(def);
+            (void)CreateProfile(def);
         }
     }
 }
@@ -563,18 +563,18 @@ bool ProfileManager::ProfileExists(std::string_view gameId,
                                     std::string_view profileName) const {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    auto gameIt = profiles_.find(gameId);
+    auto gameIt = profiles_.find(std::string(gameId));
     if (gameIt == profiles_.end()) {
         return false;
     }
 
-    return gameIt->second.contains(profileName);
+    return gameIt->second.contains(std::string(profileName));
 }
 
 std::optional<std::string> ProfileManager::GetActiveProfile(std::string_view gameId) const {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    auto it = activeProfiles_.find(gameId);
+    auto it = activeProfiles_.find(std::string(gameId));
     if (it != activeProfiles_.end()) {
         return it->second;
     }
@@ -584,7 +584,7 @@ std::optional<std::string> ProfileManager::GetActiveProfile(std::string_view gam
 void ProfileManager::SetActiveProfile(std::string_view gameId,
                                        std::string_view profileName) {
     std::lock_guard<std::mutex> lock(mutex_);
-    activeProfiles_[gameId] = profileName;
+    activeProfiles_[std::string(gameId)] = std::string(profileName);
 }
 
 bool ProfileManager::LoadProfilesFromDisk() {
@@ -668,7 +668,7 @@ bool ProfileManager::SaveProfilesToDisk() const {
 std::filesystem::path ProfileManager::GetProfileFilePath(std::string_view gameId,
                                                           std::string_view profileName) const {
     // Sanitize filename
-    std::string safeName = profileName;
+    std::string safeName(profileName);
     std::replace(safeName.begin(), safeName.end(), '/', '_');
     std::replace(safeName.begin(), safeName.end(), '\\', '_');
 
@@ -682,7 +682,7 @@ std::filesystem::path ProfileManager::GetProfileFilePath(std::string_view gameId
 ProfileData CreateLegitProfile(std::string_view gameId) {
     ProfileData profile;
     profile.metadata.name = "Legit";
-    profile.metadata.gameId = gameId;
+    profile.metadata.gameId = std::string(gameId);
     profile.metadata.type = ProfileType::Legit;
     profile.metadata.description = "Configuração legítima para jogo competitivo";
     profile.metadata.author = "OmniGhost";
@@ -724,7 +724,7 @@ ProfileData CreateLegitProfile(std::string_view gameId) {
 ProfileData CreateRageProfile(std::string_view gameId) {
     ProfileData profile;
     profile.metadata.name = "Rage";
-    profile.metadata.gameId = gameId;
+    profile.metadata.gameId = std::string(gameId);
     profile.metadata.type = ProfileType::Rage;
     profile.metadata.description = "Configuração máxima para dominação total";
     profile.metadata.author = "OmniGhost";
@@ -771,7 +771,7 @@ ProfileData CreateRageProfile(std::string_view gameId) {
 ProfileData CreateDefaultProfile(std::string_view gameId) {
     ProfileData profile;
     profile.metadata.name = "Default";
-    profile.metadata.gameId = gameId;
+    profile.metadata.gameId = std::string(gameId);
     profile.metadata.type = ProfileType::Default;
     profile.metadata.description = "Configuração padrão equilibrada";
     profile.metadata.author = "OmniGhost";

@@ -7,14 +7,14 @@
 
 namespace OmniGhost::Config {
 
-// =============================================================================
-// Serialize All Settings
-// =============================================================================
+
+
+
 
 nlohmann::json SerializeAllToJson() {
     nlohmann::json j;
 
-    // Global app settings
+
     j["app_settings"] = nlohmann::json::object({
         {"language", static_cast<int>(app_settings::config.language)},
         {"start_behavior", static_cast<int>(app_settings::config.start_behavior)},
@@ -60,22 +60,22 @@ nlohmann::json SerializeAllToJson() {
         {"visual_style", app_settings::config.visual_style}
     });
 
-    // ESP settings
+
     j["esp"] = SerializeESPSettings();
 
-    // Aimbot settings
+
     j["aimbot"] = SerializeAimSettings();
 
-    // Trigger settings
+
     j["trigger"] = SerializeTriggerSettings();
 
-    // Radar settings
+
     j["radar"] = SerializeRadarSettings();
 
-    // Misc settings
+
     j["misc"] = SerializeMiscSettings();
 
-    // Game-specific settings
+
     j["cs2"] = SerializeCS2Settings();
     j["rust"] = SerializeRustSettings();
     j["fivem"] = SerializeFiveMSettings();
@@ -97,7 +97,7 @@ bool DeserializeAllFromJson(std::string_view json) {
 
 bool DeserializeAllFromJson(const nlohmann::json& j) {
     try {
-        // App settings
+
         if (j.contains("app_settings")) {
             const auto& s = j["app_settings"];
             app_settings::config.language = static_cast<app_settings::Language>(s.value("language", 0));
@@ -144,14 +144,14 @@ bool DeserializeAllFromJson(const nlohmann::json& j) {
             app_settings::config.visual_style = s.value("visual_style", 0);
         }
 
-        // Feature settings
+
         if (j.contains("esp")) DeserializeESPSettings(j["esp"]);
         if (j.contains("aimbot")) DeserializeAimSettings(j["aimbot"]);
         if (j.contains("trigger")) DeserializeTriggerSettings(j["trigger"]);
         if (j.contains("radar")) DeserializeRadarSettings(j["radar"]);
         if (j.contains("misc")) DeserializeMiscSettings(j["misc"]);
 
-        // Game-specific
+
         if (j.contains("cs2")) DeserializeCS2Settings(j["cs2"]);
         if (j.contains("rust")) DeserializeRustSettings(j["rust"]);
         if (j.contains("fivem")) DeserializeFiveMSettings(j["fivem"]);
@@ -165,13 +165,13 @@ bool DeserializeAllFromJson(const nlohmann::json& j) {
     }
 }
 
-// =============================================================================
-// ESP Settings
-// =============================================================================
+
+
+
 
 nlohmann::json SerializeESPSettings() {
-    // These would come from your actual ESP config globals
-    // Using placeholder structure - replace with actual globals
+
+
     return nlohmann::json::object({
         {"enabled", true},
         {"box", true},
@@ -194,13 +194,13 @@ nlohmann::json SerializeESPSettings() {
 }
 
 bool DeserializeESPSettings(const nlohmann::json& j) {
-    // Apply to actual ESP globals
+
     return true;
 }
 
-// =============================================================================
-// Aimbot Settings
-// =============================================================================
+
+
+
 
 nlohmann::json SerializeAimSettings() {
     return nlohmann::json::object({
@@ -227,9 +227,9 @@ bool DeserializeAimSettings(const nlohmann::json& j) {
     return true;
 }
 
-// =============================================================================
-// Trigger Settings
-// =============================================================================
+
+
+
 
 nlohmann::json SerializeTriggerSettings() {
     return nlohmann::json::object({
@@ -252,9 +252,9 @@ bool DeserializeTriggerSettings(const nlohmann::json& j) {
     return true;
 }
 
-// =============================================================================
-// Radar Settings
-// =============================================================================
+
+
+
 
 nlohmann::json SerializeRadarSettings() {
     return nlohmann::json::object({
@@ -275,9 +275,9 @@ bool DeserializeRadarSettings(const nlohmann::json& j) {
     return true;
 }
 
-// =============================================================================
-// Misc Settings
-// =============================================================================
+
+
+
 
 nlohmann::json SerializeMiscSettings() {
     return nlohmann::json::object({
@@ -302,9 +302,9 @@ bool DeserializeMiscSettings(const nlohmann::json& j) {
     return true;
 }
 
-// =============================================================================
-// Game-Specific Settings (CS2)
-// =============================================================================
+
+
+
 
 nlohmann::json SerializeCS2Settings() {
     return nlohmann::json::object({
@@ -328,9 +328,9 @@ bool DeserializeCS2Settings(const nlohmann::json& j) {
     return true;
 }
 
-// =============================================================================
-// Game-Specific Settings (Rust)
-// =============================================================================
+
+
+
 
 nlohmann::json SerializeRustSettings() {
     return nlohmann::json::object({
@@ -372,9 +372,9 @@ bool DeserializeRustSettings(const nlohmann::json& j) {
     return true;
 }
 
-// =============================================================================
-// Game-Specific Settings (FiveM)
-// =============================================================================
+
+
+
 
 nlohmann::json SerializeFiveMSettings() {
     return nlohmann::json::object({
@@ -408,9 +408,9 @@ bool DeserializeFiveMSettings(const nlohmann::json& j) {
     return true;
 }
 
-// =============================================================================
-// Game-Specific Settings (Fortnite)
-// =============================================================================
+
+
+
 
 nlohmann::json SerializeFortniteSettings() {
     return nlohmann::json::object({
@@ -445,9 +445,9 @@ bool DeserializeFortniteSettings(const nlohmann::json& j) {
     return true;
 }
 
-// =============================================================================
-// Game-Specific Settings (Warzone)
-// =============================================================================
+
+
+
 
 nlohmann::json SerializeWarzoneSettings() {
     return nlohmann::json::object({
@@ -479,9 +479,9 @@ bool DeserializeWarzoneSettings(const nlohmann::json& j) {
     return true;
 }
 
-// =============================================================================
-// Game-Specific Settings (Apex)
-// =============================================================================
+
+
+
 
 nlohmann::json SerializeApexSettings() {
     return nlohmann::json::object({
@@ -517,14 +517,14 @@ bool DeserializeApexSettings(const nlohmann::json& j) {
     return true;
 }
 
-// =============================================================================
-// Get Current Game Name
-// =============================================================================
+
+
+
 
 std::string GetCurrentGameName() {
-    // This would come from your launcher/game selection
-    // For now, return empty - implement based on your actual game state
+
+
     return "";
 }
 
-} // namespace OmniGhost::Config
+}

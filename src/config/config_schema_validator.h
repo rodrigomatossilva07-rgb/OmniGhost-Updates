@@ -2,11 +2,13 @@
 
 #include "platform/expected.h"
 #include <nlohmann/json.hpp>
-#include <nlohmann/json_schema.hpp>
 #include <string>
 #include <string_view>
 #include <filesystem>
 #include <optional>
+#include <array>
+#include <vector>
+#include <shared_mutex>
 
 namespace OmniGhost::Config {
 
@@ -59,10 +61,8 @@ public:
     std::vector<SchemaId> GetAvailableSchemas() const noexcept;
 
 private:
-    using JsonSchemaValidator = nlohmann::json_schema::json_validator;
-
     std::filesystem::path schemaDir_;
-    std::array<std::unique_ptr<JsonSchemaValidator>, static_cast<size_t>(SchemaId::Count)> validators_;
+    std::array<nlohmann::json, static_cast<size_t>(SchemaId::Count)> schemas_;
     std::array<bool, static_cast<size_t>(SchemaId::Count)> initialized_{false};
     mutable std::shared_mutex mutex_;
 };

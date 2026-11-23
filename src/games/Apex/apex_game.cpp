@@ -16,7 +16,7 @@ Config config{};
 Runtime runtime{};
 std::atomic_bool ready{false};
 
-// Snapshot de offsets carregado do JSON
+
 OmniGhost::EmbeddedOffsets::Snapshot g_offset_snapshot{};
 
 namespace {
@@ -57,7 +57,7 @@ void AddUnique(std::vector<std::uintptr_t>& values, std::uintptr_t value) {
         values.push_back(value);
 }
 
-// Helper para obter offset do snapshot
+
 inline std::uintptr_t GetOffset(const char* path, std::uintptr_t fallback = 0) {
     std::uint64_t value = 0;
     if (g_offset_snapshot.TryGet(path, value) && value != 0)
@@ -65,9 +65,9 @@ inline std::uintptr_t GetOffset(const char* path, std::uintptr_t fallback = 0) {
     return fallback;
 }
 
-// Offsets resolvidos em runtime
+
 struct RuntimeOffsets {
-    // Globals
+
     std::uintptr_t client_dll_base = 0;
     std::uintptr_t engine_dll_base = 0;
     std::uintptr_t entity_list = 0;
@@ -84,7 +84,7 @@ struct RuntimeOffsets {
     std::uintptr_t signon_state = 0;
     std::uintptr_t level_name = 0;
 
-    // Base Entity
+
     std::uintptr_t m_iEFlags = 0;
     std::uintptr_t m_fFlags = 0;
     std::uintptr_t m_pMoveParent = 0;
@@ -167,7 +167,7 @@ bool LoadRuntimeOffsets() {
     }
     g_offset_snapshot = std::move(result.snapshot);
 
-    // Globals
+
     g_offsets.entity_list = GetOffset("_root.EntityList");
     g_offsets.local_player = GetOffset("_root.LocalPlayer");
     g_offsets.view_render = GetOffset("_root.ViewRender");
@@ -184,7 +184,7 @@ bool LoadRuntimeOffsets() {
     g_offsets.client_dll_base = GetOffset("_root.CHLClient");
     g_offsets.engine_dll_base = GetOffset("_root.ClientState");
 
-    // Base Entity fields
+
     g_offsets.m_iEFlags = GetOffset("base_entity.m_iEFlags");
     g_offsets.m_fFlags = GetOffset("base_entity.m_fFlags");
     g_offsets.m_pMoveParent = GetOffset("base_entity.m_pMoveParent");
@@ -258,7 +258,7 @@ bool LoadRuntimeOffsets() {
     g_offsets.m_iPrimaryReserveAmmo = GetOffset("CBasePlayer.m_iPrimaryReserveAmmo");
     g_offsets.m_iItemDefinitionIndex = GetOffset("CBaseCombatWeapon.m_iItemDefinitionIndex");
 
-    // Valida offsets críticos
+
     if (!g_offsets.entity_list || !g_offsets.local_player || !g_offsets.view_render ||
         !g_offsets.view_matrix || !g_offsets.m_vecAbsOrigin || !g_offsets.m_iHealth) {
         runtime.status = "Offsets críticos ausentes no JSON";
@@ -270,34 +270,34 @@ bool LoadRuntimeOffsets() {
 }
 
 bool TryPlayer(std::uintptr_t entity, Player& player) {
-    // Health
+
     int health = 0;
     if (!ReadValue(entity + g_offsets.m_iHealth, health) || health <= 0 || health > 1000)
         return false;
 
-    // Life state
+
     std::uint8_t lifeState = 0;
     ReadValue(entity + g_offsets.m_lifeState, lifeState);
-    if (lifeState != 0) return false; // Not alive
+    if (lifeState != 0) return false;
 
-    // Team
+
     int team = 0;
     ReadValue(entity + g_offsets.m_iTeamNum, team);
 
-    // Position
+
     Vec3 pos{};
     if (!ReadValue(entity + g_offsets.m_vecAbsOrigin, pos) || !IsVector(pos))
         return false;
 
-    // Shield
+
     int shield = 0;
     ReadValue(entity + g_offsets.m_shieldHealth, shield);
 
-    // Velocity
+
     Vec3 vel{};
     ReadValue(entity + g_offsets.m_vecVelocity, vel);
 
-    // Name
+
     char name[64]{};
     if (g_offsets.m_iSignifierName) {
         std::uintptr_t namePtr = 0;
@@ -306,7 +306,7 @@ bool TryPlayer(std::uintptr_t entity, Player& player) {
         }
     }
 
-    // Weapon
+
     char weapon[32]{};
     if (g_offsets.m_hActiveWeapon) {
         std::uintptr_t weaponHandle = 0;
@@ -316,7 +316,7 @@ bool TryPlayer(std::uintptr_t entity, Player& player) {
                 if (g_offsets.m_iItemDefinitionIndex) {
                     int defIdx = 0;
                     ReadValue(weaponPtr + g_offsets.m_iItemDefinitionIndex, defIdx);
-                    // Map defIdx to weapon name if needed
+
                     std::snprintf(weapon, sizeof(weapon), "Weapon_%d", defIdx);
                 }
             }
@@ -348,7 +348,7 @@ bool ReadEntityList(std::vector<std::uintptr_t>& entities) {
     if (!ReadPointer(runtime.client_dll_base + g_offsets.entity_list, list) || !IsPointer(list))
         return false;
 
-    // Apex entity list: array of 0x10000 entries, each 0x8 bytes
+
     for (int i = 0; i < 10000; ++i) {
         std::uintptr_t entity = 0;
         if (!ReadValue(list + static_cast<std::uintptr_t>(i) * 8, entity))
@@ -378,7 +378,7 @@ void ReadPlayers(const std::vector<std::uintptr_t>& raw) {
 }
 
 bool ReadCamera() {
-    // ViewRender -> view matrix
+
     std::uintptr_t viewRender = 0;
     if (!ReadPointer(runtime.engine_dll_base + g_offsets.view_render, viewRender) || !viewRender) {
         runtime.camera_status = "ViewRender nao encontrado";
@@ -398,11 +398,11 @@ bool ReadCamera() {
         return false;
     }
 
-    // Camera origin
+
     float camPos[3]{};
     ReadExact(viewRender + g_offsets.camera_origin, camPos, sizeof(camPos));
 
-    // View angles
+
     float viewAngles[3]{};
     ReadExact(viewRender + g_offsets.view_angles, viewAngles, sizeof(viewAngles));
 
@@ -445,7 +445,7 @@ void Update(bool processProbe) {
     else runtime.status = "Apex ESP ativa";
 }
 
-} // namespace
+}
 
 bool Attach() {
     Shutdown();
@@ -493,4 +493,4 @@ bool IsGameProcessAlive() { return mem.GetPidFromName(kProcessName) != 0; }
 bool ValidateLiveOffsets() { Update(true); return runtime.modules_ok && runtime.offset_catalog_ok; }
 const char* StatusLine() { return runtime.status.c_str(); }
 
-} // namespace Apex
+}

@@ -3,8 +3,18 @@
 #include "animations.h"
 #include "localization.h"
 #include "src/project/third_party/ImGui/imgui_internal.h"
+#include <misc/cpp/imgui_stdlib.h>
 
 namespace CyberWidgets {
+
+namespace {
+
+float WidgetWidth() {
+    return std::max(40.0f,
+        ImGui::GetContentRegionAvail().x);
+}
+
+} // namespace
 
 // =============================================================================
 // Input Text Widgets Implementation
@@ -16,11 +26,6 @@ bool InputText(const char* label, std::string* value, ImGuiInputTextFlags flags)
     ImGuiWindow* window = ImGui::GetCurrentWindow();
     if (window->SkipItems) return false;
 
-    const ImGuiID id = window->GetID(label);
-    const char* label_display = DisplayLabel(label);
-
-    // Calculate size
-    const ImVec2 text_size = ImGui::CalcTextSize(label ? label : "");
     ImVec2 size = ImVec2(WidgetWidth(), CyberTheme::Metrics::ControlHeight);
 
     const ImVec2 pos = ImGui::GetCursorScreenPos();
@@ -65,7 +70,7 @@ bool InputTextMultiline(const char* label, std::string* value, const ImVec2& siz
     
     ImGui::PushID(label);
     ImGui::SetNextItemWidth(WidgetWidth() - CyberTheme::Spacing::Md);
-    bool changed = ImGui::InputTextMultiline("##multiline", value, flags, size_final);
+    bool changed = ImGui::InputTextMultiline("##multiline", value, size_final, flags);
     ImGui::PopID();
 
     return changed;
@@ -133,7 +138,7 @@ bool DragFloat(const char* label, float* value, float speed, float min, float ma
     ImGui::SetNextItemWidth(WidgetWidth() - CyberTheme::Spacing::Md);
     bool changed = min > 0 && max > 0
         ? ImGui::DragFloat(label, value, speed, min, max, format)
-        : ImGui::DragFloat(label, value, speed, format);
+        : ImGui::DragFloat(label, value, speed, 0.0f, 0.0f, format);
     ImGui::PopID();
 
     return changed;
@@ -146,7 +151,7 @@ bool DragFloat2(const char* label, float v[2], float speed, float min, float max
     ImGui::SetNextItemWidth(WidgetWidth() - CyberTheme::Spacing::Md);
     bool changed = min > 0 && max > 0
         ? ImGui::DragFloat2(label, v, speed, min, max, format)
-        : ImGui::DragFloat2(label, v, speed, format);
+        : ImGui::DragFloat2(label, v, speed, 0.0f, 0.0f, format);
     ImGui::PopID();
 
     return changed;
@@ -159,7 +164,7 @@ bool DragFloat3(const char* label, float v[3], float speed, float min, float max
     ImGui::SetNextItemWidth(WidgetWidth() - CyberTheme::Spacing::Md);
     bool changed = min > 0 && max > 0
         ? ImGui::DragFloat3(label, v, speed, min, max, format)
-        : ImGui::DragFloat3(label, v, speed, format);
+        : ImGui::DragFloat3(label, v, speed, 0.0f, 0.0f, format);
     ImGui::PopID();
 
     return changed;
@@ -172,7 +177,7 @@ bool DragFloat4(const char* label, float v[4], float speed, float min, float max
     ImGui::SetNextItemWidth(WidgetWidth() - CyberTheme::Spacing::Md);
     bool changed = min > 0 && max > 0
         ? ImGui::DragFloat4(label, v, speed, min, max, format)
-        : ImGui::DragFloat4(label, v, speed, format);
+        : ImGui::DragFloat4(label, v, speed, 0.0f, 0.0f, format);
     ImGui::PopID();
 
     return changed;
@@ -185,7 +190,7 @@ bool DragInt(const char* label, int* value, float speed, int min, int max, const
     ImGui::SetNextItemWidth(WidgetWidth() - CyberTheme::Spacing::Md);
     bool changed = min > 0 && max > 0
         ? ImGui::DragInt(label, value, speed, min, max, format)
-        : ImGui::DragInt(label, value, speed, format);
+        : ImGui::DragInt(label, value, speed, 0, 0, format);
     ImGui::PopID();
 
     return changed;
@@ -198,7 +203,7 @@ bool DragInt2(const char* label, int v[2], float speed, int min, int max, const 
     ImGui::SetNextItemWidth(WidgetWidth() - CyberTheme::Spacing::Md);
     bool changed = min > 0 && max > 0
         ? ImGui::DragInt2(label, v, speed, min, max, format)
-        : ImGui::DragInt2(label, v, speed, format);
+        : ImGui::DragInt2(label, v, speed, 0, 0, format);
     ImGui::PopID();
 
     return changed;
@@ -211,7 +216,7 @@ bool DragInt3(const char* label, int v[3], float speed, int min, int max, const 
     ImGui::SetNextItemWidth(WidgetWidth() - CyberTheme::Spacing::Md);
     bool changed = min > 0 && max > 0
         ? ImGui::DragInt3(label, v, speed, min, max, format)
-        : ImGui::DragInt3(label, v, speed, format);
+        : ImGui::DragInt3(label, v, speed, 0, 0, format);
     ImGui::PopID();
 
     return changed;
@@ -224,7 +229,7 @@ bool DragInt4(const char* label, int v[4], float speed, int min, int max, const 
     ImGui::SetNextItemWidth(WidgetWidth() - CyberTheme::Spacing::Md);
     bool changed = min > 0 && max > 0
         ? ImGui::DragInt4(label, v, speed, min, max, format)
-        : ImGui::DragInt4(label, v, speed, format);
+        : ImGui::DragInt4(label, v, speed, 0, 0, format);
     ImGui::PopID();
 
     return changed;

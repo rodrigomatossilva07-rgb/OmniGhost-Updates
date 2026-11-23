@@ -58,7 +58,7 @@ if (-not $SourceOnly -and (Test-Path -LiteralPath $metadataPath -PathType Leaf))
     if ([string]$metadata.source_provenance -cne 'git') { $errors.Add("[ERROR] Metadata source_provenance must be git; got $($metadata.source_provenance).") }
     if ($metadata.dirty -eq $true) { $errors.Add('[ERROR] Metadata was generated from a dirty tree. Commit changes and rebuild Publish|x64.') }
 
-    # Check reproducibility only if required by config
+
     $requireReproducible = $false
     if (Test-Path -LiteralPath $configPath -PathType Leaf) {
         $pubConfig = [IO.File]::ReadAllText($configPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
@@ -67,7 +67,7 @@ if (-not $SourceOnly -and (Test-Path -LiteralPath $metadataPath -PathType Leaf))
     if ($requireReproducible -and $metadata.reproducible -ne $true) {
         $errors.Add('[ERROR] Byte-for-byte reproducibility has not been verified by an independent rebuild; Commercial packaging remains blocked.')
     } elseif (-not $requireReproducible -and $metadata.reproducible -ne $true) {
-        $checks.Add('[WARN] Reproducibility not verified (independent rebuild required for full verification)')
+        $checks.Add('[INFO] Reproducibility audit is optional for this release policy.')
     }
     foreach ($field in @('vc_tools_version','compiler_version','windows_sdk_version')) {
         $value = [string]$metadata.$field

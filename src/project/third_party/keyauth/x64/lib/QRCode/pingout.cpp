@@ -27,7 +27,7 @@
 #include <stdexcept>
 #include "pngout.hpp"
 
-#pragma warning(disable:C4146)
+#pragma warning(disable:4146)
 
 using std::uint8_t;
 using std::uint16_t;
@@ -56,7 +56,7 @@ TinyPngOut::TinyPngOut(uint32_t w, uint32_t h, std::ostream &out) :
 		throw std::length_error("Image too large");
 	lineSize = static_cast<uint32_t>(lineSz);
 
-	uint64_t uncompRm = lineSize * height;
+	const uint64_t uncompRm = static_cast<uint64_t>(lineSize) * static_cast<uint64_t>(height);
 	if (uncompRm > UINT32_MAX)
 		throw std::length_error("Image too large");
 	uncompRemain = static_cast<uint32_t>(uncompRm);

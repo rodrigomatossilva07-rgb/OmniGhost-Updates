@@ -1,23 +1,23 @@
-<#
-.SYNOPSIS
-    Extracts translations from localization.cpp and generates initial locale JSON files.
 
-.DESCRIPTION
-    Reads the legacy localization.cpp file with its inline translation table
-    and generates per-language JSON files in src/window/locales/.
 
-.EXAMPLE
-    .\Extract-Localization.ps1
-#>
+
+
+
+
+
+
+
+
+
 
 [CmdletBinding()]
 param()
 
 $ErrorActionPreference = 'Stop'
 
-# -----------------------------------------------------------------------------
-# Configuration
-# -----------------------------------------------------------------------------
+
+
+
 $LANGUAGES = @{
     'pt' = 'Português'
     'en' = 'English'
@@ -31,9 +31,9 @@ $LANGUAGES = @{
 $SRC_FILE = "src/window/localization.cpp"
 $LOCALE_DIR = "src/window/locales"
 
-# -----------------------------------------------------------------------------
-# Helpers
-# -----------------------------------------------------------------------------
+
+
+
 function Write-Log {
     param(
         [string]$Message,
@@ -50,9 +50,9 @@ function Write-Log {
     Write-Host "${prefix} ${Message}"
 }
 
-# -----------------------------------------------------------------------------
-# Main
-# -----------------------------------------------------------------------------
+
+
+
 $projectRoot = Get-Location
 $srcFilePath = Join-Path $projectRoot $SRC_FILE
 $localeDirPath = Join-Path $projectRoot $LOCALE_DIR
@@ -70,7 +70,7 @@ Write-Log "Extracting translations from ${SRC_FILE}..."
 
 $content = Get-Content $srcFilePath -Raw -Encoding UTF8
 
-# Pattern to match: {"key", {"pt", "en", "de", "es", "fr", "it", "ru"}},
+
 $pattern = '\{\s*"([^"]+)"\s*,\s*\{\s*"([^"]*)"\s*,\s*"([^"]*)"\s*,\s*"([^"]*)"\s*,\s*"([^"]*)"\s*,\s*"([^"]*)"\s*,\s*"([^"]*)"\s*,\s*"([^"]*)"\s*\}\s*\}'
 $regex = [System.Text.RegularExpressions.Regex]::new($pattern, [System.Text.RegularExpressions.RegexOptions]::Multiline -bor [System.Text.RegularExpressions.RegexOptions]::Singleline)
 
@@ -98,7 +98,7 @@ foreach ($langCode in $LANGUAGES.Keys) {
     foreach ($key in $translations.Keys) {
         $localeData[$key] = $translations[$key][$langCode]
     }
-    
+
     $filePath = Join-Path $localeDirPath "$langCode.json"
     $localeData | ConvertTo-Json | Set-Content $filePath -Encoding UTF8
     Write-Log "Generated ${filePath} with ${localeData.Count} keys"

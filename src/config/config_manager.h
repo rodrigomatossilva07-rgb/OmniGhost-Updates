@@ -10,9 +10,9 @@
 
 namespace config_manager {
 
-// Shared wire-format helpers.  Configuration sections are compiled in
-// separate translation units, so these must live in a header rather than in
-// the parser implementation.
+
+
+
 inline void WBool(std::ostringstream& out, const char* key, bool value) {
     out << key << '=' << (value ? 1 : 0) << '\n';
 }
@@ -90,15 +90,15 @@ struct CommunityConfigInfo {
     std::string min_launcher_version;
 };
 
-// DEV Config Info (admin only)
+
 struct DevConfigInfo {
     std::string name;
     std::string title;
     std::string description;
     std::string author;
-    std::string version;          // SemVer da config DEV (ex: "1.0.0")
-    int version_int = 1;          // Versão incremental (ex: 1, 2, 3)
-    std::string exe_version;      // Versão do EXE compatível (ex: "1.3.4")
+    std::string version;
+    int version_int = 1;
+    std::string exe_version;
     std::string changelog;
     std::string updated_at;
     std::string download_url;
@@ -106,7 +106,7 @@ struct DevConfigInfo {
     bool official = false;
     std::vector<std::string> tags;
     std::string min_launcher_version;
-    bool has_update = false;      // Se existe versão mais nova no servidor
+    bool has_update = false;
 };
 
 extern std::vector<SavedConfigInfo> saved_list;
@@ -138,20 +138,20 @@ bool UploadCloudConfig(const std::string& name);
 bool DownloadCloudConfig(const std::string& name);
 bool DeleteCloudConfig(const std::string& name);
 
-    // DEV Config (admin only)
+
     bool IsDevConfigAvailable();
     std::vector<std::string> ListDevConfigs();
     bool DownloadDevConfig(const std::string& name);
     bool UploadDevConfig(const std::string& name);
     bool DeleteDevConfig(const std::string& name);
 
-    // Enhanced DEV Config API (with versioning, validation, notifications)
+
     std::vector<DevConfigInfo> ListDevConfigsDetailed();
     bool DownloadDevConfigVersioned(const std::string& name, int target_version = -1);
     bool UploadDevConfigVersioned(const std::string& name, const std::string& title, const std::string& description, const std::string& changelog, const std::vector<std::string>& tags);
-    bool CheckDevConfigUpdates();  // Verifica se há novas configs DEV no servidor
-    std::vector<DevConfigInfo> GetPendingDevConfigUpdates();  // Lista configs com update disponível
-    void MarkDevConfigUpdateNotified(const std::string& name);  // Marca notificação como vista
+    bool CheckDevConfigUpdates();
+    std::vector<DevConfigInfo> GetPendingDevConfigUpdates();
+    void MarkDevConfigUpdateNotified(const std::string& name);
 
     std::string GetLastStatus();
 bool RefreshCommunityConfigs(CommunityScope scope, const std::string& search = {}, const std::string& sort = "popular");

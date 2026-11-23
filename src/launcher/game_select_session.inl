@@ -77,7 +77,7 @@ bool DetectInstalled(const GameDefinition& game) {
 }
 
 bool HasRequiredOffsets(const GameDefinition& game) {
-    // Offsets are embedded in EXE - no external files needed
+
     return !game.coming_soon;
 }
 

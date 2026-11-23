@@ -35,7 +35,6 @@
 #include "../globals.h"
 #include "../auth/local_auth_service.h"
 #include "../licensing/license_service.h"
-#include "../security/security_manager.h"
 #include "../platform/offset_auto.h"
 #include "src/games/Cs2/cs2_game.h"
 #include "src/games/Fortnite/fortnite_game.h"

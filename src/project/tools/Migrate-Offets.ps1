@@ -1,39 +1,39 @@
-<#
-.SYNOPSIS
-    Migrates OmniGhost game offset JSON files to the latest schema version (v7).
 
-.DESCRIPTION
-    Handles migration from older schema versions to v7:
-    - v1 (flat client.dll/engine2.dll structure) -> v7 (namespaces + decryptions)
-    - v2 (CS2 legacy) -> v7
-    - v3-v6 (intermediate) -> v7
-    
-    Preserves all offset data while restructuring to unified schema.
 
-.PARAMETER Path
-    Path to offset JSON file or directory to migrate
 
-.PARAMETER TargetVersion
-    Target schema version (default: 7)
 
-.PARAMETER DryRun
-    Show what would be done without making changes
 
-.PARAMETER Backup
-    Create .bak files before migration
 
-.PARAMETER Force
-    Overwrite existing files without prompt
 
-.EXAMPLE
-    .\Migrate-Offsets.ps1 -Path "src/project/data/cs2_offsets.json" -DryRun
 
-.EXAMPLE
-    .\Migrate-Offsets.ps1 -Path "src/project/data" -Backup -TargetVersion 7
 
-.EXAMPLE
-    .\Migrate-Offsets.ps1 -Path "src/project/data/legacy_offsets.json" -Force
-#>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 [CmdletBinding()]
 param(
@@ -55,9 +55,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# -----------------------------------------------------------------------------
-# Configuration
-# -----------------------------------------------------------------------------
+
+
+
 $GAME_MODULE_MAP = @{
     'rust'      = 'GameAssembly.dll'
     'cs2'       = 'client.dll'
@@ -121,9 +121,9 @@ $CRITICAL_FIELDS = @{
     )
 }
 
-# -----------------------------------------------------------------------------
-# Helpers
-# -----------------------------------------------------------------------------
+
+
+
 function Write-Log {
     param(
         [string]$Message,
@@ -165,11 +165,11 @@ function Write-JsonFile {
 
 function Get-GameFromData {
     param($json)
-    # Try explicit game field
+
     if ($json.PSObject.Properties.Match('game')) {
         return $json.game
     }
-    # Infer from module
+
     if ($json.PSObject.Properties.Match('module')) {
         foreach ($kv in $GAME_MODULE_MAP.GetEnumerator()) {
             if ($json.module -like "*$($kv.Value)*") {
@@ -177,7 +177,7 @@ function Get-GameFromData {
             }
         }
     }
-    # Infer from structure
+
     if ($json.PSObject.Properties.Match('client.dll')) { return 'cs2' }
     if ($json.PSObject.Properties.Match('engine2.dll')) { return 'cs2' }
     if ($json.PSObject.Properties.Match('_root.basenetworkable_pointer')) { return 'rust' }
@@ -195,7 +195,7 @@ function Migrate-ToV7 {
     $source = $GAME_SOURCE_MAP[$Game] ?? 'manual'
     $cl = $json.cl ?? $json.build_id ?? ''
 
-    # Build new v7 structure
+
     $v7 = @{
         schema_version = 7
         game = $Game
@@ -213,12 +213,12 @@ function Migrate-ToV7 {
         }
     }
 
-    # Migrate based on source structure
+
     if ($json.PSObject.Properties.Match('_root')) {
-        # Rust-style _root already matches v7
+
         $v7.namespaces['_root'] = @{ fields = $json._root.fields }
     } elseif ($json.PSObject.Properties.Match('client.dll') -or $json.PSObject.Properties.Match('engine2.dll')) {
-        # CS2 v1/v2 flat structure
+
         $v7.namespaces['_root'] = @{ fields = @{} }
         $v7.namespaces['client.dll'] = @{ fields = $json['client.dll'] ?? @{} }
         $v7.namespaces['engine2.dll'] = @{ fields = $json['engine2.dll'] ?? @{} }
@@ -234,7 +234,7 @@ function Migrate-ToV7 {
             }
         }
     } elseif ($json.PSObject.Properties.Match('globals') -or $json.PSObject.Properties.Match('gworld_crypto')) {
-        # Fortnite structure
+
         $v7.namespaces['_root'] = @{ fields = $json.globals ?? @{} }
         $v7.namespaces['gworld_crypto'] = @{ fields = $json.gworld_crypto ?? @{} }
         $v7.namespaces['runtime'] = @{ fields = $json.runtime ?? @{} }
@@ -244,14 +244,14 @@ function Migrate-ToV7 {
                 $v7.namespaces['dump_structs'][$ds] = @{ fields = $json.dump_structs.$ds }
             }
         }
-        # Engine, GameViewportClient, UWorld, etc.
+
         foreach ($ns in @('engine', 'GameViewportClient', 'UWorld', 'ULevel', 'UGameInstance', 'APlayerController', 'AController', 'APawn', 'ACharacter', 'AActor', 'USceneComponent', 'APlayerCameraManager', 'AGameStateBase', 'APlayerState', 'AFortPlayerState', 'AFortPawn', 'AFortPlayerStateAthena')) {
             if ($json.PSObject.Properties.Match($ns)) {
                 $v7.namespaces[$ns] = @{ fields = $json.$ns }
             }
         }
     } elseif ($json.PSObject.Properties.Match('offsets')) {
-        # Warzone structure
+
         $v7.namespaces['_root'] = @{ fields = $json.offsets ?? @{} }
         $v7.namespaces['decrypt_rva'] = @{ fields = $json.decrypt_rva ?? @{} }
         $v7.namespaces['camera'] = @{ fields = $json.camera ?? @{} }
@@ -261,36 +261,36 @@ function Migrate-ToV7 {
         $v7.namespaces['entity'] = @{ fields = $json.entity ?? @{} }
         $v7.namespaces['name_array'] = @{ fields = $json.name_array ?? @{} }
     } elseif ($json.PSObject.Properties.Match('CHLClient') -or $json.PSObject.Properties.Match('base_entity')) {
-        # Apex structure
+
         $v7.namespaces['_root'] = @{ fields = @{} }
         foreach ($prop in $json.PSObject.Properties) {
             if ($prop.Name -in @('id', 'game_slug', 'version', 'label', 'published', 'created_at', 'updated_at', 'markdown')) { continue }
             $v7.namespaces['_root'].fields[$prop.Name] = $prop.Value
         }
-        # Camera namespace
+
         $v7.namespaces['camera'] = @{ fields = @{} }
         if ($json.PSObject.Properties.Match('view_matrix')) { $v7.namespaces['camera'].fields['view_matrix'] = $json.view_matrix }
         if ($json.PSObject.Properties.Match('camera_origin')) { $v7.namespaces['camera'].fields['camera_origin'] = $json.camera_origin }
         if ($json.PSObject.Properties.Match('view_angles')) { $v7.namespaces['camera'].fields['view_angles'] = $json.view_angles }
         if ($json.PSObject.Properties.Match('studio_hdr')) { $v7.namespaces['camera'].fields['studio_hdr'] = $json.studio_hdr }
-        # Base entity
+
         $v7.namespaces['base_entity'] = @{ fields = $json.base_entity ?? @{} }
-        # CBasePlayer, CBaseCombatWeapon
+
         if ($json.PSObject.Properties.Match('CBasePlayer')) { $v7.namespaces['CBasePlayer'] = @{ fields = $json.CBasePlayer } }
         if ($json.PSObject.Properties.Match('CBaseCombatWeapon')) { $v7.namespaces['CBaseCombatWeapon'] = @{ fields = $json.CBaseCombatWeapon } }
     } else {
-        # Fallback: treat all top-level as namespaces
+
         foreach ($prop in $json.PSObject.Properties) {
             if ($prop.Name -in @('schema_version', 'game', 'build', 'build_id', 'module', 'source', 'generated_at', 'cl', 'note', 'verified_utc', 'namespaces', 'decryptions')) { continue }
             $v7.namespaces[$prop.Name] = @{ fields = $prop.Value }
         }
     }
 
-    # Build decryptions from legacy fields
+
     $decFuncs = @()
     $decFingerprints = @{}
 
-    # Common decryption function names by game
+
     $gameDecFuncs = @{
         'rust' = @('client_entities', 'entity_list', 'clActiveItem', 'PlayerInventory', 'PlayerEyes', 'decrypt_fov', 'encrypt_fov')
         'cs2' = @('client_entities', 'entity_list', 'clActiveItem', 'PlayerInventory', 'PlayerEyes')
@@ -305,21 +305,21 @@ function Migrate-ToV7 {
         $v7.decryptions.functions = $gameDecFuncs[$Game]
     }
 
-    # Add fingerprint placeholders for known decryption functions
+
     foreach ($func in $v7.decryptions.functions) {
         if (-not $v7.decryptions.rva_fingerprints.ContainsKey($func)) {
             $v7.decryptions.rva_fingerprints[$func] = '0x0'
         }
     }
 
-    # Add legacy rva_fingerprints if present
+
     if ($json.PSObject.Properties.Match('decrypt_rva')) {
         foreach ($fp in $json.decrypt_rva.PSObject.Properties) {
             $v7.decryptions.rva_fingerprints[$fp.Name] = $fp.Value
         }
     }
 
-    # Add critical fields for this game
+
     if ($CRITICAL_FIELDS.ContainsKey($Game)) {
         $v7.critical_offsets = $CRITICAL_FIELDS[$Game]
     }
@@ -327,14 +327,14 @@ function Migrate-ToV7 {
     return $v7
 }
 
-# -----------------------------------------------------------------------------
-# Main
-# -----------------------------------------------------------------------------
+
+
+
 Write-Log "OmniGhost Offset Migration Tool"
 Write-Log "Target schema version: ${TargetVersion}"
 Write-Log "Source: ${Path}"
 
-# Find files
+
 if (Test-Path $Path -PathType Leaf) {
     $files = @($Path)
 } else {
@@ -364,12 +364,12 @@ foreach ($file in $files) {
         continue
     }
 
-    # Check current schema version
+
     $currentVer = 1
     if ($json.PSObject.Properties.Match('schema_version')) {
         $currentVer = [int]$json.schema_version
     } elseif ($json.PSObject.Properties.Match('version')) {
-        # Some old files use 'version' instead
+
         if ([int]::TryParse($json.version, [ref]$currentVer)) { }
     }
 
@@ -381,14 +381,14 @@ foreach ($file in $files) {
 
     Write-Log "  Migrating: v${currentVer} -> v${TargetVersion}"
 
-    # Detect game
+
     $game = Get-GameFromData -json $json
     Write-Log "  Detected game: ${game}"
 
-    # Perform migration
+
     $v7 = Migrate-ToV7 -json $json -Game $game
 
-    # Validate migrated structure
+
     if (-not $v7.PSObject.Properties.Match('namespaces')) {
         Write-Log "  ERROR: Migration produced invalid structure (missing namespaces)" -Level Error
         $skipped++
@@ -410,7 +410,7 @@ foreach ($file in $files) {
         continue
     }
 
-    # Backup
+
     if ($Backup) {
         $bakPath = $file.FullName + '.bak'
         if (Test-Path $bakPath -and -not $Force) {
@@ -422,7 +422,7 @@ foreach ($file in $files) {
         Write-Log "  Backup created: ${bakPath}" -Level Info
     }
 
-    # Write migrated file
+
     try {
         Write-JsonFile -FilePath $file.FullName -Data $v7
         Write-Log "  Migrated successfully" -Level Pass
@@ -433,7 +433,7 @@ foreach ($file in $files) {
     }
 }
 
-# Summary
+
 Write-Log "`n============================================================"
 Write-Log "MIGRATION SUMMARY"
 Write-Log "============================================================"

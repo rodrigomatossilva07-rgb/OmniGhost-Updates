@@ -348,4 +348,4 @@ void LicenseGateway::SetOfflineGrantForTesting(
 }
 #endif
 
-}
+} // namespace OmniGhost::Auth

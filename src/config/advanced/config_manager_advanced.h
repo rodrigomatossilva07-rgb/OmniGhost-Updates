@@ -18,7 +18,7 @@
 #include <mutex>
 #include <atomic>
 #include <nlohmann/json.hpp>
-#include "security/security_common.h"
+#include "platform/secure_annotations.h"
 
 namespace omnighost::config {
 
@@ -388,10 +388,13 @@ private:
     std::string profiles_dir_;
     std::string cloud_sync_dir_;
 
-    std::unique_ptr<ConfigBackupManager> backup_manager_;
-    std::unique_ptr<ConfigCloudSync> cloud_sync_;
-    std::unique_ptr<GameProfileManager> profile_manager_;
-    std::unique_ptr<ConfigMigrationManager> migration_manager_;
+    // These implementation classes live in separate compatibility units.
+    // shared_ptr permits the public manager declaration to remain complete
+    // without leaking their private definitions into this header.
+    std::shared_ptr<ConfigBackupManager> backup_manager_;
+    std::shared_ptr<ConfigCloudSync> cloud_sync_;
+    std::shared_ptr<GameProfileManager> profile_manager_;
+    std::shared_ptr<ConfigMigrationManager> migration_manager_;
 
     std::map<std::string, ConfigMetadata> configs_;
     std::map<std::string, GameProfile> game_profiles_;

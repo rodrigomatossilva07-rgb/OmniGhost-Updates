@@ -29,14 +29,14 @@ function Upload-SupabaseMultipart {
         [Parameter(Mandatory=$true)][string]$FilePath
     )
 
-    # Supabase S3-compatible endpoint
+
     $projectRef = $SupabaseUrl -replace '^https?://([^.]+)\..*$', '$1'
     $s3Endpoint = "https://$projectRef.supabase.co/storage/v1/s3"
     $authHeaders = @{ Authorization = "Bearer $ServiceKey" }
-    $chunkSize = 50MB  # 50MB por parte
+    $chunkSize = 50MB
 
     try {
-        # 1. Iniciar multipart upload (CreateMultipartUpload)
+
         $createUrl = $s3Endpoint + '/' + $Bucket + '/' + $ObjectPath + '?uploads'
         $createHeaders = $authHeaders + @{ 'Content-Type' = 'application/xml' }
         $createBody = ''
@@ -46,7 +46,7 @@ function Upload-SupabaseMultipart {
         if (-not $uploadId) { throw "Não foi possível obter uploadId" }
         Write-Host "[OmniGhost] Multipart upload iniciado: $uploadId"
 
-        # 2. Ler arquivo e dividir em partes
+
         $fileStream = [IO.File]::OpenRead($FilePath)
         $totalSize = $fileStream.Length
         $partNumber = 1
@@ -59,7 +59,7 @@ function Upload-SupabaseMultipart {
             $bytesRead = $fileStream.Read($buffer, 0, $readSize)
             if ($bytesRead -le 0) { break }
 
-            # 3. Upload da parte (UploadPart)
+
             $partUrl = $s3Endpoint + '/' + $Bucket + '/' + $ObjectPath + '?partNumber=' + $partNumber + '&uploadId=' + $uploadId
             $partHeaders = $authHeaders + @{ 'Content-Type' = 'application/octet-stream' }
             $partStream = New-Object IO.MemoryStream (,$buffer)
@@ -73,7 +73,7 @@ function Upload-SupabaseMultipart {
         }
         $fileStream.Close()
 
-        # 4. Completar multipart upload (CompleteMultipartUpload)
+
         $completeUrl = $s3Endpoint + '/' + $Bucket + '/' + $ObjectPath + '?uploadId=' + $uploadId
         $completeHeaders = $authHeaders + @{ 'Content-Type' = 'application/xml' }
         $completeXml = @"
@@ -142,7 +142,7 @@ try {
     $packagePath = "releases/$version/OmniGhost.zip"
 
     $headers = @{ apikey = $serviceKey; Authorization = "Bearer $serviceKey"; 'x-upsert' = 'true' }
-    # Multipart upload para Supabase Storage (sem limite de tamanho)
+
     Write-Host "[OmniGhost] A fazer upload multipart para Supabase Storage..."
     $uploadResult = Upload-SupabaseMultipart -SupabaseUrl $supabaseUrl -ServiceKey $serviceKey -Bucket 'launcher-development' -ObjectPath $packagePath -FilePath $zip
     if (-not $uploadResult.Success) {

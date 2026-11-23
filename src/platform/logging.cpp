@@ -23,16 +23,16 @@ bool LoggerManager::Initialize(const Config& config) {
 
     config_ = config;
 
-    // Initialize async logger if enabled
+
     if (config_.asyncEnabled) {
         spdlog::init_thread_pool(config_.asyncQueueSize, config_.asyncThreadCount);
     }
 
-    // Create sinks
+
     std::vector<spdlog::sink_ptr> consoleSinks;
     std::vector<spdlog::sink_ptr> fileSinks;
 
-    // Console sink (color)
+
     if (config_.consoleLevel != spdlog::level::off) {
         auto consoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
         consoleSink->set_level(config_.consoleLevel);
@@ -40,7 +40,7 @@ bool LoggerManager::Initialize(const Config& config) {
         consoleSinks.push_back(consoleSink);
     }
 
-    // File sink
+
     if (config_.fileEnabled) {
         std::filesystem::path logDir = config_.logDirectory.empty()
             ? OmniGhost::Paths::Logs()
@@ -54,7 +54,7 @@ bool LoggerManager::Initialize(const Config& config) {
         spdlog::sink_ptr fileSink;
         if (config_.rotateDaily) {
             fileSink = std::make_shared<spdlog::sinks::daily_file_sink_mt>(
-                logFile.string(), 0, 0);  // Rotate at midnight
+                logFile.string(), 0, 0);
         } else {
             fileSink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
                 logFile.string(), config_.maxFileSize, config_.maxFiles);
@@ -65,7 +65,7 @@ bool LoggerManager::Initialize(const Config& config) {
         fileSinks.push_back(fileSink);
     }
 
-    // Create core logger
+
     {
         std::vector<spdlog::sink_ptr> sinks;
         sinks.insert(sinks.end(), consoleSinks.begin(), consoleSinks.end());
@@ -86,7 +86,7 @@ bool LoggerManager::Initialize(const Config& config) {
         spdlog::register_logger(coreLogger_);
     }
 
-    // Create UI logger
+
     {
         std::vector<spdlog::sink_ptr> sinks;
         sinks.insert(sinks.end(), consoleSinks.begin(), consoleSinks.end());
@@ -107,7 +107,7 @@ bool LoggerManager::Initialize(const Config& config) {
         spdlog::register_logger(uiLogger_);
     }
 
-    // Create DMA logger
+
     {
         std::vector<spdlog::sink_ptr> sinks;
         sinks.insert(sinks.end(), consoleSinks.begin(), consoleSinks.end());
@@ -128,7 +128,7 @@ bool LoggerManager::Initialize(const Config& config) {
         spdlog::register_logger(dmaLogger_);
     }
 
-    // Create Security logger
+
     {
         std::vector<spdlog::sink_ptr> sinks;
         sinks.insert(sinks.end(), consoleSinks.begin(), consoleSinks.end());
@@ -149,7 +149,7 @@ bool LoggerManager::Initialize(const Config& config) {
         spdlog::register_logger(securityLogger_);
     }
 
-    // Set up periodic flush
+
     if (config_.asyncEnabled) {
         spdlog::set_default_logger(coreLogger_);
         spdlog::flush_every(config_.flushInterval);
@@ -157,7 +157,7 @@ bool LoggerManager::Initialize(const Config& config) {
 
     initialized_ = true;
 
-    // Log initialization
+
     OGS_LOG_INFO("Logging system initialized");
     OGS_LOG_INFO("Async: {}, Console level: {}, File level: {}",
                  config_.asyncEnabled,
@@ -174,13 +174,13 @@ void LoggerManager::Shutdown() {
         return;
     }
 
-    // Flush all loggers
+
     Flush();
 
-    // Drop all registered loggers
+
     spdlog::drop_all();
 
-    // Shutdown thread pool
+
     if (config_.asyncEnabled) {
         spdlog::shutdown();
     }
@@ -197,19 +197,19 @@ std::shared_ptr<spdlog::logger> LoggerManager::GetLogger(std::string_view name) 
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (!initialized_) {
-        // Try to initialize with defaults if not initialized
+
         Config defaultConfig;
         defaultConfig.logDirectory = OmniGhost::Paths::Logs();
         Initialize(defaultConfig);
     }
 
-    // Check if logger already exists
+
     auto existing = spdlog::get(name.data());
     if (existing) {
         return existing;
     }
 
-    // Create new logger with same sinks as core
+
     std::vector<spdlog::sink_ptr> sinks;
     if (coreLogger_) {
         sinks = coreLogger_->sinks();
@@ -264,4 +264,4 @@ void LoggerManager::Flush() {
     spdlog::apply_all([](std::shared_ptr<spdlog::logger> l) { l->flush(); });
 }
 
-} // namespace OmniGhost::Logging
+}

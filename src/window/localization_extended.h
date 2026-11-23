@@ -13,6 +13,10 @@
 
 namespace OmniGhost::I18n {
 
+// The established launcher localization API owns the Language enum in Loc.
+// Reuse it here instead of introducing a second incompatible enum.
+using Language = Loc::Language;
+
 // =============================================================================
 // Extended Internationalization System
 // =============================================================================
@@ -184,6 +188,8 @@ private:
     bool LoadLocale(Language lang);
     bool SaveLocale(Language lang) const;
     void BuildPluralRules();
+    void UpdateCompletionStats(Language lang);
+    void CreateDefaultPortugueseLocale();
 
     mutable std::shared_mutex mutex_;
     std::filesystem::path localeDir_;

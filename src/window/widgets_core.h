@@ -28,7 +28,7 @@ inline float g_sidebar_indicator_y = -1.0f;
 
 inline float WidgetWidth() {
     return std::max(40.0f,
-        std::min(CyberTheme::Metrics::CardContentWidth(), ImGui::GetContentRegionAvail().x));
+        ImGui::GetContentRegionAvail().x);
 }
 
 inline float SmoothMetric(ImGuiID id, float target) {
@@ -102,7 +102,7 @@ inline void DrawFocusRing(float rounding = -1.0f) {
     dl->AddRect(
         ImVec2(a.x - 1.0f, a.y - 1.0f),
         ImVec2(b.x + 1.0f, b.y + 1.0f),
-        WithAlpha(CyberTheme::Colors.Gold, 0.58f),
+        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.58f),
         rounding >= 0.0f ? rounding : CyberTheme::Metrics::ControlRounding,
         0, 1.2f);
 }
@@ -168,7 +168,7 @@ void EndCard();
 void BeginCardRow(int columns);
 void NextCardColumn();
 void EndCardRow();
-void CardGap(float gap = 8.0f);
+void CardGap(float gap);
 
 void BeginSurfaceList(const char* id, float height);
 void EndSurfaceList();

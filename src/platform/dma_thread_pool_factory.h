@@ -7,9 +7,9 @@
 
 namespace OmniGhost::Platform {
 
-// =============================================================================
-// DmaThreadPoolFactory - Factory for creating DmaThreadPool instances
-// =============================================================================
+
+
+
 
 class DmaThreadPoolFactory final {
 public:
@@ -21,4 +21,4 @@ public:
     }
 };
 
-} // namespace OmniGhost::Platform
+}

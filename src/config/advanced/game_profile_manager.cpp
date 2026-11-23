@@ -138,7 +138,7 @@ public:
     }
 
 private:
-    std::string profiles_dir_;
+    std::filesystem::path profiles_dir_;
 
     std::string generate_id() {
         static std::atomic<uint64_t> counter{0};

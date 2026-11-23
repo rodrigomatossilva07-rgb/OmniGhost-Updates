@@ -13,7 +13,6 @@
     "^src/auth/",
     "^src/licensing/",
     "^src/updater/",
-    "^src/security/",
     "^src/launcher/admin/",
     "^src/launcher/.*remote",
     "^src/launcher/.*update",

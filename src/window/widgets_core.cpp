@@ -1,9 +1,9 @@
-#include "widgets_core.h"
+#include "widgets.h"
 #include "theme.h"
 #include "animations.h"
 #include "localization.h"
 #include "ui_feedback.h"
-#include "app_settings.h"
+#include "config/app_settings.h"
 #include "src/project/third_party/ImGui/imgui_internal.h"
 
 #include <algorithm>
@@ -24,7 +24,7 @@ float g_sidebar_indicator_y = -1.0f;
 
 float WidgetWidth() {
     return std::max(40.0f,
-        std::min(CyberTheme::Metrics::CardContentWidth(), ImGui::GetContentRegionAvail().x));
+        ImGui::GetContentRegionAvail().x);
 }
 
 float SmoothMetric(ImGuiID id, float target) {
@@ -85,7 +85,7 @@ void DrawCheckers(ImDrawList* dl, const ImVec2& a, const ImVec2& b, float roundi
     }
 }
 
-void ApplyCursorForItem(bool enabled, ImGuiMouseCursor cursor) {
+void ApplyCursorForItem(bool enabled = true, ImGuiMouseCursor cursor = ImGuiMouseCursor_Hand) {
     if (enabled && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
         ImGui::SetMouseCursor(cursor);
 }
@@ -98,7 +98,7 @@ void DrawFocusRing(float rounding) {
     dl->AddRect(
         ImVec2(a.x - 1.0f, a.y - 1.0f),
         ImVec2(b.x + 1.0f, b.y + 1.0f),
-        WithAlpha(CyberTheme::Colors.Gold, 0.58f),
+        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.58f),
         rounding >= 0.0f ? rounding : CyberTheme::Metrics::ControlRounding,
         0, 1.2f);
 }
@@ -119,6 +119,17 @@ ImU32 ToneColor(TextTone tone) {
         case TextTone::Primary:
         default:                  return CyberTheme::U32(CyberTheme::Colors.Text);
     }
+}
+
+void DrawSpinnerInternal(ImDrawList* draw, ImVec2 center, float radius, float thickness, TextTone tone) {
+    draw->PathClear();
+    constexpr int segments = 20;
+    const float start = static_cast<float>(ImGui::GetTime()) * 5.0f;
+    for (int i = 0; i <= segments; ++i) {
+        const float angle = start + (static_cast<float>(i) / segments) * 4.7f;
+        draw->PathLineTo(ImVec2(center.x + std::cos(angle) * radius, center.y + std::sin(angle) * radius));
+    }
+    draw->PathStroke(ToneColor(tone), ImDrawFlags_None, thickness);
 }
 
 } // anonymous namespace
@@ -167,29 +178,29 @@ bool StyledButton(const char* label, const ImVec2& size_arg, ButtonStyle style,
         app_settings::config.animation_intensity == app_settings::EffectLevel::Full;
 
     if (style == ButtonStyle::Primary) {
-        const ImVec4 bg = Mix(semantic, CyberTheme::Colors.GoldHover, hover * 0.72f);
+        const ImVec4 bg = CyberTheme::Mix(semantic, CyberTheme::Colors.GoldHover, hover * 0.72f);
         if (hover > 0.01f) {
             dl->AddRectFilled(
                 ImVec2(pos.x, pos.y + 2.0f),
                 ImVec2(end.x, end.y + 3.0f),
-                WithAlpha(CyberTheme::Colors.GoldGlow, 0.24f * hover),
+                CyberTheme::WithAlpha(CyberTheme::Colors.GoldGlow, 0.24f * hover),
                 CyberTheme::Metrics::ControlRounding);
         }
-        dl->AddRectFilled(pos, end, WithAlpha(bg, disabledAlpha), CyberTheme::Metrics::ControlRounding);
-        dl->AddRect(pos, end, WithAlpha(CyberTheme::Colors.GoldHover, 0.28f * disabledAlpha), CyberTheme::Metrics::ControlRounding, 0, 1.0f);
+        dl->AddRectFilled(pos, end, CyberTheme::WithAlpha(bg, disabledAlpha), CyberTheme::Metrics::ControlRounding);
+        dl->AddRect(pos, end, CyberTheme::WithAlpha(CyberTheme::Colors.GoldHover, 0.28f * disabledAlpha), CyberTheme::Metrics::ControlRounding, 0, 1.0f);
         if (held) dl->AddRectFilled(pos, end, CyberTheme::SafeShadowU32(24), CyberTheme::Metrics::ControlRounding);
     } else if (style == ButtonStyle::Destructive) {
-        const ImVec4 base = Mix(CyberTheme::Colors.Surface, semantic, 0.12f + hover * 0.10f);
-        dl->AddRectFilled(pos, end, WithAlpha(base, disabledAlpha), CyberTheme::Metrics::ControlRounding);
-        dl->AddRect(pos, end, WithAlpha(semantic, (hovered ? 0.64f : 0.38f) * disabledAlpha), CyberTheme::Metrics::ControlRounding, 0, hovered ? 1.3f : 1.0f);
+        const ImVec4 base = CyberTheme::Mix(CyberTheme::Colors.Surface, semantic, 0.12f + hover * 0.10f);
+        dl->AddRectFilled(pos, end, CyberTheme::WithAlpha(base, disabledAlpha), CyberTheme::Metrics::ControlRounding);
+        dl->AddRect(pos, end, CyberTheme::WithAlpha(semantic, (hovered ? 0.64f : 0.38f) * disabledAlpha), CyberTheme::Metrics::ControlRounding, 0, hovered ? 1.3f : 1.0f);
     } else if (style == ButtonStyle::Ghost) {
         if (hover > 0.01f)
-            dl->AddRectFilled(pos, end, WithAlpha(CyberTheme::Colors.Gold, 0.08f * hover * disabledAlpha), CyberTheme::Metrics::ControlRounding);
-        dl->AddRect(pos, end, WithAlpha(hovered ? CyberTheme::Colors.Gold : CyberTheme::Colors.Border, (hovered ? 0.34f : 0.18f) * disabledAlpha), CyberTheme::Metrics::ControlRounding, 0, 1.0f);
+            dl->AddRectFilled(pos, end, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.08f * hover * disabledAlpha), CyberTheme::Metrics::ControlRounding);
+        dl->AddRect(pos, end, CyberTheme::WithAlpha(hovered ? CyberTheme::Colors.Gold : CyberTheme::Colors.Border, (hovered ? 0.34f : 0.18f) * disabledAlpha), CyberTheme::Metrics::ControlRounding, 0, 1.0f);
     } else {
-        const ImVec4 bg = Mix(CyberTheme::Colors.Panel, CyberTheme::Colors.PanelHover, hover);
-        dl->AddRectFilled(pos, end, WithAlpha(bg, disabledAlpha), CyberTheme::Metrics::ControlRounding);
-        dl->AddRect(pos, end, WithAlpha(hovered ? CyberTheme::Colors.Gold : CyberTheme::Colors.Border, (hovered ? 0.28f : 0.50f) * disabledAlpha), CyberTheme::Metrics::ControlRounding, 0, 1.0f);
+        const ImVec4 bg = CyberTheme::Mix(CyberTheme::Colors.Panel, CyberTheme::Colors.PanelHover, hover);
+        dl->AddRectFilled(pos, end, CyberTheme::WithAlpha(bg, disabledAlpha), CyberTheme::Metrics::ControlRounding);
+        dl->AddRect(pos, end, CyberTheme::WithAlpha(hovered ? CyberTheme::Colors.Gold : CyberTheme::Colors.Border, (hovered ? 0.28f : 0.50f) * disabledAlpha), CyberTheme::Metrics::ControlRounding, 0, 1.0f);
     }
 
     if (fullMotion && hover > 0.01f) {
@@ -218,13 +229,13 @@ bool StyledButton(const char* label, const ImVec2& size_arg, ButtonStyle style,
     dl->AddText(ImVec2(textX, item_pos.y + (size.y - text_size.y) * 0.5f), textColor, visible.c_str());
     if (pending) {
         const ImVec2 center(textX - CyberTheme::Px(10.0f), item_pos.y + size.y * 0.5f);
-        DrawSpinner(dl, center, CyberTheme::Px(6.0f), CyberTheme::Px(1.8f),
+        DrawSpinnerInternal(dl, center, CyberTheme::Px(6.0f), CyberTheme::Px(1.8f),
             style == ButtonStyle::Destructive ? TextTone::Error : TextTone::Accent);
     }
 
     if (ImGui::IsItemFocused())
         dl->AddRect(ImVec2(pos.x - 1.0f, pos.y - 1.0f), ImVec2(end.x + 1.0f, end.y + 1.0f),
-            WithAlpha(CyberTheme::Colors.Gold, 0.52f), CyberTheme::Metrics::ControlRounding, 0, 1.2f);
+            CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.52f), CyberTheme::Metrics::ControlRounding, 0, 1.2f);
     if (clicked) OmniGhost::UiFeedback::Play(OmniGhost::UiFeedback::SoundEvent::Click);
     return clicked;
 }
@@ -240,7 +251,6 @@ bool ToggleSwitch(const char* label, bool* value) {
     const ImVec2 end(item_pos.x + size.x, item_pos.y + size.y);
 
     const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
-    const bool held = ImGui::IsItemActive();
     const bool pressed = ImGui::InvisibleButton(label, size);
     ApplyCursorForItem(true);
 
@@ -252,15 +262,14 @@ bool ToggleSwitch(const char* label, bool* value) {
 
     if (pressed) {
         *value = !*value;
-        OmniGhost::UiFeedback::Play(OmniGhost::UiFeedback::SoundEvent::Toggle);
     }
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    const ImVec4 bg = Mix(*value ? CyberTheme::Colors.Gold : CyberTheme::Colors.Panel,
+    const ImVec4 bg = CyberTheme::Mix(*value ? CyberTheme::Colors.Gold : CyberTheme::Colors.Panel,
                           *value ? CyberTheme::Colors.GoldHover : CyberTheme::Colors.PanelHover,
                           hover);
-    dl->AddRectFilled(item_pos, end, WithAlpha(bg, 1.0f), CyberTheme::Metrics::ControlRounding);
-    dl->AddRect(item_pos, end, WithAlpha(hovered ? CyberTheme::Colors.Gold : CyberTheme::Colors.Border,
+    dl->AddRectFilled(item_pos, end, CyberTheme::WithAlpha(bg, 1.0f), CyberTheme::Metrics::ControlRounding);
+    dl->AddRect(item_pos, end, CyberTheme::WithAlpha(hovered ? CyberTheme::Colors.Gold : CyberTheme::Colors.Border,
         hovered ? 0.34f : 0.18f), CyberTheme::Metrics::ControlRounding);
 
     const float knobRadius = size.y * 0.42f;
@@ -270,7 +279,7 @@ bool ToggleSwitch(const char* label, bool* value) {
 
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
         ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-    if (pressed) OmniGhost::UiFeedback::Play(OmniGhost::UiFeedback::SoundEvent::Toggle);
+    if (pressed) OmniGhost::UiFeedback::Play(*value ? OmniGhost::UiFeedback::SoundEvent::ToggleOn : OmniGhost::UiFeedback::SoundEvent::ToggleOff);
 
     return *value;
 }

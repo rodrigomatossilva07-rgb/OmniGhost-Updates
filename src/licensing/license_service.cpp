@@ -5,7 +5,7 @@
 #include "../platform/app_paths.h"
 #include "../platform/scope_exit.h"
 #include "../platform/session_log.h"
-#include "../security/security_manager.h"
+#include "../platform/logging.h"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -195,15 +195,13 @@ void StartRevalidator() {
                 break;
             if (checked && !result.Ok()) {
                 degraded = true;
-                OmniGhost::Security::SecurityManager::Instance().Record(
-                    result.status == OmniGhost::Auth::LicenseStatus::Timeout ||
-                    result.status == OmniGhost::Auth::LicenseStatus::Unavailable
-                        ? OmniGhost::Security::EventId::SessionUnavailable
-                        : OmniGhost::Security::EventId::SessionInvalid);
+                OGS_SEC_LOG_WARN("[LICENSE] Session degraded: {}", 
+                    (result.status == OmniGhost::Auth::LicenseStatus::Timeout ||
+                     result.status == OmniGhost::Auth::LicenseStatus::Unavailable)
+                        ? "unavailable" : "invalid");
             } else if (checked && degraded) {
                 degraded = false;
-                OmniGhost::Security::SecurityManager::Instance().Record(
-                    OmniGhost::Security::EventId::SessionRestored);
+                OGS_SEC_LOG_INFO("[LICENSE] Session restored");
             }
             waitLock.lock();
         }
@@ -453,8 +451,7 @@ std::string RemoteUsername() {
     return website.authenticated ? website.email : RemoteGateway().CurrentUsername();
 }
 bool IsAdmin() {
-    if (!IsRemoteAuthenticated() ||
-        !OmniGhost::Security::SecurityManager::Instance().CanUseProtectedFeatures())
+    if (!IsRemoteAuthenticated())
         return false;
     const auto website = WebsiteService().Snapshot();
     if (website.authenticated) return website.isAdmin;
@@ -465,8 +462,7 @@ bool IsAdmin() {
 }
 bool HasGameAccess(std::string_view productId) {
     constexpr std::string_view kProducts[]{"fivem", "cs2", "rust", "warzone", "apex", "fortnite"};
-    if (std::find(std::begin(kProducts), std::end(kProducts), productId) == std::end(kProducts) ||
-        !OmniGhost::Security::SecurityManager::Instance().CanUseProtectedFeatures())
+    if (std::find(std::begin(kProducts), std::end(kProducts), productId) == std::end(kProducts))
         return false;
     if (WebsiteService().IsAuthenticated()) return WebsiteService().HasProduct(productId);
     return RemoteGateway().IsAuthenticated() && RemoteEntitlementGrants(productId);

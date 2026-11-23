@@ -16,7 +16,7 @@ Config config{};
 Runtime runtime{};
 std::atomic_bool ready{false};
 
-// Snapshot de offsets carregado do JSON
+
 OmniGhost::EmbeddedOffsets::Snapshot g_offset_snapshot{};
 
 namespace {
@@ -63,7 +63,7 @@ void AddPointerAt(std::vector<std::uintptr_t>& values, std::uintptr_t base, std:
     if (ReadPointer(base + offset, value)) AddUnique(values, value);
 }
 
-// Helper para obter offset do snapshot
+
 inline std::uintptr_t GetOffset(const char* path, std::uintptr_t fallback = 0) {
     std::uint64_t value = 0;
     if (g_offset_snapshot.TryGet(path, value) && value != 0)
@@ -71,7 +71,7 @@ inline std::uintptr_t GetOffset(const char* path, std::uintptr_t fallback = 0) {
     return fallback;
 }
 
-// Offsets resolvidos em runtime
+
 struct RuntimeOffsets {
     std::uintptr_t world = 0;
     std::uintptr_t replay = 0;
@@ -93,7 +93,7 @@ struct RuntimeOffsets {
 } g_offsets;
 
 bool LoadRuntimeOffsets() {
-    // Carrega do JSON externo ou embedded
+
     auto result = OmniGhost::OffsetSource::LoadSnapshot(OmniGhost::OffsetSource::GameId::FiveM);
     if (!result.ok) {
         runtime.status = "Falha ao carregar offsets: " + result.detail;
@@ -101,14 +101,14 @@ bool LoadRuntimeOffsets() {
     }
     g_offset_snapshot = std::move(result.snapshot);
 
-    // Resolve offsets necessários (tenta build-specific primeiro, depois genérico)
-    // World/Replay/Viewport/Camera
+
+
     g_offsets.world = GetOffset("builds.3258.world", GetOffset("_root.world"));
     g_offsets.replay = GetOffset("builds.3258.replay", GetOffset("_root.replay"));
     g_offsets.viewport = GetOffset("builds.3258.viewport", GetOffset("_root.viewport"));
     g_offsets.camera = GetOffset("builds.3258.camera", GetOffset("_root.camera"));
 
-    // Player/Entity offsets
+
     g_offsets.player_info = GetOffset("CPed.player_info", GetOffset("_root.player_info"));
     g_offsets.bone_list = GetOffset("CPed.bone_list", GetOffset("_root.bone_list"));
     g_offsets.bone_matrix = GetOffset("CPed.bone_matrix", GetOffset("_root.bone_matrix"));
@@ -116,7 +116,7 @@ bool LoadRuntimeOffsets() {
     g_offsets.player_position = GetOffset("CPed.position", GetOffset("_root.player_position"));
     g_offsets.ped_visible_flag = GetOffset("CPed.visible_flag", GetOffset("_root.ped_visible_flag"));
 
-    // Pools
+
     g_offsets.object_pool = GetOffset("builds.3258.object_pool", GetOffset("_root.object_pool"));
     g_offsets.vehicle_pool = GetOffset("builds.3258.vehicle_pool", GetOffset("_root.vehicle_pool"));
     g_offsets.ped_pool = GetOffset("builds.3258.ped_pool", GetOffset("_root.ped_pool"));
@@ -125,7 +125,7 @@ bool LoadRuntimeOffsets() {
     g_offsets.waypoint = GetOffset("builds.3258.waypoint", GetOffset("_root.waypoint"));
     g_offsets.aim_cped = GetOffset("builds.3258.aim_cped", GetOffset("_root.aim_cped"));
 
-    // Valida offsets críticos
+
     if (!g_offsets.world || !g_offsets.player_health || !g_offsets.player_position ||
         !g_offsets.bone_list || !g_offsets.bone_matrix) {
         runtime.status = "Offsets críticos ausentes no JSON";
@@ -146,7 +146,7 @@ bool TryPlayer(std::uintptr_t ped, Player& player) {
         !std::isfinite(health) || health <= 0.f || health > 1000.f)
         return false;
 
-    // Visibilidade
+
     if (g_offsets.ped_visible_flag) {
         ReadValue(ped + g_offsets.ped_visible_flag, visible);
     }
@@ -161,7 +161,7 @@ bool TryPlayer(std::uintptr_t ped, Player& player) {
     player.head[2] = position.z;
     player.health = health;
     player.alive = health > 0.01f;
-    player.visible = visible & 0x4; // bit 2 = visible
+    player.visible = visible & 0x4;
     return true;
 }
 
@@ -221,9 +221,9 @@ bool ReadCamera() {
         return false;
     }
 
-    // Tenta ler view matrix do camera
+
     float matrix[16]{};
-    if (!ReadExact(camera + 0x10, matrix, sizeof(matrix))) { // offset aproximado
+    if (!ReadExact(camera + 0x10, matrix, sizeof(matrix))) {
         runtime.camera_status = "Falha ao ler matriz da camera";
         return false;
     }
@@ -275,13 +275,13 @@ void Update(bool processProbe) {
     else runtime.status = "FiveM ESP ativa";
 }
 
-} // namespace
+}
 
 bool Attach() {
     Shutdown();
     runtime.status = "A ligar ao FiveM...";
 
-    // Carrega offsets do JSON
+
     if (!LoadRuntimeOffsets()) {
         Update(true);
         return false;
@@ -323,4 +323,4 @@ bool IsGameProcessAlive() { return mem.GetPidFromName(kProcessName) != 0; }
 bool ValidateLiveOffsets() { Update(true); return runtime.modules_ok && runtime.offset_catalog_ok; }
 const char* StatusLine() { return runtime.status.c_str(); }
 
-} // namespace FiveM
+}

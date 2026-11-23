@@ -70,4 +70,4 @@ bool IsGameProcessAlive();
 bool ValidateLiveOffsets();
 const char* StatusLine();
 
-} // namespace FiveM
+}

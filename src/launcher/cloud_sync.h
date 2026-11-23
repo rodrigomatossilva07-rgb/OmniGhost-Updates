@@ -11,6 +11,7 @@
 #include <optional>
 #include <chrono>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <atomic>
 #include <thread>
@@ -156,11 +157,8 @@ public:
     void force_sync();
 
 private:
-    CloudSync() = default;
-    ~CloudSync() = default;
-
-    CloudSync(const CloudSync&) = delete;
-    CloudSync& operator=(const CloudSync&) = delete;
+    CloudSync();
+    ~CloudSync();
 
     struct Impl;
     std::unique_ptr<Impl> pimpl_;
@@ -170,5 +168,7 @@ private:
 inline CloudSync& cloud_sync() {
     return CloudSync::instance();
 }
+
+} // namespace omnighost::launcher
 
 #endif // OMNIGHOST_CLOUD_SYNC_H

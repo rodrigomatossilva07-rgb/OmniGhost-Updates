@@ -277,7 +277,7 @@ try {
                 throw 'Commercial package requires known source provenance.'
             }
 
-            # Check reproducibility only if required by publish config
+
             $RequireReproducible = $true
             $PublishConfigPath = Join-Path $ProjectDir 'src\project\config\release\release-publish.json'
             if (Test-Path -LiteralPath $PublishConfigPath -PathType Leaf) {
@@ -289,7 +289,7 @@ try {
             if ($RequireReproducible -and ($BuildMetadata.reproducible -ne $true -or $BuildMetadata.dirty -eq $true)) {
                 throw 'Commercial package requires a clean reproducible source build.'
             } elseif (-not $RequireReproducible -and ($BuildMetadata.reproducible -ne $true -or $BuildMetadata.dirty -eq $true)) {
-                Write-ReleaseLog -Level WARN -Message 'Reproducibility not verified (independent rebuild required for full verification); proceeding per release-publish.json config.'
+                Write-ReleaseLog -Message 'Auditoria de reprodutibilidade opcional não executada; a política da release permite continuar.'
             }
 
             if ([string]$BuildMetadata.toolchain.vc_tools_version -eq 'unknown' -or

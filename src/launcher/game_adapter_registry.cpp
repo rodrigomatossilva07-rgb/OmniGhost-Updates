@@ -344,7 +344,7 @@ bool FortniteValidateOffsets() { return Fortnite::ValidateLiveOffsets(); }
 std::string_view FortniteTerminationReason() { return "Processo Fortnite terminou"; }
 ActiveGame FortniteGameId() { return ActiveGame::Fortnite; }
 
-// Warzone
+
 bool StartWarzone() {
     ScopedActiveGame gameGuard;
     g_activeGame = ActiveGame::Warzone;
@@ -361,7 +361,7 @@ bool WarzoneValidateOffsets() { return Warzone::ValidateLiveOffsets(); }
 std::string_view WarzoneTerminationReason() { return "Processo cod.exe terminou"; }
 ActiveGame WarzoneGameId() { return ActiveGame::Warzone; }
 
-// Apex
+
 bool StartApex() {
     ScopedActiveGame gameGuard;
     g_activeGame = ActiveGame::Apex;

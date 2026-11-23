@@ -14,16 +14,16 @@
 
 namespace OmniGhost {
 
-// =============================================================================
-// Standardized Error Handling with tl::expected
-// =============================================================================
-// Replaces bool + out parameter pattern with proper error propagation
 
-// Common error type
+
+
+
+
+
 struct Error {
     std::string message;
-    std::string_view code;      // Machine-readable error code (e.g., "OFFSETS_MISSING")
-    std::error_code sysError;   // Optional system error code
+    std::string_view code;
+    std::error_code sysError;
 
     Error() = default;
     Error(std::string_view msg, std::string_view errCode = "UNKNOWN")
@@ -35,16 +35,16 @@ struct Error {
     [[nodiscard]] const char* what() const noexcept { return message.c_str(); }
 };
 
-// Expected type aliases
+
 template <typename T>
 using Expected = tl::expected<T, Error>;
 
-// Void expected (for operations that don't return a value)
+
 using VoidExpected = tl::expected<void, Error>;
 
-// =============================================================================
-// Error construction helpers
-// =============================================================================
+
+
+
 
 [[nodiscard]] inline Error MakeError(std::string_view message, std::string_view code = "ERROR") {
     return Error(std::string(message), code);
@@ -62,11 +62,11 @@ using VoidExpected = tl::expected<void, Error>;
     return MakeError(std::error_code(win32Error, std::system_category()), std::string(message), code);
 }
 
-// =============================================================================
-// Expected helpers
-// =============================================================================
 
-// Create successful expected
+
+
+
+
 template <typename T>
 [[nodiscard]] inline Expected<T> Success(T&& value) {
     return Expected<T>(std::forward<T>(value));
@@ -76,7 +76,7 @@ template <typename T>
     return VoidExpected();
 }
 
-// Create failed expected
+
 template <typename T>
 [[nodiscard]] inline Expected<T> Failure(const Error& error) {
     return tl::make_unexpected(error);
@@ -104,11 +104,11 @@ template <typename T>
     return tl::make_unexpected(MakeError(message, code));
 }
 
-// =============================================================================
-// Monadic operations (C++23 style, available in tl::expected)
-// =============================================================================
 
-// Transform value on success
+
+
+
+
 template <typename T, typename F>
 [[nodiscard]] inline auto Map(Expected<T>&& exp, F&& func)
     -> Expected<std::invoke_result_t<F, T>> {
@@ -121,7 +121,7 @@ template <typename T, typename F>
     return exp.map(std::forward<F>(func));
 }
 
-// Transform error on failure
+
 template <typename T, typename F>
 [[nodiscard]] inline auto MapError(Expected<T>&& exp, F&& func)
     -> Expected<T> {
@@ -134,7 +134,7 @@ template <typename T, typename F>
     return exp.map_error(std::forward<F>(func));
 }
 
-// Chain operations (and_then)
+
 template <typename T, typename F>
 [[nodiscard]] inline auto AndThen(Expected<T>&& exp, F&& func)
     -> std::invoke_result_t<F, T> {
@@ -147,7 +147,7 @@ template <typename T, typename F>
     return exp.and_then(std::forward<F>(func));
 }
 
-// Or else (fallback on error)
+
 template <typename T, typename F>
 [[nodiscard]] inline auto OrElse(Expected<T>&& exp, F&& func)
     -> Expected<T> {
@@ -160,9 +160,9 @@ template <typename T, typename F>
     return exp.or_else(std::forward<F>(func));
 }
 
-// =============================================================================
-// Common error codes
-// =============================================================================
+
+
+
 namespace ErrorCode {
     constexpr std::string_view InvalidArgument = "INVALID_ARGUMENT";
     constexpr std::string_view NotFound = "NOT_FOUND";
@@ -187,11 +187,11 @@ namespace ErrorCode {
     constexpr std::string_view Cancelled = "CANCELLED";
     constexpr std::string_view InternalError = "INTERNAL_ERROR";
     constexpr std::string_view UnsupportedOperation = "UNSUPPORTED_OPERATION";
-} // namespace ErrorCode
+}
 
-// =============================================================================
-// Result inspection helpers
-// =============================================================================
+
+
+
 
 template <typename T>
 [[nodiscard]] inline bool IsSuccess(const Expected<T>& exp) noexcept {
@@ -208,7 +208,7 @@ template <typename T>
     return exp.error();
 }
 
-// Safe value access - returns pointer (nullptr if error), never throws
+
 template <typename T>
 [[nodiscard]] inline T* TryGetValue(Expected<T>& exp) noexcept {
     return exp ? &exp.value() : nullptr;
@@ -219,7 +219,7 @@ template <typename T>
     return exp ? &exp.value() : nullptr;
 }
 
-// Assume value exists (UB if error) - use only when certain
+
 template <typename T>
 [[nodiscard]] inline T& AssumeValue(Expected<T>& exp) noexcept {
     return *exp;
@@ -230,9 +230,9 @@ template <typename T>
     return *exp;
 }
 
-// =============================================================================
-// Logging helpers (use OGS_LOG_* macros internally)
-// =============================================================================
+
+
+
 
 template <typename T>
 void LogIfError(const Expected<T>& exp, std::string_view context = "") {
@@ -247,13 +247,13 @@ void LogAndReturnIfError(const Expected<T>& exp, std::string_view context = "") 
     LogIfError(exp, context);
 }
 
-} // namespace OmniGhost
+}
 
-// =============================================================================
-// Macros for common patterns
-// =============================================================================
 
-// TRY_EXPECTED: Propagate error from expected expression
+
+
+
+
 #define OGS_TRY(expr) \
     do { \
         auto&& _ogs_result = (expr); \
@@ -262,7 +262,7 @@ void LogAndReturnIfError(const Expected<T>& exp, std::string_view context = "") 
         } \
     } while (0)
 
-// TRY_VOID: Propagate error from void expected
+
 #define OGS_TRY_VOID(expr) \
     do { \
         auto&& _ogs_result = (expr); \
@@ -271,7 +271,7 @@ void LogAndReturnIfError(const Expected<T>& exp, std::string_view context = "") 
         } \
     } while (0)
 
-// EXPECTED_VAL: Extract value or return error
+
 #define OGS_EXPECT_VAL(exp, ...) \
     ([] (auto&& e) -> decltype(auto) { \
         if (!e) { \

@@ -22,10 +22,10 @@ namespace CyberWidgets {
 
 namespace CyberWidgets {
 
-    // Re-export core functions that were in the original widgets.h
-    // These are now implemented in the split files
-    
-    // Button widgets (from widgets_core.h)
+
+
+
+
     bool ToggleSwitch(const char* label, bool* v);
     bool Button(const char* label, ButtonStyle style = ButtonStyle::Secondary,
                 const ImVec2& size = ImVec2(0, 0), bool enabled = true);
@@ -168,7 +168,7 @@ namespace CyberWidgets {
     bool DrawEmptyState(const char* title = "Nenhum item", const char* description = nullptr, const char* actionLabel = nullptr, const char* actionCallback = nullptr, float width = -1.0f);
     bool DrawRetryState(const char* message = "Falha na operação", const char* actionLabel = "Tentar novamente", bool (*actionCallback)() = nullptr, float width = -1.0f);
 
-    // VirtualizedList template is defined inline
+
     template<typename T>
     void VirtualizedList(
         const char* id,
@@ -216,7 +216,7 @@ namespace CyberWidgets {
         ImGui::PopID();
     }
 
-    // ProgressDialog class (unchanged)
+
     class ProgressDialog {
     public:
         struct Config {

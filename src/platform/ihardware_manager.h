@@ -5,9 +5,9 @@
 
 namespace OmniGhost::Platform {
 
-// =============================================================================
-// IHardwareManager - Interface for hardware detection/management
-// =============================================================================
+
+
+
 
 struct HardwareState {
     enum class ProbeStage : uint8_t {
@@ -43,4 +43,4 @@ public:
     [[nodiscard]] virtual bool Complete() const noexcept = 0;
 };
 
-} // namespace OmniGhost::Platform
+}

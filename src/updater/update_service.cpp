@@ -356,8 +356,8 @@ bool UpdateService::ApplyUserPreferences(Channel channel, bool automaticDownload
 #if defined(OMNIGHOST_PUBLISH_BUILD)
     channel = Channel::Stable;
 #elif defined(OMNIGHOST_PRIVATE_DEV_BUILD)
-    // A private development executable must never be redirected to a public
-    // release by a saved setting or an old UI preference.
+
+
     channel = Channel::Development;
 #endif
     if (busy_.load(std::memory_order_acquire))
@@ -1091,8 +1091,8 @@ bool UpdateService::InstallPreparedUpdate() {
     OmniGhost::RemoteUsage::SuppressFinalFlush();
     exitRequested_ = true;
 
-    // Immediately terminate the main process so the updater can replace the executable.
-    // The updater waits for this process to exit (see updater_mode.cpp WaitForExit).
+
+
     #if defined(_WIN32)
     ExitProcess(0);
     #else

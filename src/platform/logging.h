@@ -20,43 +20,43 @@
 
 namespace OmniGhost::Logging {
 
-// =============================================================================
-// Logger Configuration
-// =============================================================================
+
+
+
 
 struct Config {
-    // Log levels
+
     spdlog::level::level_enum consoleLevel = spdlog::level::info;
     spdlog::level::level_enum fileLevel = spdlog::level::debug;
 
-    // Async logging
+
     bool asyncEnabled = true;
     size_t asyncQueueSize = 8192;
     size_t asyncThreadCount = 1;
 
-    // File logging
+
     bool fileEnabled = true;
     std::filesystem::path logDirectory;
     std::string logFilePrefix = "omnighost";
-    size_t maxFileSize = 10 * 1024 * 1024;  // 10 MB
+    size_t maxFileSize = 10 * 1024 * 1024;
     size_t maxFiles = 5;
     bool rotateDaily = false;
 
-    // Format
+
     std::string pattern = "[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%n] %v";
     std::string filePattern = "[%Y-%m-%d %H:%M:%S.%e] [%l] [%n] %v";
 
-    // Flush
+
     spdlog::level::level_enum flushLevel = spdlog::level::warn;
     std::chrono::seconds flushInterval = std::chrono::seconds(5);
 
-    // Debug output
+
     bool debugOutputEnabled = false;
 };
 
-// =============================================================================
-// Logger Registry
-// =============================================================================
+
+
+
 
 class LoggerManager {
 public:
@@ -65,50 +65,50 @@ public:
         return instance;
     }
 
-    // Initialize logging system
+
     bool Initialize(const Config& config = {});
 
-    // Shutdown logging system
+
     void Shutdown();
 
-    // Get or create a named logger
+
     [[nodiscard]] std::shared_ptr<spdlog::logger> GetLogger(std::string_view name);
 
-    // Get core logger (for platform/core messages)
+
     [[nodiscard]] std::shared_ptr<spdlog::logger> CoreLogger() noexcept {
         return GetLogger("core");
     }
 
-    // Get UI logger (for ImGui/window messages)
+
     [[nodiscard]] std::shared_ptr<spdlog::logger> UILogger() noexcept {
         return GetLogger("ui");
     }
 
-    // Get DMA logger (for DMA operations)
+
     [[nodiscard]] std::shared_ptr<spdlog::logger> DMALogger() noexcept {
         return GetLogger("dma");
     }
 
-    // Get Security logger
+
     [[nodiscard]] std::shared_ptr<spdlog::logger> SecurityLogger() noexcept {
         return GetLogger("security");
     }
 
-    // Get Game logger (for game-specific messages)
+
     [[nodiscard]] std::shared_ptr<spdlog::logger> GameLogger(std::string_view gameName) noexcept {
         return GetLogger(std::string("game.") + std::string(gameName));
     }
 
-    // Set global log level
+
     void SetLevel(spdlog::level::level_enum level);
 
-    // Set level for specific logger
+
     void SetLevel(std::string_view name, spdlog::level::level_enum level);
 
-    // Flush all loggers
+
     void Flush();
 
-    // Check if initialized
+
     [[nodiscard]] bool IsInitialized() const noexcept { return initialized_; }
 
 private:
@@ -126,11 +126,11 @@ private:
     std::shared_ptr<spdlog::logger> securityLogger_;
 };
 
-// =============================================================================
-// Convenience Macros
-// =============================================================================
 
-// Core logging
+
+
+
+
 #define OGS_LOG_TRACE(...)   OGS_LOG_IMPL(trace, "core", __VA_ARGS__)
 #define OGS_LOG_DEBUG(...)   OGS_LOG_IMPL(debug, "core", __VA_ARGS__)
 #define OGS_LOG_INFO(...)    OGS_LOG_IMPL(info, "core", __VA_ARGS__)
@@ -138,7 +138,7 @@ private:
 #define OGS_LOG_ERROR(...)   OGS_LOG_IMPL(error, "core", __VA_ARGS__)
 #define OGS_LOG_CRITICAL(...) OGS_LOG_IMPL(critical, "core", __VA_ARGS__)
 
-// UI logging
+
 #define OGS_UI_LOG_TRACE(...)  OGS_LOG_IMPL(trace, "ui", __VA_ARGS__)
 #define OGS_UI_LOG_DEBUG(...)  OGS_LOG_IMPL(debug, "ui", __VA_ARGS__)
 #define OGS_UI_LOG_INFO(...)   OGS_LOG_IMPL(info, "ui", __VA_ARGS__)
@@ -146,7 +146,7 @@ private:
 #define OGS_UI_LOG_ERROR(...)  OGS_LOG_IMPL(error, "ui", __VA_ARGS__)
 #define OGS_UI_LOG_CRITICAL(...) OGS_LOG_IMPL(critical, "ui", __VA_ARGS__)
 
-// DMA logging
+
 #define OGS_DMA_LOG_TRACE(...)  OGS_LOG_IMPL(trace, "dma", __VA_ARGS__)
 #define OGS_DMA_LOG_DEBUG(...)  OGS_LOG_IMPL(debug, "dma", __VA_ARGS__)
 #define OGS_DMA_LOG_INFO(...)   OGS_LOG_IMPL(info, "dma", __VA_ARGS__)
@@ -154,7 +154,7 @@ private:
 #define OGS_DMA_LOG_ERROR(...)  OGS_LOG_IMPL(error, "dma", __VA_ARGS__)
 #define OGS_DMA_LOG_CRITICAL(...) OGS_LOG_IMPL(critical, "dma", __VA_ARGS__)
 
-// Security logging
+
 #define OGS_SEC_LOG_TRACE(...)  OGS_LOG_IMPL(trace, "security", __VA_ARGS__)
 #define OGS_SEC_LOG_DEBUG(...)  OGS_LOG_IMPL(debug, "security", __VA_ARGS__)
 #define OGS_SEC_LOG_INFO(...)   OGS_LOG_IMPL(info, "security", __VA_ARGS__)
@@ -162,25 +162,25 @@ private:
 #define OGS_SEC_LOG_ERROR(...)  OGS_LOG_IMPL(error, "security", __VA_ARGS__)
 #define OGS_SEC_LOG_CRITICAL(...) OGS_LOG_IMPL(critical, "security", __VA_ARGS__)
 
-// Game-specific logging
+
 #define OGS_GAME_LOG(game, level, ...) \
     do { \
         auto logger = OmniGhost::Logging::LoggerManager::Instance().GameLogger(game); \
         if (logger) logger->level(__VA_ARGS__); \
     } while (0)
 
-// Internal macro
+
 #define OGS_LOG_IMPL(level, logger_name, ...) \
     do { \
         auto logger = OmniGhost::Logging::LoggerManager::Instance().GetLogger(logger_name); \
         if (logger) logger->level(__VA_ARGS__); \
     } while (0)
 
-// =============================================================================
-// Initialization Helper
-// =============================================================================
 
-// Initialize with default config (call early in main)
+
+
+
+
 inline bool InitializeDefaultLogging() {
     Config config;
     config.logDirectory = OmniGhost::Paths::Logs();
@@ -192,9 +192,9 @@ inline bool InitializeDefaultLogging() {
     return LoggerManager::Instance().Initialize(config);
 }
 
-// Shutdown logging
+
 inline void ShutdownLogging() {
     LoggerManager::Instance().Shutdown();
 }
 
-} // namespace OmniGhost::Logging
+}

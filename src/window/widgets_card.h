@@ -15,7 +15,7 @@ void EndCard();
 void BeginCardRow(int columns);
 void NextCardColumn();
 void EndCardRow();
-void CardGap(float gap = 8.0f);
+void CardGap(float gap);
 
 // Surface list for scrollable content
 void BeginSurfaceList(const char* id, float height = 300.0f);

@@ -359,47 +359,38 @@ file(GLOB_RECURSE OMNIGHOST_SOURCES
     "src/project/third_party/Utils/*.cpp"
 )
 
+# The compatibility widget layer uses ImGui's std::string overloads.  Build
+# the upstream implementation with the launcher so those overloads are real,
+# rather than relying on a header-only declaration.
+if (EXISTS "${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp")
+    list(APPEND OMNIGHOST_SOURCES "${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp")
+endif()
+
 list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*[Tt]est.*\\.cpp$")
 list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*example.*\\.cpp$")
 
-# These directories contain optional work-in-progress modules.  Their own
-# CMakeLists files are conditionally enabled above only when the complete
-# implementation is present; do not pull incomplete sources into the main
-# executable through the broad source glob.
-list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/config/advanced/.*\\.cpp$")
-list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/updater/auto/.*\\.cpp$")
-list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/launcher/cloud_sync\\.cpp$")
-# Build tools are separate executables/scripts and are not launcher sources.
-# The broad recursive glob must not pull their standalone main.cpp files into
-# the OmniGhost target.
+# Standalone tools are separate executables/scripts, never launcher code.
+# Keep every launcher module under src in the OmniGhost target, but never pull
+# an independent tool (including the map/collision extractor) into OmniGhost.exe.
 list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/project/tools/.*\\.cpp$")
-# The original widgets.cpp is the production implementation.  The split
-# widget sources are an incomplete refactor that currently redeclares the same
-# API with incompatible defaults; keep them available in the tree, but do not
-# compile both implementations into the launcher.
-list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/window/widgets_(core|card|input|layout)\\.cpp$")
-# The extended localization editor is not referenced by the launcher and is
-# an unfinished parallel implementation of localization.cpp.
-list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/window/localization_extended\\.cpp$")
-# json-schema-validator is not a FetchContent dependency. The launcher does
-# not consume this optional validation service at runtime.
-list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/config/config_schema_validator\\.cpp$")
-# config_profiles is an unfinished parallel profile implementation.  The active
-# configuration path is config_manager.cpp; compiling both adds an unused,
-# incompatible API surface to the shipping target.
-list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/config/config_profiles\\.cpp$")
-# The standalone anti-tamper/anti-debug implementation is not integrated with
-# SecurityManager and currently has a conflicting legacy API.  Keep its source
-# available for the dedicated security target, but do not compile it into the
-# launcher through the broad glob.
-list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/security/(anti_debug|anti_tamper|anti_dump|hardware_bp|timing_check|heap_check|peb_check|self_crc|integrity_check|crc32|string_obfuscation|xorstr|compile_time_hash)\\.cpp$")
-# Keep KeyAuth's QR encoder: auth.hpp calls it to create the activation QR
-# image.  Only its optional PNG/network helpers are excluded; they are not
-# used by OmniGhost and are not warning-clean under the launcher's /WX policy.
-list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/project/third_party/keyauth/.*/QRCode/(pingout|qr\\.png)\\.cpp$")
-# OmniGhost supplies get_hwid() through keyauth_hwid_override.cpp.  Do not also
-# compile KeyAuth's bundled utils.cpp, which defines the same symbol.
-list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/project/third_party/keyauth/.*/utils\\.cpp$")
+# The FiveM dumper has its own main() and produces a separate command-line EXE.
+list(FILTER OMNIGHOST_SOURCES EXCLUDE REGEX ".*/src/games/Fivem/dumper/.*\\.cpp$")
+
+# These restored widget-split files are a preserved compatibility layer. The
+# active UI is implemented by window/widgets.cpp, so compile this layer into
+# its own namespace instead of emitting duplicate CyberWidgets symbols.
+set(OMNIGHOST_LEGACY_WIDGET_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/window/widgets_core.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/window/widgets_card.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/window/widgets_input.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/window/widgets_layout.cpp"
+)
+set_source_files_properties(${OMNIGHOST_LEGACY_WIDGET_SOURCES}
+    PROPERTIES COMPILE_DEFINITIONS "CyberWidgets=OmniGhostLegacyWidgets")
+# KeyAuth's bundled QR/utility implementation is part of the launcher SDK and
+# is intentionally included.  The duplicate HWID implementation was removed
+# from the SDK utility source; OmniGhost provides the single canonical HWID
+# implementation in auth/keyauth_hwid_override.cpp.
 
 # =============================================================================
 # Resources
@@ -491,9 +482,31 @@ if (WIN32)
     # its crypto/HTTP dependencies are supplied as bundled import libraries.
     # Link them explicitly so Publish retains the configured entitlement
     # provider instead of leaving unresolved KeyAuth::api symbols.
-    target_link_libraries(OmniGhost PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/project/third_party/keyauth/x64/library_x64.lib"
+    # ATL is required by the KeyAuth library; only link if ATL is available.
+    find_path(ATL_INCLUDE_DIR atlbase.h
+        PATHS "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.52.37025/atlmfc/include"
+              "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.52.37025/atlmfc/include"
+        NO_DEFAULT_PATH
     )
+    find_library(ATL_LIBRARY atls.lib
+        PATHS "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.52.37025/atlmfc/lib/x64"
+              "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.52.37025/atlmfc/lib/x64"
+        NO_DEFAULT_PATH
+    )
+    if (ATL_INCLUDE_DIR AND ATL_LIBRARY)
+        target_link_libraries(OmniGhost PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/project/third_party/keyauth/x64/library_x64.lib"
+            ${ATL_LIBRARY}
+        )
+        target_compile_definitions(OmniGhost PRIVATE OMNIGHOST_KEYAUTH_AVAILABLE=1)
+    else()
+        message(WARNING "ATL not found; KeyAuth library will not be linked. KeyAuth features will be limited.")
+        target_compile_definitions(OmniGhost PRIVATE OMNIGHOST_KEYAUTH_AVAILABLE=0)
+        # Add stub implementations when KeyAuth library is not available
+        target_sources(OmniGhost PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/auth/keyauth_gateway_stub.cpp"
+        )
+    endif()
 endif()
 
 # Build channel definition
@@ -568,19 +581,40 @@ if (WIN32)
     endif()
 endif()
 
-# Custom Targets (only if Python is available)
+# Maintenance targets
 # =============================================================================
-if (HAVE_PYTHON)
+if (OMNIGHOST_POWERSHELL_EXECUTABLE)
     add_custom_target(ValidateOffsets
-        COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/src/project/tools/Validate-Offsets.py
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMAND "${OMNIGHOST_POWERSHELL_EXECUTABLE}" -NoProfile -ExecutionPolicy Bypass
+            -File "${CMAKE_CURRENT_SOURCE_DIR}/src/project/tools/Validate-Offsets.ps1"
+            -Path "${CMAKE_CURRENT_SOURCE_DIR}/src/project/data"
+            -SchemaPath "${CMAKE_CURRENT_SOURCE_DIR}/src/project/tools/offset_schema.json"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         COMMENT "Validating offset JSON files"
     )
 
     add_custom_target(ProtectStrings
-        COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/src/project/tools/Protect-Strings.ps1 -Configuration $<CONFIG>
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Applying string protection"
+        COMMAND "${OMNIGHOST_POWERSHELL_EXECUTABLE}" -NoProfile -ExecutionPolicy Bypass
+            -File "${CMAKE_CURRENT_SOURCE_DIR}/src/project/tools/Protect-Strings.ps1"
+            -ProjectDir "${CMAKE_CURRENT_SOURCE_DIR}"
+            -Configuration "$<CONFIG>"
+            -Command keygen
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        COMMENT "Generating string-protection build key"
+    )
+
+    # This is deliberately separate from the compiler dependency.  The source
+    # tree is being migrated incrementally to OGS_LIT()/OGS_ONE(), so failing
+    # the binary build for every outstanding literal would prevent a valid
+    # launcher build.  CI/release review can invoke this target explicitly.
+    add_custom_target(ValidateStringProtection
+        COMMAND "${OMNIGHOST_POWERSHELL_EXECUTABLE}" -NoProfile -ExecutionPolicy Bypass
+            -File "${CMAKE_CURRENT_SOURCE_DIR}/src/project/tools/Protect-Strings.ps1"
+            -ProjectDir "${CMAKE_CURRENT_SOURCE_DIR}"
+            -Configuration "$<CONFIG>"
+            -Command validate
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        COMMENT "Auditing source string protection"
     )
 
     add_custom_target(UpdateCloudflared
@@ -600,11 +634,11 @@ if (HAVE_PYTHON)
         add_dependencies(OmniGhost ValidateOffsets)
     endif()
 else()
-    message(STATUS "Optional Python maintenance targets are disabled.")
+    message(STATUS "PowerShell maintenance targets are disabled.")
 endif()
 
 # =============================================================================
-# Advanced Config Manager (Backup/Restore, Cloud Sync, Game Profiles)
+# Advanced Configuration (optional)
 # =============================================================================
 if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/config/advanced/config_manager_advanced.cpp")
     add_subdirectory(src/config/advanced)
@@ -683,10 +717,15 @@ set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-win6
 # =============================================================================
 enable_testing()
 
-add_test(NAME OffsetValidation
-    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/src/project/tools/Validate-Offsets.py
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-)
+if (OMNIGHOST_POWERSHELL_EXECUTABLE)
+    add_test(NAME OffsetValidation
+        COMMAND "${OMNIGHOST_POWERSHELL_EXECUTABLE}" -NoProfile -ExecutionPolicy Bypass
+            -File "${CMAKE_CURRENT_SOURCE_DIR}/src/project/tools/Validate-Offsets.ps1"
+            -Path "${CMAKE_CURRENT_SOURCE_DIR}/src/project/data"
+            -SchemaPath "${CMAKE_CURRENT_SOURCE_DIR}/src/project/tools/offset_schema.json"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+endif()
 
 # =============================================================================
 # Developer Helpers

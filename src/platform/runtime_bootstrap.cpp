@@ -625,11 +625,16 @@ if (!IsSafeRelative(requested))
 
 bool ValidateEmbeddedRuntimeBundle(std::wstring& error) noexcept {
     try {
-        if (OmniGhost::EmbeddedRuntimeGenerated::kEntryCount == 0) {
+        const std::size_t entryCount = OmniGhost::EmbeddedRuntimeGenerated::kEntryCount;
+#pragma warning(push)
+#pragma warning(disable: 4127)
+        if (entryCount == 0) {
             error = L"O manifesto incorporado está vazio.";
             return false;
         }
-        for (const auto& entry : OmniGhost::EmbeddedRuntimeGenerated::kEntries) {
+        for (std::size_t i = 0; i < entryCount; ++i) {
+#pragma warning(pop)
+            const auto& entry = OmniGhost::EmbeddedRuntimeGenerated::kEntries[i];
             const auto resource = OmniGhost::GetPeResourceView(entry.resourceId);
             if (!resource || resource->empty() || resource->size() != entry.size) {
                 error = L"Um recurso do runtime incorporado está em falta ou truncado.";

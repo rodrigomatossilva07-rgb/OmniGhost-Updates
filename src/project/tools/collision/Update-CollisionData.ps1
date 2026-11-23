@@ -10,8 +10,11 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$repoRoot = [IO.Path]::GetFullPath((Join-Path $scriptRoot '..\..'))
+$scriptRoot = $PSScriptRoot
+# This script lives in src\project\tools\collision; the repository root is
+# three levels above it.  Keeping the work directory at the root also makes it
+# consistent with CMake and the launcher build cache.
+$repoRoot = [IO.Path]::GetFullPath((Join-Path $scriptRoot '..\..\..'))
 $workRoot = Join-Path $repoRoot '.cache\collision-build'
 
 function Write-Section([string]$Text) {
@@ -78,7 +81,11 @@ function Update-CS2Collision {
     $process.StandardInput.Close()
     $process.WaitForExit()
 
-    $files = @(Get-ChildItem -LiteralPath $triRoot -Filter '*.tri' -File)
+    $files = if (Test-Path -LiteralPath $triRoot) {
+        @(Get-ChildItem -LiteralPath $triRoot -Filter '*.tri' -File)
+    } else {
+        @()
+    }
     if ($files.Count -eq 0) {
         throw "O extrator CS2 terminou com o código $($process.ExitCode) e não produziu ficheiros em $triRoot"
     }

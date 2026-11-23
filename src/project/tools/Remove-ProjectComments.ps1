@@ -239,6 +239,7 @@ $changes = [Collections.Generic.List[object]]::new()
 $cLikeExtensions = @('.c','.cc','.cpp','.cxx','.h','.hh','.hpp','.inl','.cs','.json5')
 foreach ($relative in $tracked | Where-Object { $_ -notmatch $excluded -and [IO.Path]::GetExtension($_).ToLowerInvariant() -in $cLikeExtensions }) {
     $path = Join-Path $ProjectDir $relative
+    if (-not (Test-Path -LiteralPath $path)) { continue }
     $file = Read-SourceFile $path
     $result = Remove-CLikeComments $file.Text $true
     if ($result.Removed -gt 0) {

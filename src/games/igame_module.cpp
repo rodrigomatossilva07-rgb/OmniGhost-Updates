@@ -7,9 +7,9 @@
 
 namespace OmniGhost::Games {
 
-// =============================================================================
-// GameModuleRegistry Implementation
-// =============================================================================
+
+
+
 
 void GameModuleRegistry::RegisterFactory(std::unique_ptr<IGameModuleFactory> factory) {
     std::unique_lock lock(mutex_);
@@ -17,7 +17,7 @@ void GameModuleRegistry::RegisterFactory(std::unique_ptr<IGameModuleFactory> fac
     const std::string gameId{factory->GetGameId()};
     factories_[gameId] = std::move(factory);
 
-    // Update launcher ID map
+
     launcherIdMap_[factory->GetLauncherGameId()] = factories_[gameId].get();
 
     OGS_LOG_INFO("[GameModuleRegistry] Registered game module: {}", gameId);
@@ -82,4 +82,4 @@ bool GameModuleRegistry::IsRegistered(std::string_view gameId) const noexcept {
     return factories_.contains(std::string{gameId});
 }
 
-} // namespace OmniGhost::Games
+}

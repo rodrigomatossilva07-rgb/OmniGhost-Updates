@@ -1,32 +1,32 @@
-<#
-.SYNOPSIS
-    Pester unit tests for Validate-Offsets.ps1
 
-.DESCRIPTION
-    Comprehensive unit tests covering:
-    - JSON parsing and validation
-    - Schema compliance checks
-    - Offset format validation
-    - Critical offset presence validation
-    - Duplicate detection
-    - Build consistency checks
-    - Decryption validation
 
-.NOTES
-    Run with: Invoke-Pester -Script ./Validate-Offsets.Tests.ps1 -Output Detailed
-#>
 
-# Import the script functions for testing
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 $scriptPath = Join-Path $PSScriptRoot "Validate-Offsets.ps1"
 . $scriptPath
 
-# Test data paths
+
 $testDataDir = Join-Path $PSScriptRoot "test_data"
 if (-not (Test-Path $testDataDir)) {
     New-Item -ItemType Directory -Path $testDataDir | Out-Null
 }
 
-# Helper to create test JSON files
+
 function New-TestJsonFile {
     param(
         [string]$FileName,
@@ -96,7 +96,7 @@ Describe "Validate-Offsets.ps1 - JSON Parsing" {
             } | ConvertTo-Json -Depth 10
 
             $path = New-TestJsonFile "bom_test.json" $json
-            # Add BOM
+
             $bytes = [System.Text.Encoding]::UTF8.GetPreamble() + [System.Text.Encoding]::UTF8.GetBytes($json)
             [System.IO.File]::WriteAllBytes($path, $bytes)
 
@@ -723,5 +723,4 @@ Describe "Validate-Offsets.ps1 - Integration Tests" {
     }
 }
 
-# Cleanup test data
-# Remove-Item -Recurse -Force $testDataDir -ErrorAction SilentlyContinue
+

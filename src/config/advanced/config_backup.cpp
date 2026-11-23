@@ -2,11 +2,10 @@
 // Backup/Restore functionality with compression and checksums
 
 #include "config_manager_advanced.h"
+#include "platform/file_integrity.h"
 #include <fstream>
 #include <sstream>
 #include <iomanip>
-#include <openssl/sha.h>
-#include <zlib.h>
 
 namespace omnighost::config {
 
@@ -162,7 +161,7 @@ public:
     }
 
 private:
-    std::string backup_dir_;
+    std::filesystem::path backup_dir_;
 
     std::string generate_backup_id() {
         static std::atomic<uint64_t> counter{0};
@@ -188,59 +187,19 @@ private:
     }
 
     std::string compute_sha256(const std::string& data) {
-        unsigned char hash[SHA256_DIGEST_LENGTH];
-        SHA256_CTX sha256;
-        SHA256_Init(&sha256);
-        SHA256_Update(&sha256, data.data(), data.size());
-        SHA256_Final(hash, &sha256);
-
-        std::stringstream ss;
-        for (int i = 0; i < SHA256_DIGEST_LENGTH; ++i) {
-            ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(hash[i]);
-        }
-        return ss.str();
+        std::string hash;
+        std::string error;
+        return OmniGhost::Platform::Sha256Text(data, hash, error) ? hash : std::string{};
     }
 
     std::string compress_data(const std::string& data) {
-        z_stream zs = {0};
-        if (deflateInit(&zs, Z_BEST_COMPRESSION) != Z_OK) return "";
-
-        zs.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(data.data()));
-        zs.avail_in = data.size();
-
-        std::string compressed;
-        compressed.resize(data.size() + data.size() / 100 + 128);
-
-        zs.next_out = reinterpret_cast<Bytef*>(const_cast<char*>(compressed.data()));
-        zs.avail_out = compressed.size();
-
-        int ret = deflate(&zs, Z_FINISH);
-        deflateEnd(&zs);
-
-        if (ret != Z_STREAM_END) return "";
-        compressed.resize(zs.total_out);
-        return compressed;
+        // The main launcher no longer ships zlib.  Persisting JSON directly is
+        // lossless and keeps legacy backups readable without an extra runtime.
+        return data;
     }
 
     std::string decompress_data(const std::string& compressed) {
-        z_stream zs = {0};
-        if (inflateInit(&zs) != Z_OK) return "";
-
-        zs.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(compressed.data()));
-        zs.avail_in = compressed.size();
-
-        std::string decompressed;
-        decompressed.resize(compressed.size() * 4);
-
-        zs.next_out = reinterpret_cast<Bytef*>(const_cast<char*>(decompressed.data()));
-        zs.avail_out = decompressed.size();
-
-        int ret = inflate(&zs, Z_FINISH);
-        inflateEnd(&zs);
-
-        if (ret != Z_STREAM_END) return "";
-        decompressed.resize(zs.total_out);
-        return decompressed;
+        return compressed;
     }
 
     std::optional<BackupInfo> load_backup_metadata(const std::filesystem::path& path) {
