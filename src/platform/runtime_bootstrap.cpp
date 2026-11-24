@@ -6,7 +6,7 @@
 
 
 
-#include "embedded_runtime_manifest.h"
+#include <embedded_runtime_manifest.h>
 #include "embedded_resources.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -32,6 +32,9 @@
 #include <tuple>
 
 namespace fs = std::filesystem;
+
+static_assert(OmniGhost::EmbeddedRuntimeGenerated::kEntryCount > 0,
+              "The generated runtime manifest must contain at least one resource.");
 
 namespace {
 
