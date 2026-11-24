@@ -9,7 +9,7 @@
 
 
 namespace OmniGhost {
-inline constexpr char Version[] = "1.4.5";
+inline constexpr char Version[] = "1.4.6";
 inline constexpr char BuildChannel[] = OMNIGHOST_BUILD_CHANNEL;
 inline constexpr wchar_t MainExecutable[] = L"OmniGhost.exe";
 }
