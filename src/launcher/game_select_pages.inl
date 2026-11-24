@@ -105,11 +105,11 @@ void DrawHome(ImVec2 display) {
                 IsReadyState(runtime->state) ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
             ImGui::Dummy(ImVec2(0, S(5.f)));
             CyberWidgets::TextLine(game->name, CyberWidgets::TextTone::Primary);
-            CyberWidgets::TextLine(account.websiteAccount ? "PERFIL REMOTO Â· ESTATÍSTICAS SINCRONIZADAS" : "PERFIL LOCAL Â· SESSÃO PROTEGIDA", CyberWidgets::TextTone::Secondary);
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "Última sessão Â· %s Â· %s",
+            CyberWidgets::TextLine(account.websiteAccount ? "PERFIL REMOTO · ESTATÍSTICAS SINCRONIZADAS" : "PERFIL LOCAL · SESSÃO PROTEGIDA", CyberWidgets::TextTone::Secondary);
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "Última sessão · %s · %s",
                 SessionResultDisplay(history.lastResult), FormatLastUsed(history.lastUsedUnix).c_str());
             CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-                "%u sessões Â· %s de menu ativo", history.sessionCount,
+                "%u sessões · %s de menu ativo", history.sessionCount,
                 FormatActiveDuration(history.totalActiveSeconds).c_str());
             ImGui::Dummy(ImVec2(0, S(8.f)));
             if (IsReadyState(runtime->state)) {
@@ -136,7 +136,7 @@ void DrawHome(ImVec2 display) {
     CyberWidgets::HealthRow("DMA", dma.deviceOpen ? Loc::Tr("launcher.connected")
         : (dma.deviceDetected ? Loc::Tr("launcher.device_detected") : Loc::Tr("launcher.device_not_detected")),
         dma.deviceOpen ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
-    std::string input = std::string(InputDeviceName()) + " Â· " +
+    std::string input = std::string(InputDeviceName()) + " · " +
         (InputDeviceConnected() ? Loc::Tr("launcher.connected") : Loc::Tr("launcher.standby"));
     CyberWidgets::HealthRow(Loc::Tr("launcher.input"), input.c_str(), InputDeviceConnected() ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
     CyberWidgets::HealthRow(Loc::Tr("launcher.updates_status"), UpdateStatusText(update),
@@ -274,11 +274,11 @@ void DrawMarketplace(ImVec2 display) {
             CyberWidgets::BeginCard(item.title.c_str(), cardWidth);
             CyberWidgets::Badge(item.official ? "OFICIAL OMNIGHOST" : "VERIFICADA",
                 item.official ? CyberWidgets::TextTone::Accent : CyberWidgets::TextTone::Success);
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%s Â· %s Â· v%d", item.author.c_str(), item.game.c_str(), item.version);
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%s · %s · v%d", item.author.c_str(), item.game.c_str(), item.version);
             CyberWidgets::TextLineF(item.compatible ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning,
-                "Schema %d Â· Launcher mínimo %s", item.schema_version, item.min_launcher_version.c_str());
+                "Schema %d · Launcher mínimo %s", item.schema_version, item.min_launcher_version.c_str());
             CyberWidgets::TextLine(item.description.empty() ? "Sem descrição." : item.description.c_str(), CyberWidgets::TextTone::Secondary);
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Accent, "%d downloads Â· %.1f/5 Â· %d favoritos",
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Accent, "%d downloads · %.1f/5 · %d favoritos",
                 item.downloads, item.rating, item.favorites);
             if (CyberWidgets::GoldButton("GUARDAR", ImVec2(S(100.f), S(31.f)))) {
                 const bool ok = config_manager::DownloadCommunityToLibrary(item.id);
@@ -479,7 +479,7 @@ std::string FriendlyBuildLabel() {
     const std::string_view id = OmniGhost::BuildInfo::BuildId;
     const bool local = id.starts_with("local-") || id == "development";
     std::string label = local ? "Compilação de desenvolvimento" : "Versão oficial";
-    label += " Â· ";
+    label += " · ";
     label += OmniGhost::BuildInfo::Architecture[0] ? OmniGhost::BuildInfo::Architecture : "x64";
     return label;
 }
@@ -527,9 +527,9 @@ std::string BuildDiagnosticsText() {
         supportCode = OmniGhost::Support::ErrorCode::InputUnavailable;
 
     std::ostringstream out;
-    out << "OmniGhost Â· " << Loc::Tr("launcher.diagnostics") << "\n";
+    out << "OmniGhost · " << Loc::Tr("launcher.diagnostics") << "\n";
     out << "Código de suporte: " << OmniGhost::Support::Code(supportCode)
-        << " Â· " << OmniGhost::Support::Message(supportCode) << "\n";
+        << " · " << OmniGhost::Support::Message(supportCode) << "\n";
     out << Loc::Tr("launcher.version") << ": " << UiFormat::Version(OmniGhost::Version) << "\n";
     out << Loc::Tr("launcher.build") << ": " << OmniGhost::BuildInfo::BuildId << " | "
         << OmniGhost::BuildInfo::Configuration << " | " << OmniGhost::BuildInfo::Architecture << "\n";
@@ -710,7 +710,7 @@ void DrawDiagnostics(ImVec2 display) {
             const std::string when = FormatLastUsed(session.endedUnix);
             const std::string duration = FormatActiveDuration(session.activeSeconds);
             CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-                "%s Â· %s Â· %s", when.c_str(), duration.c_str(),
+                "%s · %s · %s", when.c_str(), duration.c_str(),
                 SessionResultDisplay(session.result));
         }
         if (!history.detail.empty()) CyberWidgets::TextLine(history.detail.c_str(), CyberWidgets::TextTone::Secondary);
@@ -935,7 +935,7 @@ void DrawSettings(ImVec2 display) {
         changed |= CyberWidgets::ToggleSwitch(Loc::Tr("launcher.manual_performance"), &app_settings::config.performance_mode);
         changed |= CyberWidgets::ToggleSwitch(Loc::Tr("launcher.particles"), &app_settings::config.particles);
         changed |= CyberWidgets::ToggleSwitch(Loc::Tr("launcher.snow_effect"), &app_settings::config.snow_effect);
-        CyberWidgets::KeyValueRow("Chuva digital", "Subtil Â· textura de fundo");
+        CyberWidgets::KeyValueRow("Chuva digital", "Subtil · textura de fundo");
         CyberWidgets::EndCard();
         break;
     }
@@ -951,8 +951,8 @@ void DrawSettings(ImVec2 display) {
         for (std::size_t i = 0; i < monitors.size(); ++i) {
             const int w = monitors[i].rect.right - monitors[i].rect.left;
             const int h = monitors[i].rect.bottom - monitors[i].rect.top;
-            char text[96]{}; std::snprintf(text, sizeof(text), "%s %zu%s Â· %dx%d", Loc::Tr("launcher.monitor"),
-                i + 1, monitors[i].primary ? (std::string(" Â· ") + Loc::Tr("launcher.primary")).c_str() : "", w, h);
+            char text[96]{}; std::snprintf(text, sizeof(text), "%s %zu%s · %dx%d", Loc::Tr("launcher.monitor"),
+                i + 1, monitors[i].primary ? (std::string(" · ") + Loc::Tr("launcher.primary")).c_str() : "", w, h);
             monitorLabels.emplace_back(text);
         }
         std::vector<const char*> monitorItems; for (auto& label : monitorLabels) monitorItems.push_back(label.c_str());
@@ -1022,7 +1022,7 @@ void DrawSettings(ImVec2 display) {
             const bool granted = OmniGhost::Licensing::HasGameAccess(game.id);
             const std::string duration = granted ? OmniGhost::Licensing::GameAccessDuration(game.id) : std::string{};
             const std::string status = granted
-                ? (duration.empty() ? "Acesso ativo" : "Acesso ativo Â· " + duration)
+                ? (duration.empty() ? "Acesso ativo" : "Acesso ativo · " + duration)
                 : "Sem acesso";
             CyberWidgets::HealthRow(game.name,
                 status.c_str(),

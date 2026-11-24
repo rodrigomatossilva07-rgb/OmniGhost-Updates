@@ -1,15 +1,9 @@
 #pragma once
 
-#include <string>
+#include <cstdint>
 #include <string_view>
-#include <unordered_map>
-#include <mutex>
-#include <shared_mutex>
-#include <filesystem>
-#include <optional>
 
 namespace Loc {
-
 
 enum class Language : uint8_t {
     Portuguese = 0,
@@ -52,90 +46,7 @@ inline constexpr int LanguageCount() noexcept {
     return static_cast<int>(Language::Count);
 }
 
+const char* Tr(std::string_view key) noexcept;
+const char* TrID(std::string_view key);
 
-
-
-class LocalizationManager {
-public:
-    static LocalizationManager& Instance() noexcept {
-        static LocalizationManager instance;
-        return instance;
-    }
-
-
-    bool Initialize(const std::filesystem::path& localeDir);
-
-
-    Language GetLanguage() const noexcept { return m_currentLang; }
-
-
-    bool SetLanguage(Language lang) noexcept;
-
-
-    const char* Tr(std::string_view key) const noexcept;
-
-
-    std::string TrFmt(std::string_view key, ...) const;
-
-
-    bool HasKey(std::string_view key) const noexcept;
-
-
-    std::vector<std::string> GetAllKeys() const;
-
-
-    void Reload();
-
-
-    std::vector<std::string> GetMissingKeys(Language lang) const;
-
-private:
-    LocalizationManager() = default;
-    ~LocalizationManager() = default;
-    LocalizationManager(const LocalizationManager&) = delete;
-    LocalizationManager& operator=(const LocalizationManager&) = delete;
-
-    bool LoadLanguage(Language lang);
-    void LoadAllLanguages(const std::filesystem::path& localeDir);
-
-    mutable std::shared_mutex m_mutex;
-    Language m_currentLang = Language::Portuguese;
-    std::filesystem::path m_localeDir;
-
-
-    std::unordered_map<Language, std::unordered_map<std::string, std::string>> m_translations;
-
-
-    mutable std::unordered_map<Language, std::vector<std::string>> m_missingKeysCache;
-    mutable bool m_missingKeysDirty = true;
-};
-
-
-inline const char* Tr(std::string_view key) noexcept {
-    return LocalizationManager::Instance().Tr(key);
-}
-
-
-inline const char* TrID(std::string_view key) noexcept { return Tr(key); }
-
-inline std::string TrFmt(std::string_view key, auto&&... args) {
-    return LocalizationManager::Instance().TrFmt(key, std::forward<decltype(args)>(args)...);
-}
-
-inline bool HasKey(std::string_view key) noexcept {
-    return LocalizationManager::Instance().HasKey(key);
-}
-
-inline Language GetLanguage() noexcept {
-    return LocalizationManager::Instance().GetLanguage();
-}
-
-inline bool SetLanguage(Language lang) noexcept {
-    return LocalizationManager::Instance().SetLanguage(lang);
-}
-
-inline void ReloadLocalization() {
-    LocalizationManager::Instance().Reload();
-}
-
-}
+} // namespace Loc

@@ -730,7 +730,7 @@ namespace LauncherUpdates {
 
                 ImGui::TextColored(
                     ToVec4(C_MUTED2),
-                    "Â· %s",
+                    "· %s",
                     release.commit.c_str());
             }
 
@@ -1115,7 +1115,7 @@ namespace LauncherUpdates {
 
             const std::string metadata =
                 displayVersion +
-                "  Â·  " +
+                "  ·  " +
                 UpdateTime::DateDisplay(
                     card.release->publishedAt);
 
