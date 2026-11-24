@@ -3,6 +3,7 @@
 #include "theme.h"
 #include "fonts.h"
 #include "brand_assets.h"
+#include "digital_rain.h"
 #include "localization.h"
 #include "../platform/ihardware_manager.h"
 #include "../platform/file_integrity.h"
@@ -511,6 +512,10 @@ namespace Onboarding {
             CyberTheme::DrawRadialAccent(dl,
                 ImVec2(win_pos.x + win_size.x * 0.72f, win_pos.y + 16.0f), 220.0f, 0.045f);
             CyberTheme::DrawSubtleNoise(dl, win_pos, ImVec2(win_pos.x + win_size.x, win_pos.y + win_size.y), 0.015f);
+            constexpr float rainInset = 12.f;
+            DigitalRain::DrawAmbient(dl, ImVec2(win_pos.x + rainInset, win_pos.y + rainInset),
+                ImVec2(win_size.x - rainInset * 2.f, win_size.y - rainInset * 2.f),
+                app_settings::AnimationScale());
 
             ImGui::SetCursorPos(ImVec2(kContentInset, 20.0f));
             DrawStepIndicator(g_current_step, ImGui::GetCursorScreenPos(), win_size.x - kContentInset * 2.0f);

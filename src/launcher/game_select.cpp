@@ -368,7 +368,7 @@ bool Draw() {
         else if (g_nav != static_cast<int>(NavPage::Home)) ChangeNavigation(static_cast<int>(NavPage::Home));
     }
 
-    DrawBackground(background, display, performance.effective);
+    DrawBackground(background, display, performance.effective, !onboardingRequired);
 
     if (g_nav == static_cast<int>(NavPage::Home)) {
         DrawHome(display);

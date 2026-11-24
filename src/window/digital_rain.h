@@ -75,6 +75,7 @@ void AutoSelectQualityPreset() noexcept;
 
 void Initialize();
 void Shutdown();
+void DrawAmbient(ImDrawList* dl, const ImVec2& position, const ImVec2& size, float motion_scale);
 void Draw(
     ImDrawList* dl,
     const ImVec2& window_pos,

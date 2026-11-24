@@ -1,5 +1,7 @@
 #include "digital_rain.h"
 #include "fonts.h"
+#include "performance_mode.h"
+#include "../config/app_settings.h"
 
 #include <algorithm>
 #include <cmath>
@@ -525,6 +527,17 @@ void Shutdown() {
     g_count = 0;
     g_star_count = 0;
     g_cluster_count = 0;
+}
+
+void DrawAmbient(ImDrawList* dl, const ImVec2& position, const ImVec2& size, float motion_scale) {
+    const float density = app_settings::DigitalRainDensity();
+    if (!dl || density <= 0.0f || !IsValidSize(size.x, size.y)) return;
+
+    const float opacity = app_settings::DigitalRainOpacity() * 0.85f;
+    dl->PushClipRect(position, ImVec2(position.x + size.x, position.y + size.y), true);
+    Draw(dl, position, size, true, PerformanceMode::Current().effective, 0.0f,
+         opacity, density * 0.78f, motion_scale * 0.65f, false, false);
+    dl->PopClipRect();
 }
 
 void Draw(

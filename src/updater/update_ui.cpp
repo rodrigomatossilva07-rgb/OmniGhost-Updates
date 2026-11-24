@@ -6,7 +6,6 @@
 #include "../window/ui_format.h"
 #include "../window/widgets.h"
 #include "../window/ui_feedback.h"
-#include "../window/transition_overlay.h"
 #include "src/project/third_party/ImGui/imgui.h"
 
 #include <Windows.h>
@@ -135,7 +134,8 @@ void Draw() {
         std::min(preferredWidth, display.x - CyberTheme::Px(28.0f)));
     float height = CyberTheme::Px(190.0f);
     if (state.status == Status::Checking || state.status == Status::UpToDate) height = CyberTheme::Px(128.0f);
-    if (state.status == Status::Downloading) height = CyberTheme::Px(194.0f);
+    if (state.status == Status::Downloading || state.status == Status::Installing)
+        height = CyberTheme::Px(194.0f);
     if (state.status == Status::Completed || state.status == Status::RolledBack) height = CyberTheme::Px(184.0f);
     if (errorExpanded) height = std::min(display.y - CyberTheme::Px(32.0f), CyberTheme::Px(390.0f));
 
@@ -189,10 +189,16 @@ void Draw() {
             fraction = std::clamp(fraction, 0.0f, 1.0f);
         }
         char overlay[96]{};
-        std::snprintf(overlay, sizeof(overlay), "%.1f / %.1f MB Â· %.1f MB/s",
-            static_cast<double>(state.bytesReceived) / 1048576.0,
-            static_cast<double>(state.bytesTotal) / 1048576.0,
-            state.bytesPerSecond / 1048576.0);
+        constexpr double bytesPerMiB = 1048576.0;
+        const double received = static_cast<double>(state.bytesReceived) / bytesPerMiB;
+        const double speed = state.bytesPerSecond / bytesPerMiB;
+        if (state.bytesTotal > 0) {
+            std::snprintf(overlay, sizeof(overlay), "%.0f%%  ·  %.1f / %.1f MB  ·  %.1f MB/s",
+                static_cast<double>(fraction) * 100.0,
+                received, static_cast<double>(state.bytesTotal) / bytesPerMiB, speed);
+        } else {
+            std::snprintf(overlay, sizeof(overlay), "%.1f MB  ·  %.1f MB/s", received, speed);
+        }
         ImGui::ProgressBar(fraction, ImVec2(-1.0f, CyberTheme::Px(16.0f)), overlay);
         if (CyberWidgets::Button(OGS_CSTR("Cancelar"), CyberWidgets::ButtonStyle::Secondary,
                 ImVec2(CyberTheme::Px(120.0f), CyberTheme::Px(34.0f))))
@@ -236,14 +242,10 @@ void Draw() {
                 service.DeferForSession();
         }
     } else if (state.status == Status::Installing) {
-        const float elapsed = static_cast<float>(ImGui::GetTime());
-        OmniGhost::UI::DrawTransitionOverlay({
-            state.repairMode ? OGS_CSTR("A reparar o OmniGhost") : OGS_CSTR("A instalar atualização"),
-            OGS_CSTR("A aplicação reiniciará automaticamente quando estiver pronta"),
-            elapsed,
-            1.0f,
-            false
-        });
+        CyberWidgets::Spinner(OGS_CSTR("update_install_spinner"), CyberTheme::Px(7.0f), CyberTheme::Px(1.8f));
+        ImGui::SameLine(0.0f, CyberTheme::Spacing::Sm);
+        CyberWidgets::TextLine(OGS_CSTR("O OmniGhost reinicia automaticamente."),
+                               CyberWidgets::TextTone::Secondary);
     } else if (state.status == Status::Completed) {
         if (!state.updateFromVersion.empty()) {
             const std::string from = UiFormat::Version(state.updateFromVersion);

@@ -6,6 +6,7 @@
 #include "../licensing/license_service.h"
 #include "../window/animations.h"
 #include "../window/brand_assets.h"
+#include "../window/digital_rain.h"
 #include "../window/fonts.h"
 #include "../window/localization.h"
 #include "../window/theme.h"
@@ -1014,14 +1015,8 @@ void DrawRegister() {
     submit = AuthPasswordField("register_password", g_password, sizeof(g_password),
         &g_show_password, text.password,
         contentWidth, ImGuiInputTextFlags_EnterReturnsTrue) || submit;
-    if (g_error_field == AuthField::Password) {
-        DrawFieldError(AuthField::Password, contentWidth);
-    } else {
-        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + contentWidth);
-        ImGui::TextDisabled("%s", AuthLabel("Palavra-passe da conta do site · mínimo de 8 caracteres",
-                                         "Website account password · at least 8 characters"));
-        ImGui::PopTextWrapPos();
-    }
+    DrawFieldError(AuthField::Password, contentWidth);
+    ImGui::Dummy(ImVec2(0, S(4.f)));
     submit = AuthPasswordField("register_key", g_license_key,
         sizeof(g_license_key), &g_show_license_key, LicenseKeyHint(), contentWidth,
         ImGuiInputTextFlags_EnterReturnsTrue) || submit;
@@ -1316,6 +1311,9 @@ bool Draw() {
         windowPos, Add(windowPos, ImVec2(width, S(180.f))),
         IM_COL32(18, 18, 20, 38), IM_COL32(18, 18, 20, 38),
         IM_COL32(11, 11, 13, 0), IM_COL32(11, 11, 13, 0));
+    const float rainInset = S(12.f);
+    DigitalRain::DrawAmbient(draw, Add(windowPos, ImVec2(rainInset, rainInset)),
+        ImVec2(width - rainInset * 2.f, height - rainInset * 2.f), animation);
     DrawWindowControls(windowPos, width);
     if (!g_startup_preparing)
         DrawLanguageSelector(windowPos, width);

@@ -66,7 +66,8 @@ void DrawCircuitTrace(
 void DrawBackground(
     ImDrawList* draw,
     ImVec2 display,
-    bool performance_mode) {
+    bool performance_mode,
+    bool draw_rain) {
     if (!draw || display.x <= 0.0f || display.y <= 0.0f)
         return;
 
@@ -127,7 +128,9 @@ void DrawBackground(
         break;
     }
 
-    const float rainDensity = app_settings::DigitalRainDensity();
+    // The setup modal draws the rain itself. Draw it once per frame so the
+    // shared columns keep their dimensions while the modal is visible.
+    const float rainDensity = draw_rain ? app_settings::DigitalRainDensity() : 0.0f;
 
 
     const float rainOpacity = rainDensity > 0.0f
@@ -1017,9 +1020,13 @@ void DrawLibrary(ImDrawList* draw, ImVec2 display, float delta) {
         const bool checking = updSnap.status == US::Checking ||
                               updSnap.status == US::Downloading ||
                               updSnap.status == US::Installing;
-        const char* checkLabel = checking
-            ? app_settings::T("A procurar…", "Checking…", "Suche…", "Buscando…", "Recherche…", "Ricerca…", "Поиск…")
-            : app_settings::T("Procurar atualizações", "Check for updates", "Nach Updates suchen", "Buscar actualizaciones", "Rechercher des mises à jour", "Cerca aggiornamenti", "Проверить обновления");
+        const char* checkLabel = app_settings::T("Procurar atualizações", "Check for updates", "Nach Updates suchen", "Buscar actualizaciones", "Rechercher des mises à jour", "Cerca aggiornamenti", "Проверить обновления");
+        if (updSnap.status == US::Checking)
+            checkLabel = app_settings::T("A procurar…", "Checking…", "Suche…", "Buscando…", "Recherche…", "Ricerca…", "Поиск…");
+        else if (updSnap.status == US::Downloading)
+            checkLabel = app_settings::T("A descarregar…", "Downloading…", "Wird heruntergeladen…", "Descargando…", "Téléchargement…", "Download…", "Загрузка…");
+        else if (updSnap.status == US::Installing)
+            checkLabel = app_settings::T("A instalar…", "Installing…", "Installation…", "Instalando…", "Installation…", "Installazione…", "Установка…");
 
         ImGui::SetCursorScreenPos(ImVec2(check_x, row_y));
         ImGui::PushStyleColor(ImGuiCol_Button, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.22f));
@@ -1029,14 +1036,13 @@ void DrawLibrary(ImDrawList* draw, ImVec2 display, float delta) {
         ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, CyberTheme::Radius::Sm);
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
         ImGui::PushStyleColor(ImGuiCol_Border, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.75f));
+        ImGui::BeginDisabled(checking);
         const bool clicked = ImGui::Button(checkLabel, ImVec2(check_btn_w, check_btn_h));
+        ImGui::EndDisabled();
         ImGui::PopStyleColor(5);
         ImGui::PopStyleVar(2);
-        if (clicked && !checking) {
+        if (clicked)
             OmniGhost::Update::UpdateService::Instance().CheckAsync(true);
-            PushToast(app_settings::T("A procurar atualizações…", "Checking for updates…", "Suche nach Updates…", "Buscando actualizaciones…", "Recherche de mises à jour…", "Ricerca aggiornamenti…", "Поиск обновлений…"),
-                      C_GOLD(), ToastAction::None, nullptr);
-        }
     }
 
     draw->AddText(ImVec2(content_x, top + S(36.f)), C_MUTED(), count);
