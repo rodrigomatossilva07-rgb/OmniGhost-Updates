@@ -1,14 +1,14 @@
 {
   "schema_version": 7,
   "game": "cs2",
-  "build": "14197",
-  "build_id": "cs2-dumper-14197",
+  "build": "14196",
+  "build_id": "cs2-dumper-14196",
   "module": "client.dll",
   "source": "a2x/cs2-dumper",
-  "generated_at": "2026-11-16T21:00:55Z",
-  "cl": "14197",
+  "generated_at": "2026-11-07T22:05:22.9942835Z",
+  "cl": "14196",
   "note": "Source of truth for CS2 offsets. Update this file after game patches.",
-  "verified_utc": "2026-11-16T21:00:55Z",
+  "verified_utc": "2026-11-07T22:05:22.9942835Z",
   "namespaces": {
     "_root": {
       "fields": {
@@ -53,12 +53,12 @@
           "comment": "Game rules pointer"
         },
         "dwSensitivity": {
-          "offset": "0x2567C30",
+          "offset": "0x2567C40",
           "resolved": true,
           "comment": "Sensitivity pointer"
         },
         "dwCSGOInput": {
-          "offset": "0x2579F30",
+          "offset": "0x2580A10",
           "resolved": true,
           "comment": "CSGO Input pointer"
         },
@@ -193,57 +193,57 @@
     "C_BasePlayerPawn": {
       "fields": {
         "m_vOldOrigin": {
-          "offset": "0x13D0",
+          "offset": "0x14A4",
           "resolved": true,
           "comment": "Previous origin position"
         },
         "m_pWeaponServices": {
-          "offset": "0x1340",
+          "offset": "0x12F0",
           "resolved": true,
           "comment": "Weapon services pointer"
         },
         "m_pItemServices": {
-          "offset": "0x1348",
+          "offset": "0x12F8",
           "resolved": true,
           "comment": "Item services pointer"
         },
         "m_ArmorValue": {
-          "offset": "0x3E4",
+          "offset": "0x1ED0",
           "resolved": true,
           "comment": "Armor value"
         },
         "m_angEyeAngles": {
-          "offset": "0x1398",
+          "offset": "0x3600",
           "resolved": true,
           "comment": "Eye angles"
         },
         "m_iIDEntIndex": {
-          "offset": "0x13A0",
+          "offset": "0x36DC",
           "resolved": true,
           "comment": "Crosshair entity index"
         },
         "m_iShotsFired": {
-          "offset": "0x13A4",
+          "offset": "0x1EB8",
           "resolved": true,
           "comment": "Shots fired counter"
         },
         "m_pAimPunchServices": {
-          "offset": "0x13B8",
+          "offset": "0x1598",
           "resolved": true,
           "comment": "Aim punch services"
         },
         "m_bIsDefusing": {
-          "offset": "0x13C0",
+          "offset": "0x1EA2",
           "resolved": true,
           "comment": "Is defusing flag"
         },
         "m_bIsScoped": {
-          "offset": "0x13C1",
+          "offset": "0x1EA0",
           "resolved": true,
           "comment": "Is scoped flag"
         },
         "m_flFlashDuration": {
-          "offset": "0x13C4",
+          "offset": "0x1510",
           "resolved": true,
           "comment": "Flash duration"
         },
@@ -253,12 +253,12 @@
           "comment": "Aim punch angle"
         },
         "m_pObserverServices": {
-          "offset": "0x13D8",
+          "offset": "0x1308",
           "resolved": true,
           "comment": "Observer services"
         },
         "m_entitySpottedState": {
-          "offset": "0x13E0",
+          "offset": "0x1E88",
           "resolved": true,
           "comment": "Entity spotted state"
         },
@@ -272,47 +272,47 @@
     "CCSPlayerController": {
       "fields": {
         "m_hPlayerPawn": {
-          "offset": "0x7E8",
+          "offset": "0x92C",
           "resolved": true,
           "comment": "Player pawn handle"
         },
         "m_hObserverPawn": {
-          "offset": "0x7F0",
+          "offset": "0x930",
           "resolved": true,
           "comment": "Observer pawn handle"
         },
         "m_iPawnHealth": {
-          "offset": "0x7F8",
+          "offset": "0x938",
           "resolved": true,
           "comment": "Pawn health"
         },
         "m_iPawnArmor": {
-          "offset": "0x7FC",
+          "offset": "0x93C",
           "resolved": true,
           "comment": "Pawn armor"
         },
         "m_iszPlayerName": {
-          "offset": "0x800",
+          "offset": "0x6FC",
           "resolved": true,
           "comment": "Player name (string)"
         },
         "m_sSanitizedPlayerName": {
-          "offset": "0x808",
+          "offset": "0x878",
           "resolved": true,
           "comment": "Sanitized player name"
         },
         "m_steamID": {
-          "offset": "0x810",
+          "offset": "0x788",
           "resolved": true,
           "comment": "Steam ID"
         },
         "m_bPawnIsAlive": {
-          "offset": "0x818",
+          "offset": "0x934",
           "resolved": true,
           "comment": "Pawn alive flag"
         },
         "m_pInGameMoneyServices": {
-          "offset": "0x820",
+          "offset": "0x818",
           "resolved": true,
           "comment": "In-game money services"
         }
@@ -321,7 +321,7 @@
     "CCSPlayerController_InGameMoneyServices": {
       "fields": {
         "m_iAccount": {
-          "offset": "0x10",
+          "offset": "0x40",
           "resolved": true,
           "comment": "Account balance"
         }
@@ -330,7 +330,7 @@
     "CCSPlayer_AimPunchServices": {
       "fields": {
         "m_predictableBaseAngle": {
-          "offset": "0x10",
+          "offset": "0x50",
           "resolved": true,
           "comment": "Predictable base angle"
         }
@@ -339,7 +339,7 @@
     "C_CSPlayerPawn": {
       "fields": {
         "m_AttributeManager": {
-          "offset": "0x13E8",
+          "offset": "0x1290",
           "resolved": true,
           "comment": "Attribute manager"
         }
@@ -348,7 +348,7 @@
     "C_EconEntity": {
       "fields": {
         "m_AttributeManager": {
-          "offset": "0x13E8",
+          "offset": "0x1290",
           "resolved": true,
           "comment": "Attribute manager"
         }
@@ -357,7 +357,7 @@
     "C_AttributeContainer": {
       "fields": {
         "m_Item": {
-          "offset": "0x10",
+          "offset": "0x50",
           "resolved": true,
           "comment": "Item pointer"
         }
@@ -366,7 +366,7 @@
     "C_EconItemView": {
       "fields": {
         "m_iItemDefinitionIndex": {
-          "offset": "0x18",
+          "offset": "0x1BA",
           "resolved": true,
           "comment": "Item definition index"
         }
@@ -375,7 +375,7 @@
     "C_BasePlayerController": {
       "fields": {
         "m_iszPlayerName": {
-          "offset": "0x800",
+          "offset": "0x6FC",
           "resolved": true,
           "comment": "Player name"
         }
@@ -384,7 +384,7 @@
     "CPlayer_ObserverServices": {
       "fields": {
         "m_hObserverTarget": {
-          "offset": "0x10",
+          "offset": "0x4C",
           "resolved": true,
           "comment": "Observer target handle"
         }
@@ -393,7 +393,7 @@
     "CPlayer_WeaponServices": {
       "fields": {
         "m_hActiveWeapon": {
-          "offset": "0x10",
+          "offset": "0x60",
           "resolved": true,
           "comment": "Active weapon handle"
         }
@@ -402,37 +402,37 @@
     "C_PlantedC4": {
       "fields": {
         "m_bBombTicking": {
-          "offset": "0x10",
+          "offset": "0x1288",
           "resolved": true,
           "comment": "Bomb ticking flag"
         },
         "m_flC4Blow": {
-          "offset": "0x14",
+          "offset": "0x12B8",
           "resolved": true,
           "comment": "C4 blow time"
         },
         "m_flTimerLength": {
-          "offset": "0x18",
+          "offset": "0x12C0",
           "resolved": true,
           "comment": "Timer length"
         },
         "m_bBombDefused": {
-          "offset": "0x1C",
+          "offset": "0x12DC",
           "resolved": true,
           "comment": "Bomb defused flag"
         },
         "m_bBeingDefused": {
-          "offset": "0x20",
+          "offset": "0x12C4",
           "resolved": true,
           "comment": "Being defused flag"
         },
         "m_flDefuseCountDown": {
-          "offset": "0x24",
+          "offset": "0x12D8",
           "resolved": true,
           "comment": "Defuse countdown"
         },
         "m_hBombDefuser": {
-          "offset": "0x28",
+          "offset": "0x12E0",
           "resolved": true,
           "comment": "Bomb defuser handle"
         }
@@ -441,12 +441,12 @@
     "engine2.dll": {
       "fields": {
         "dwBuildNumber": {
-          "offset": "0x6B9DE8",
+          "offset": "0x6BA028",
           "resolved": true,
           "comment": "Build number"
         },
         "dwNetworkGameClient": {
-          "offset": "0x9B5E30",
+          "offset": "0x9B88C0",
           "resolved": true,
           "comment": "Network game client"
         },
@@ -461,7 +461,7 @@
           "comment": "Delta tick"
         },
         "dwNetworkGameClient_isBackgroundMap": {
-          "offset": "0x2C1C3F",
+          "offset": "0x2C143F",
           "resolved": true,
           "comment": "Background map flag"
         },
@@ -486,12 +486,12 @@
           "comment": "Sign on state"
         },
         "dwWindowHeight": {
-          "offset": "0x9B5614",
+          "offset": "0x9BCFEC",
           "resolved": true,
           "comment": "Window height"
         },
         "dwWindowWidth": {
-          "offset": "0x9B5610",
+          "offset": "0x9BCFE8",
           "resolved": true,
           "comment": "Window width"
         }
@@ -509,7 +509,7 @@
     "matchmaking.dll": {
       "fields": {
         "dwGameTypes": {
-          "offset": "0x1AF3C0",
+          "offset": "0x1B0FD0",
           "resolved": true,
           "comment": "Game types pointer"
         }
@@ -518,7 +518,7 @@
     "soundsystem.dll": {
       "fields": {
         "dwSoundSystem": {
-          "offset": "0x532470",
+          "offset": "0x532420",
           "resolved": true,
           "comment": "Sound system pointer"
         }

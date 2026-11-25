@@ -595,12 +595,12 @@ namespace Onboarding {
                 DrawNavigationIcon(true, false, !g_finish_pending);
             }
 
-            const float buttonWidth = (std::min)(120.f, halfFooterWidth);
+            const float buttonWidth = (std::min)(190.f, halfFooterWidth);
             ImGui::SetCursorPos(ImVec2(win_size.x - kContentInset - buttonWidth, win_size.y - 53.f));
             const bool enabled = !g_finish_pending && (isLast ? HardwareCheckFinished() && !g_refresh_requested :
                 g_current_step != Step::LicenseAgreement || (g_acceptance && !AgreementDigest().empty()));
             const bool forward = CyberWidgets::LoadingButton(
-                isLast ? (buttonWidth >= 110.f ? Tr("Finish Setup", "Terminar") : Tr("Finish", "Terminar"))
+                isLast ? (buttonWidth >= 150.f ? Tr("Finish Setup", "Terminar") : Tr("Finish", "Terminar"))
                        : Tr("Continue", "Continuar"),
                 Tr("Finishing setup...", "A guardar..."), g_finish_pending,
                 CyberWidgets::ButtonStyle::Primary, ImVec2(buttonWidth, 38.f), enabled);

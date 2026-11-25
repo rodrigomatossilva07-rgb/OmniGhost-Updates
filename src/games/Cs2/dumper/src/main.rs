@@ -3,6 +3,7 @@
 
 use std::fs::File;
 use std::path::PathBuf;
+use std::process::ExitCode;
 use std::str::FromStr;
 use std::time::Instant;
 
@@ -64,9 +65,42 @@ struct Args {
     no_log_file: bool,
 }
 
-fn main() -> Result<()> {
-    let args = Args::parse();
+fn main() -> ExitCode {
+    match run(Args::parse()) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("Erro: {error:#}");
+            pause_standalone_console();
+            ExitCode::FAILURE
+        }
+    }
+}
 
+#[cfg(windows)]
+fn pause_standalone_console() {
+    use std::io::{self, IsTerminal};
+
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetConsoleProcessList(processes: *mut u32, capacity: u32) -> u32;
+    }
+
+    if !io::stdin().is_terminal() {
+        return;
+    }
+
+    let mut processes = [0; 2];
+    // SAFETY: the writable array has space for both process IDs.
+    if unsafe { GetConsoleProcessList(processes.as_mut_ptr(), 2) } == 1 {
+        eprintln!("Prime Enter para fechar esta janela.");
+        let _ = io::stdin().read_line(&mut String::new());
+    }
+}
+
+#[cfg(not(windows))]
+fn pause_standalone_console() {}
+
+fn run(args: Args) -> Result<()> {
     let level_filter = match args.verbose {
         0 => LevelFilter::Error,
         1 => LevelFilter::Warn,
@@ -121,7 +155,16 @@ fn main() -> Result<()> {
         }
     };
 
-    let mut process = os.process_by_name(&args.process_name)?;
+    let mut process = match os.process_by_name(&args.process_name) {
+        Ok(process) => process,
+        Err(memflow::error::Error(_, memflow::error::ErrorKind::ProcessNotFound)) => {
+            anyhow::bail!(
+                "Não encontrei o processo {}. Abre o jogo e tenta novamente.",
+                args.process_name
+            );
+        }
+        Err(error) => return Err(error.into()),
+    };
 
     let now = Instant::now();
 

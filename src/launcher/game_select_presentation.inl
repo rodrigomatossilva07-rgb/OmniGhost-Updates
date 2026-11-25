@@ -135,8 +135,8 @@ void DrawBackground(
 
     const float rainOpacity = rainDensity > 0.0f
         ? std::clamp(
-            app_settings::DigitalRainOpacity() * (performance_mode ? 0.62f : 0.78f),
-            0.40f, 0.68f)
+            app_settings::DigitalRainOpacity() * (performance_mode ? 0.48f : 0.58f),
+            0.25f, 0.52f)
         : 0.0f;
     DigitalRain::Draw(
         draw,
@@ -153,7 +153,7 @@ void DrawBackground(
     if (rainDensity > 0.0f)
         DigitalRain::DrawGoldMotif(draw, ImVec2(0.0f, header),
             ImVec2(display.x, display.y - header - footer), performance_mode,
-            app_settings::AnimationScale(), performance_mode ? 0.72f : 0.88f);
+            app_settings::AnimationScale(), performance_mode ? 0.55f : 0.68f);
 
 
     const float grid = S(performance_mode ? 118.0f : 94.0f);
@@ -279,6 +279,9 @@ void DrawHeader(ImDrawList* draw, ImVec2 display) {
         const ImVec2 max(x + size.x + S(8.f), height - S(2.f));
         const bool active = static_cast<int>(item.page) == g_nav;
         const bool hovered = !g_profile_menu_open && ImGui::IsMouseHoveringRect(min, max);
+        if (active || hovered)
+            draw->AddRectFilled(min, max, CyberTheme::WithAlpha(CyberTheme::Colors.Gold,
+                active ? 0.08f : 0.04f), CyberTheme::Radius::Sm);
         const float nudge = CyberAnimations::HoverNudge(ImGui::GetID(item.key), hovered);
         if (hovered) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
         draw->AddText(ImVec2(x + nudge, S(20.f)), active ? C_GOLD_LT() : (hovered ? C_TEXT() : C_MUTED()), text);
@@ -303,7 +306,7 @@ void DrawHeader(ImDrawList* draw, ImVec2 display) {
         DrawStatusChip(draw, statusX, S(15.f), Loc::Tr("launcher.dma"),
             dma.deviceOpen ? Loc::Tr("launcher.connected")
                            : (dma.deviceDetected ? Loc::Tr("launcher.device_detected") : Loc::Tr("launcher.device_not_detected")),
-            (dma.deviceOpen || dma.deviceDetected) ? C_GREEN() : C_MUTED(), statusRight);
+            dma.deviceOpen ? C_GREEN() : (dma.deviceDetected ? C_GOLD() : C_MUTED()), statusRight);
         DrawStatusChip(draw, statusX, S(15.f), Loc::Tr("launcher.input"), InputDeviceName(),
             InputDeviceConnected() ? C_GREEN() : C_MUTED(), statusRight);
         DrawStatusChip(draw, statusX, S(15.f), Loc::Tr("launcher.updates_status"), UpdateStatusText(update),
@@ -386,9 +389,7 @@ void DrawHeader(ImDrawList* draw, ImVec2 display) {
             if (hovered && ImGui::IsMouseClicked(0)) {
                 g_profile_menu_open = false;
                 if (item.logout) {
-                    OmniGhost::Licensing::LogoutRemote();
-                    OmniGhost::Auth::LocalAuthService::Instance().Logout(true);
-                    g_logout_requested = true;
+                    g_confirm_logout = true;
                 } else {
                     ChangeNavigation(static_cast<int>(item.page));
                 }
@@ -457,7 +458,7 @@ void DrawFooter(ImDrawList* draw, ImVec2 display) {
         const ImVec2 dpos(display.x * .45f, display.y - S(25.f));
         const ImVec2 dsz = ImGui::CalcTextSize(disc);
         const bool dhover = ImGui::IsMouseHoveringRect(dpos, ImVec2(dpos.x + dsz.x, dpos.y + dsz.y));
-        draw->AddText(dpos, dhover ? C_GOLD() : C_MUTED2(), disc);
+        draw->AddText(dpos, dhover ? C_GOLD() : C_MUTED(), disc);
         if (dhover) {
             ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
             if (ImGui::IsMouseClicked(0))
@@ -472,13 +473,6 @@ void DrawFooter(ImDrawList* draw, ImVec2 display) {
         draw->AddText(ImVec2(display.x - S(304.f), display.y - S(25.f)), C_GOLD_LT(), mode);
     }
 
-    const std::string lastError = OmniGhost::SessionLog::LastErrorId();
-    if (!lastError.empty() && display.x >= S(860.f)) {
-        const std::string label = std::string(Loc::Tr("launcher.last_error")) + ": " + lastError;
-        draw->AddText(ImVec2(display.x - S(430.f), display.y - S(25.f)), C_RED(), label.c_str());
-    }
-    draw->AddText(ImVec2(display.x - S(172.f), display.y - S(25.f)), C_MUTED2(),
-                  Loc::Tr("launcher.esc_back"));
     if (body) ImGui::PopFont();
 }
 
@@ -812,6 +806,7 @@ bool DrawGameCard(ImDrawList* draw, ImVec2 min, ImVec2 max,
     ImU32 border = CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.50f * entry);
     if (keyboard_selected) border = CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.72f * entry);
     else if (running) border = CyberTheme::WithAlpha(CyberTheme::Colors.Success, 0.64f * entry);
+    else if (hovered) border = CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.48f * entry);
     draw->AddRect(card_min, card_max, border, CyberTheme::Radius::Md, 0,
                   keyboard_selected ? S(1.6f) : S(1.0f));
     draw->AddRectFilled(ImVec2(card_min.x + S(14.f), card_min.y + S(1.f)),
@@ -880,7 +875,7 @@ bool DrawGameCard(ImDrawList* draw, ImVec2 min, ImVec2 max,
     draw->AddRectFilled(badge_min, badge_max, C_BG(218), CyberTheme::Radius::Sm);
     draw->AddCircleFilled(ImVec2(badge_min.x + S(10.f), badge_min.y + S(11.f)), S(3.2f),
                           WithAlpha(status_color, alpha), 10);
-    draw->AddText(ImVec2(badge_min.x + S(19.f), badge_min.y + S(3.f)), WithAlpha(C_MUTED(), alpha), status);
+    draw->AddText(ImVec2(badge_min.x + S(19.f), badge_min.y + S(3.f)), WithAlpha(status_color, alpha), status);
 
 
     float leftBadgeX = card_min.x + S(12.f);
@@ -927,7 +922,7 @@ bool DrawGameCard(ImDrawList* draw, ImVec2 min, ImVec2 max,
     const char* action = Loc::Tr("launcher.click_to_start");
     if (runtime.state == CardState::Launching) action = Loc::Tr("launcher.starting");
     else if (runtime.state == CardState::Running) action = Loc::Tr("launcher.running_detected");
-    else if (runtime.state == CardState::ComingSoon) action = Loc::Tr("launcher.action.how_fix");
+    else if (runtime.state == CardState::ComingSoon) action = Loc::Tr("launcher.status.coming_soon");
     else if (runtime.state == CardState::NeedsOffsets) action = Loc::Tr("launcher.action.how_fix");
     else if (runtime.state == CardState::NotInstalled) action = Loc::Tr("launcher.action.launch");
     else if (runtime.state == CardState::DeviceMissing || runtime.state == CardState::GameNotFound)

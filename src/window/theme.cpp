@@ -109,7 +109,7 @@ namespace CyberTheme {
             Colors.GoldHover = accentHover;
             Colors.GoldGlow = accentGlow;
             Colors.Text = ImVec4(236.f / 255.f, 236.f / 255.f, 232.f / 255.f, 1.00f);
-            Colors.TextDisabled = ImVec4(161.f / 255.f, 161.f / 255.f, 155.f / 255.f, 1.00f);
+            Colors.TextDisabled = ImVec4(177.f / 255.f, 177.f / 255.f, 170.f / 255.f, 1.00f);
             Colors.Border = ImVec4(225.f / 255.f, 187.f / 255.f, 55.f / 255.f, 0.10f);
             Colors.Success = ImVec4(53.f / 255.f, 210.f / 255.f, 127.f / 255.f, 1.00f);
             Colors.Warning = ImVec4(227.f / 255.f, 184.f / 255.f, 62.f / 255.f, 1.00f);

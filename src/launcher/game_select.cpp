@@ -96,7 +96,7 @@ ImU32 C_GOLD() { return CyberTheme::U32(CyberTheme::Colors.Gold); }
 ImU32 C_GOLD_LT() { return CyberTheme::U32(CyberTheme::Colors.GoldHover); }
 ImU32 C_TEXT() { return CyberTheme::U32(CyberTheme::Colors.Text); }
 ImU32 C_MUTED() { return CyberTheme::U32(CyberTheme::Colors.TextDisabled); }
-ImU32 C_MUTED2() { return CyberTheme::WithAlpha(CyberTheme::Colors.TextDisabled, 0.68f); }
+ImU32 C_MUTED2() { return CyberTheme::WithAlpha(CyberTheme::Colors.TextDisabled, 0.84f); }
 ImU32 C_GREEN() { return CyberTheme::U32(CyberTheme::Colors.Success); }
 ImU32 C_RED() { return CyberTheme::U32(CyberTheme::Colors.Error); }
 
@@ -161,6 +161,8 @@ int g_keyboard_index = 0;
 bool g_keyboard_active = false;
 bool g_profile_menu_open = false;
 bool g_logout_requested = false;
+bool g_confirm_logout = false;
+bool g_confirm_repair = false;
 char g_search[96]{};
 char g_license_input[520]{};
 std::string g_license_feedback;
@@ -249,6 +251,8 @@ void Reset(EntryReason reason) {
 
     g_next_remote_process_scan = ImGui::GetTime() + 6.0;
     g_logout_requested = false;
+    g_confirm_logout = false;
+    g_confirm_repair = false;
     g_search[0] = 0;
     g_license_input[0] = 0;
     g_license_feedback.clear();
@@ -359,7 +363,7 @@ bool Draw() {
         app_settings::config.performance_mode,
         app_settings::config.auto_performance);
 
-    if (GetAsyncKeyState(VK_ESCAPE) & 1) {
+    if (!g_confirm_logout && !g_confirm_repair && (GetAsyncKeyState(VK_ESCAPE) & 1)) {
         if (g_help_game != GameId::None) g_help_game = GameId::None;
         else if (g_history_game != GameId::None) g_history_game = GameId::None;
         else if (g_reset_settings_game != GameId::None) g_reset_settings_game = GameId::None;

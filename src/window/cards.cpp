@@ -200,18 +200,18 @@ namespace CyberWidgets {
                 IM_COL32(212, 175, 55, 255), IM_COL32(116, 86, 18, 255));
 
             ImFont* body = CyberFonts::GetBodyFont();
-            const float titleSize = CyberTheme::Px(15.0f);
+            const float titleSize = CyberTheme::Px(18.0f);
             const char* titleEnd = ImGui::FindRenderedTextEnd(card.title);
-            const ImVec2 titleExtent = body
-                ? body->CalcTextSizeA(titleSize, FLT_MAX, 0.0f, card.title, titleEnd)
-                : ImGui::CalcTextSize(card.title, titleEnd);
-            const float titleX = a.x + (card.width - titleExtent.x) * 0.5f;
+            const float titleX = a.x + CyberTheme::Px(28.0f);
+            dl->PushClipRect(ImVec2(titleX, a.y), ImVec2(b.x - CyberTheme::Px(12.f),
+                a.y + CyberTheme::Metrics::CardHeaderHeight), true);
             if (body)
-                dl->AddText(body, titleSize, ImVec2(titleX, a.y + 11.0f),
+                dl->AddText(body, titleSize, ImVec2(titleX, a.y + (CyberTheme::Metrics::CardHeaderHeight - titleSize) * 0.5f),
                     CyberTheme::U32(CyberTheme::Colors.Text), card.title, titleEnd);
             else
                 dl->AddText(ImVec2(titleX, a.y + 12.0f),
                     CyberTheme::U32(CyberTheme::Colors.Text), card.title, titleEnd);
+            dl->PopClipRect();
 
         }
         if (card.entry_progress < 0.999f) {

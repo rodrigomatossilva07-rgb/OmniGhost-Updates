@@ -161,8 +161,8 @@ namespace CyberWidgets {
                 size.x = WidgetWidth();
             else if (size.x == 0.0f)
                 size.x = text_size.x + (pending ? 50.0f : 28.0f);
-            else if (WidgetWidth() < 300.0f && size.x > 120.0f)
-                size.x = (WidgetWidth() - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
+            else
+                size.x = (std::min)(size.x, (std::max)(CyberTheme::Px(1.f), WidgetWidth()));
             if (size.y <= 0.0f)
                 size.y = CyberTheme::Metrics::ControlHeight;
 
@@ -256,7 +256,10 @@ namespace CyberWidgets {
             const float totalTextWidth = text_size.x + spinnerSpace;
             const float nudge = CyberAnimations::HoverNudge(id, hovered);
             const float textX = item_pos.x + (size.x - totalTextWidth) * 0.5f + spinnerSpace + nudge;
-            dl->AddText(ImVec2(textX, item_pos.y + (size.y - text_size.y) * 0.5f), textColor, visible.c_str());
+            dl->PushClipRect(item_pos, ImVec2(item_pos.x + size.x, item_pos.y + size.y), true);
+            dl->AddText(ImVec2((std::max)(item_pos.x + CyberTheme::Px(4.f), textX),
+                item_pos.y + (size.y - text_size.y) * 0.5f), textColor, visible.c_str());
+            dl->PopClipRect();
             if (pending) {
                 const ImVec2 center(textX - CyberTheme::Px(10.0f), item_pos.y + size.y * 0.5f);
                 DrawSpinner(dl, center, CyberTheme::Px(6.0f), CyberTheme::Px(1.8f),
@@ -517,7 +520,7 @@ namespace CyberWidgets {
         const ImVec2 pos = ImGui::GetCursorScreenPos();
         ImFont* body = CyberFonts::GetBodyFont();
         if (body)
-            dl->AddText(body, 11.5f, pos,
+            dl->AddText(body, CyberTheme::Px(15.f), pos,
                 ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Gold), title);
         else
             dl->AddText(pos, ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Gold), title);
@@ -1038,11 +1041,15 @@ namespace CyberWidgets {
         const ImVec2 pos = ImGui::GetCursorScreenPos();
         ImFont* font = CyberFonts::GetBodyFont();
         const float fontSize = font ? font->FontSize : ImGui::GetFontSize();
+        const char* safeText = text ? text : "";
+        const float wrapWidth = (std::max)(CyberTheme::Px(40.0f), WidgetWidth());
+        ImFont* effectiveFont = font ? font : ImGui::GetFont();
+        const ImVec2 textSize = effectiveFont->CalcTextSizeA(fontSize, FLT_MAX, wrapWidth, safeText);
         if (font)
-            ImGui::GetWindowDrawList()->AddText(font, fontSize, pos, ToneColor(tone), text ? text : "");
+            ImGui::GetWindowDrawList()->AddText(font, fontSize, pos, ToneColor(tone), safeText, nullptr, wrapWidth);
         else
-            ImGui::GetWindowDrawList()->AddText(pos, ToneColor(tone), text ? text : "");
-        ImGui::Dummy(ImVec2(0.0f, fontSize + CyberTheme::Px(7.0f)));
+            ImGui::GetWindowDrawList()->AddText(effectiveFont, fontSize, pos, ToneColor(tone), safeText, nullptr, wrapWidth);
+        ImGui::Dummy(ImVec2(0.0f, (std::max)(fontSize, textSize.y) + CyberTheme::Px(7.0f)));
     }
 
     void TextLineF(TextTone tone, const char* format, ...)
@@ -1060,21 +1067,32 @@ namespace CyberWidgets {
         const ImVec2 pos = ImGui::GetCursorScreenPos();
         const float width = WidgetWidth();
         ImDrawList* dl = ImGui::GetWindowDrawList();
+        const float height = CyberTheme::Metrics::RowHeight;
+        const float split = pos.x + width * 0.46f;
+        dl->PushClipRect(pos, ImVec2(split - CyberTheme::Px(8.f), pos.y + height), true);
         dl->AddText(ImVec2(pos.x, pos.y + 7.0f),
             ToneColor(TextTone::Secondary), label ? label : "");
+        dl->PopClipRect();
 
         ImFont* mono = CyberFonts::GetMonoFont();
+        const float valueFontSize = CyberTheme::Px(14.0f);
         const ImVec2 value_size = mono
-            ? mono->CalcTextSizeA(12.0f, FLT_MAX, 0.0f, value ? value : "")
+            ? mono->CalcTextSizeA(valueFontSize, FLT_MAX, 0.0f, value ? value : "")
             : ImGui::CalcTextSize(value ? value : "");
+        const float valueX = (std::max)(split, pos.x + width - value_size.x);
+        dl->PushClipRect(ImVec2(split, pos.y), ImVec2(pos.x + width, pos.y + height), true);
         if (mono)
-            dl->AddText(mono, 12.0f,
-                ImVec2(pos.x + width - value_size.x, pos.y + 7.0f),
+            dl->AddText(mono, valueFontSize,
+                ImVec2(valueX, pos.y + 7.0f),
                 ToneColor(TextTone::Accent), value ? value : "");
         else
-            dl->AddText(ImVec2(pos.x + width - value_size.x, pos.y + 7.0f),
+            dl->AddText(ImVec2(valueX, pos.y + 7.0f),
                 ToneColor(TextTone::Accent), value ? value : "");
-        ImGui::Dummy(ImVec2(width, CyberTheme::Metrics::RowHeight));
+        dl->PopClipRect();
+        ImGui::Dummy(ImVec2(width, height));
+        if (ImGui::IsItemHovered() && value &&
+            (value_size.x > width * 0.54f || ImGui::CalcTextSize(label ? label : "").x > width * 0.46f - CyberTheme::Px(8.f)))
+            ImGui::SetTooltip("%s: %s", label ? label : "", value);
     }
 
     void HealthRow(const char* label, const char* value, HealthStatus status)
@@ -1085,13 +1103,22 @@ namespace CyberWidgets {
         const ImVec2 pos = ImGui::GetCursorScreenPos();
         const float width = WidgetWidth();
         ImDrawList* dl = ImGui::GetWindowDrawList();
+        const float height = CyberTheme::Px(32.f);
+        const float split = pos.x + width * 0.46f;
         dl->AddText(ImVec2(pos.x, pos.y + 7.0f), ToneColor(tone), mark);
+        dl->PushClipRect(ImVec2(pos.x + 22.f, pos.y), ImVec2(split - CyberTheme::Px(8.f), pos.y + height), true);
         dl->AddText(ImVec2(pos.x + 22.0f, pos.y + 7.0f), ToneColor(TextTone::Secondary), label ? label : "");
+        dl->PopClipRect();
         const char* safeValue = value ? value : "—";
         const ImVec2 valueSize = ImGui::CalcTextSize(safeValue);
-        dl->AddText(ImVec2((std::max)(pos.x + 160.0f, pos.x + width - valueSize.x), pos.y + 7.0f),
+        dl->PushClipRect(ImVec2(split, pos.y), ImVec2(pos.x + width, pos.y + height), true);
+        dl->AddText(ImVec2((std::max)(split, pos.x + width - valueSize.x), pos.y + 7.0f),
                     ToneColor(tone), safeValue);
-        ImGui::Dummy(ImVec2(width, 29.0f));
+        dl->PopClipRect();
+        ImGui::Dummy(ImVec2(width, height));
+        if (ImGui::IsItemHovered() && (valueSize.x > width * 0.54f ||
+            ImGui::CalcTextSize(label ? label : "").x > width * 0.46f - CyberTheme::Px(30.f)))
+            ImGui::SetTooltip("%s: %s", label ? label : "", safeValue);
     }
 
     void StatusBadge(const char* label, bool online)
@@ -1219,7 +1246,14 @@ namespace CyberWidgets {
         const float width = WidgetWidth();
         const ImVec2 start = ImGui::GetCursorScreenPos();
         const bool hasAction = action_label && *action_label;
-        const float height = CyberTheme::Px(hasAction ? 154.0f : 104.0f);
+        const char* heading = title ? title : "Sem conteúdo";
+        const char* detail = description ? description : "";
+        const float wrapWidth = (std::max)(CyberTheme::Px(40.f), width - CyberTheme::Px(24.f));
+        const ImVec2 headingSize = ImGui::CalcTextSize(heading, nullptr, false, wrapWidth);
+        const ImVec2 detailSize = ImGui::CalcTextSize(detail, nullptr, false, wrapWidth);
+        const float detailY = CyberTheme::Px(54.f) + headingSize.y + CyberTheme::Px(6.f);
+        const float actionY = detailY + detailSize.y + CyberTheme::Px(10.f);
+        const float height = actionY + CyberTheme::Px(hasAction ? 42.f : 6.f);
         const ImVec2 end(start.x + width, start.y + height);
         ImDrawList* dl = ImGui::GetWindowDrawList();
         dl->AddRectFilled(start, end, CyberTheme::U32(CyberTheme::Colors.Surface), CyberTheme::Radius::Md);
@@ -1230,20 +1264,18 @@ namespace CyberWidgets {
                     ImVec2(center.x + CyberTheme::Px(5.0f), center.y),
                     CyberTheme::U32(CyberTheme::Colors.Gold), 1.2f);
 
-        const char* heading = title ? title : "Sem conteúdo";
-        const char* detail = description ? description : "";
-        ImVec2 headingSize = ImGui::CalcTextSize(heading);
-        dl->AddText(ImVec2(start.x + (width - headingSize.x) * 0.5f, start.y + CyberTheme::Px(54.0f)),
-                    CyberTheme::U32(CyberTheme::Colors.Text), heading);
-        ImVec2 detailSize = ImGui::CalcTextSize(detail);
-        dl->AddText(ImVec2(start.x + (width - detailSize.x) * 0.5f, start.y + CyberTheme::Px(78.0f)),
-                    CyberTheme::U32(CyberTheme::Colors.TextDisabled), detail);
+        dl->AddText(ImGui::GetFont(), ImGui::GetFontSize(),
+                    ImVec2(start.x + (width - headingSize.x) * 0.5f, start.y + CyberTheme::Px(54.0f)),
+                    CyberTheme::U32(CyberTheme::Colors.Text), heading, nullptr, wrapWidth);
+        dl->AddText(ImGui::GetFont(), ImGui::GetFontSize(),
+                    ImVec2(start.x + (width - detailSize.x) * 0.5f, start.y + detailY),
+                    CyberTheme::U32(CyberTheme::Colors.TextDisabled), detail, nullptr, wrapWidth);
 
         bool clicked = false;
         if (hasAction) {
             const ImVec2 buttonSize(CyberTheme::Px(150.0f), CyberTheme::Px(32.0f));
             ImGui::SetCursorScreenPos(ImVec2(start.x + (width - buttonSize.x) * 0.5f,
-                                             start.y + CyberTheme::Px(108.0f)));
+                                             start.y + actionY));
             clicked = CyberButton(action_label, buttonSize);
         }
         ImGui::SetCursorScreenPos(ImVec2(start.x, end.y + CyberTheme::Spacing::Sm));

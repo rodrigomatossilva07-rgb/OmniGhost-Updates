@@ -5,6 +5,39 @@ void DrawLauncherModals(ImDrawList* draw, ImVec2 display) {
     (void)draw;
     (void)display;
 
+    if (g_confirm_logout) {
+        CyberWidgets::OpenModal("##launcher_confirm_logout");
+        const bool pt = app_settings::config.language == app_settings::Language::PT;
+        const auto result = CyberWidgets::ConfirmModal("##launcher_confirm_logout",
+            pt ? "Terminar sessão?" : "Sign out?",
+            pt ? "Terás de iniciar sessão novamente para aceder à tua conta." : "You will need to sign in again to access your account.",
+            pt ? "Terminar sessão" : "Sign out", pt ? "Cancelar" : "Cancel",
+            CyberWidgets::ButtonStyle::Destructive, S(460.f));
+        if (result == CyberWidgets::ModalResult::Cancelled) g_confirm_logout = false;
+        else if (result == CyberWidgets::ModalResult::Confirmed) {
+            g_confirm_logout = false;
+            OmniGhost::Licensing::LogoutRemote();
+            OmniGhost::Auth::LocalAuthService::Instance().Logout(true);
+            g_logout_requested = true;
+        }
+        return;
+    }
+    if (g_confirm_repair) {
+        CyberWidgets::OpenModal("##launcher_confirm_repair");
+        const bool pt = app_settings::config.language == app_settings::Language::PT;
+        const auto result = CyberWidgets::ConfirmModal("##launcher_confirm_repair",
+            pt ? "Reparar instalação?" : "Repair installation?",
+            pt ? "A reparação irá preparar a reposição dos ficheiros da aplicação." : "Repair will prepare the application files for restoration.",
+            pt ? "Reparar" : "Repair", pt ? "Cancelar" : "Cancel",
+            CyberWidgets::ButtonStyle::Primary, S(460.f));
+        if (result == CyberWidgets::ModalResult::Cancelled) g_confirm_repair = false;
+        else if (result == CyberWidgets::ModalResult::Confirmed) {
+            g_confirm_repair = false;
+            OmniGhost::Update::UpdateService::Instance().PrepareRepairAsync();
+        }
+        return;
+    }
+
     if (g_reset_settings_game != GameId::None) {
         const GameDefinition* game = FindGame(g_reset_settings_game);
         char detail[240]{};

@@ -4,10 +4,21 @@
 void StartRemoteLicenseUpgrade(std::string key) {
     if (g_license_operation_pending)
         return;
+    const auto first = key.find_first_not_of(" \t\r\n");
+    if (first == std::string::npos) {
+        if (!key.empty()) SecureZeroMemory(key.data(), key.size());
+        g_license_feedback_success = false;
+        g_license_feedback = "Introduz uma chave de licença.";
+        return;
+    }
+    const auto last = key.find_last_not_of(" \t\r\n");
+    std::string trimmed = key.substr(first, last - first + 1);
+    SecureZeroMemory(key.data(), key.size());
+    key = std::move(trimmed);
     const std::string username = OmniGhost::Licensing::RemoteUsername();
     if (username.empty()) {
         g_license_feedback_success = false;
-        g_license_feedback = "Inicia sessão no KeyAuth antes de adicionar uma licença.";
+        g_license_feedback = "Inicia sessão antes de adicionar uma licença.";
         SecureZeroMemory(key.data(), key.size());
         return;
     }
@@ -26,8 +37,8 @@ void StartRemoteLicenseUpgrade(std::string key) {
                 result.message = response.userMessage;
                 if (result.success)
                     OmniGhost::Licensing::Refresh();
-            } catch (const std::exception& error) {
-                result.message = std::string("Não foi possível adicionar a licença: ") + error.what();
+            } catch (const std::exception&) {
+                result.message = "Não foi possível adicionar a licença. Tenta novamente.";
             } catch (...) {
                 result.message = "Não foi possível adicionar a licença.";
             }
@@ -46,9 +57,9 @@ void PollLicenseOperation() {
         LicenseOperationResult result = g_license_operation.get();
         g_license_feedback_success = result.success;
         g_license_feedback = std::move(result.message);
-    } catch (const std::exception& error) {
+    } catch (const std::exception&) {
         g_license_feedback_success = false;
-        g_license_feedback = std::string("A operação da licença falhou: ") + error.what();
+        g_license_feedback = "Não foi possível adicionar a licença. Tenta novamente.";
     } catch (...) {
         g_license_feedback_success = false;
         g_license_feedback = "A operação da licença falhou inesperadamente.";
