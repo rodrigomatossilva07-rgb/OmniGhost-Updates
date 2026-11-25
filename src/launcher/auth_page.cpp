@@ -1,6 +1,5 @@
 ﻿#include "auth_page.h"
 
-#include "../app_version.h"
 #include "../config/app_settings.h"
 #include "../config/config_manager.h"
 #include "../licensing/license_service.h"
@@ -557,21 +556,16 @@ void DrawBrand(bool prominent) {
 }
 
 void DrawAuthFooter(const ImVec2& windowPos, float windowWidth, float windowHeight) {
-    const std::string version = std::string("Version ") + OmniGhost::Version;
     const char* copyright = "© 2026 OMNIGHOST. All rights reserved.";
     ImDrawList* draw = ImGui::GetWindowDrawList();
     const ImU32 muted = CyberTheme::WithAlpha(CyberTheme::Colors.TextDisabled, 0.78f);
-    const ImU32 faint = CyberTheme::WithAlpha(CyberTheme::Colors.TextDisabled, 0.58f);
     const ImVec2 copyrightSize = ImGui::CalcTextSize(copyright);
-    const ImVec2 versionSize = ImGui::CalcTextSize(version.c_str());
-    const float footerY = (std::max)(windowPos.y + windowHeight - S(65.f) - ImGui::GetScrollY(),
+    const float footerY = (std::max)(windowPos.y + windowHeight - S(46.f) - ImGui::GetScrollY(),
                                     ImGui::GetCursorScreenPos().y + S(5.f));
     draw->AddText(ImVec2(windowPos.x + (windowWidth - copyrightSize.x) * 0.5f, footerY),
                   muted, copyright);
-    draw->AddText(ImVec2(windowPos.x + (windowWidth - versionSize.x) * 0.5f,
-                         footerY + S(15.f)), faint, version.c_str());
     ImGui::SetCursorScreenPos(ImVec2(windowPos.x + S(34.f), footerY));
-    ImGui::Dummy(ImVec2(0, S(34.f)));
+    ImGui::Dummy(ImVec2(0, S(22.f)));
 }
 
 void DrawPageHeading(const char* title, const char* subtitle) {
@@ -721,18 +715,96 @@ void DrawFieldLabel(const char* label) {
 }
 
 bool DrawTextAction(const char* label, bool centered = true) {
-    const float width = ImGui::CalcTextSize(label).x;
-    if (centered) CenterCursor(width);
-    ImGui::PushStyleColor(ImGuiCol_Text, CyberTheme::Colors.TextDisabled);
-    const bool pressed = ImGui::Selectable(label, false, ImGuiSelectableFlags_None, ImVec2(width, S(20.f)));
+    const float textWidth = ImGui::CalcTextSize(label).x;
+    const float textHeight = ImGui::GetTextLineHeight();
+    const float padX = S(10.f);
+    const ImVec2 size(textWidth + padX * 2.f, textHeight + S(9.f));
+    if (centered) CenterCursor(size.x);
+    const ImVec2 position = ImGui::GetCursorScreenPos();
+    ImGui::PushID(label);
+    const bool pressed = ImGui::InvisibleButton("##text_action", size);
     const bool hovered = ImGui::IsItemHovered();
-    ImGui::PopStyleColor();
-    if (hovered) {
-        const ImVec2 min = ImGui::GetItemRectMin();
-        const ImVec2 max = ImGui::GetItemRectMax();
-        ImGui::GetWindowDrawList()->AddLine(ImVec2(min.x, max.y - S(3.f)),
-            ImVec2(max.x, max.y - S(3.f)), CyberTheme::U32(CyberTheme::Colors.Gold), S(1.f));
+    if (hovered) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+    const float hover = AnimateAuthState(ImGui::GetID("##hover"), hovered, 12.f);
+    ImGui::PopID();
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    if (hover > 0.01f) {
+        draw->AddRectFilled(position, Add(position, size),
+            CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.11f * hover),
+            CyberTheme::Metrics::ControlRounding);
     }
+    const ImVec4 color(
+        CyberTheme::Colors.TextDisabled.x +
+            (CyberTheme::Colors.GoldHover.x - CyberTheme::Colors.TextDisabled.x) * hover,
+        CyberTheme::Colors.TextDisabled.y +
+            (CyberTheme::Colors.GoldHover.y - CyberTheme::Colors.TextDisabled.y) * hover,
+        CyberTheme::Colors.TextDisabled.z +
+            (CyberTheme::Colors.GoldHover.z - CyberTheme::Colors.TextDisabled.z) * hover,
+        1.f);
+    draw->AddText(Add(position, ImVec2(padX, (size.y - textHeight) * 0.5f)),
+                  CyberTheme::U32(color), label);
+    return pressed;
+}
+
+bool AuthCheckbox(const char* label, bool* value, bool enabled = true) {
+    const float box = S(19.f);
+    const float gap = S(10.f);
+    const float textHeight = ImGui::GetTextLineHeight();
+    const float textWidth = ImGui::CalcTextSize(label).x;
+    const ImVec2 size(box + gap + textWidth, (std::max)(box, textHeight));
+    const ImVec2 position = ImGui::GetCursorScreenPos();
+    ImGui::PushID(label);
+    ImGui::BeginDisabled(!enabled);
+    ImGui::InvisibleButton("##auth_check", size);
+    const bool pressed = ImGui::IsItemClicked();
+    if (pressed) *value = !*value;
+    ImGui::EndDisabled();
+    const bool hovered = ImGui::IsItemHovered() && enabled;
+    if (hovered) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+    const float hover = AnimateAuthState(ImGui::GetID("##hover"), hovered, 12.f);
+    const float check = AnimateAuthState(ImGui::GetID("##tick"), *value, 15.f);
+    ImGui::PopID();
+
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    const ImVec2 boxMin(position.x, position.y + (size.y - box) * 0.5f);
+    const ImVec2 boxMax = Add(boxMin, ImVec2(box, box));
+    const float rounding = S(5.5f);
+    if (check > 0.01f)
+        draw->AddRectFilled(boxMin, boxMax,
+            CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.92f * check), rounding);
+    draw->AddRect(boxMin, boxMax,
+        CyberTheme::WithAlpha(CyberTheme::Colors.Gold,
+            (enabled ? 0.34f + 0.28f * hover : 0.18f) + 0.38f * check),
+        rounding, 0, S(1.2f));
+    if (check > 0.01f) {
+        const float u = box * 0.26f;
+        const ImVec2 center = Add(boxMin, ImVec2(box * 0.5f, box * 0.5f));
+        const ImVec2 a(center.x - u, center.y + u * 0.14f);
+        const ImVec2 b(center.x - u * 0.12f, center.y + u * 0.80f);
+        const ImVec2 c(center.x + u * 0.86f, center.y - u * 0.62f);
+        const ImU32 tick = IM_COL32(26, 23, 17,
+            static_cast<int>(255.f * check));
+        const float stroke = S(2.f);
+        if (check <= 0.42f) {
+            const float t = check / 0.42f;
+            draw->AddLine(a, ImVec2(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t), tick, stroke);
+        } else {
+            draw->AddLine(a, b, tick, stroke);
+            const float t = (check - 0.42f) / 0.58f;
+            draw->AddLine(b, ImVec2(b.x + (c.x - b.x) * t, b.y + (c.y - b.y) * t), tick, stroke);
+        }
+    }
+    const float emphasis = (std::max)(hover, check * 0.55f);
+    const ImVec4 textColor(
+        CyberTheme::Colors.TextDisabled.x +
+            (CyberTheme::Colors.Text.x - CyberTheme::Colors.TextDisabled.x) * emphasis,
+        CyberTheme::Colors.TextDisabled.y +
+            (CyberTheme::Colors.Text.y - CyberTheme::Colors.TextDisabled.y) * emphasis,
+        CyberTheme::Colors.TextDisabled.z +
+            (CyberTheme::Colors.Text.z - CyberTheme::Colors.TextDisabled.z) * emphasis,
+        enabled ? 1.f : 0.6f);
+    draw->AddText(ImVec2(position.x + box + gap, position.y + (size.y - textHeight) * 0.5f),
+                  CyberTheme::U32(textColor), label);
     return pressed;
 }
 
@@ -928,7 +1000,8 @@ void DrawOfficialLink(const char* label, const wchar_t* url, bool centered = tru
 }
 
 void DrawLinkPair(const char* first, const wchar_t* firstUrl, const char* second, const wchar_t* secondUrl) {
-    CenterCursor(ImGui::CalcTextSize(first).x + ImGui::CalcTextSize(second).x + S(16.f));
+    const float pillPadding = S(20.f); // 2 x DrawTextAction horizontal padding
+    CenterCursor(ImGui::CalcTextSize(first).x + ImGui::CalcTextSize(second).x + S(16.f) + pillPadding);
     DrawOfficialLink(first, firstUrl, false);
     ImGui::SameLine(0.f, S(16.f));
     DrawOfficialLink(second, secondUrl, false);
@@ -962,7 +1035,7 @@ void DrawLogin() {
         text.password, contentWidth,
         ImGuiInputTextFlags_EnterReturnsTrue);
     DrawFieldError(AuthField::Password, contentWidth);
-    ImGui::Checkbox(AuthLabel("Manter sessão iniciada", "Keep me signed in"), &g_remember_session);
+    AuthCheckbox(AuthLabel("Manter sessão iniciada", "Keep me signed in"), &g_remember_session, !busy);
     ImGui::EndDisabled();
     ImGui::Dummy(ImVec2(0, S(8.f)));
     const bool submit = AuthPrimaryButton(busy ? ReadableStatus(ui.authenticating) : text.enter,
@@ -1021,7 +1094,7 @@ void DrawRegister() {
         sizeof(g_license_key), &g_show_license_key, LicenseKeyHint(), contentWidth,
         ImGuiInputTextFlags_EnterReturnsTrue) || submit;
     DrawFieldError(AuthField::License, contentWidth);
-    ImGui::Checkbox(AuthLabel("Manter sessão iniciada", "Keep me signed in"), &g_remember_session);
+    AuthCheckbox(AuthLabel("Manter sessão iniciada", "Keep me signed in"), &g_remember_session, !busy);
     ImGui::EndDisabled();
     ImGui::Dummy(ImVec2(0, S(6.f)));
     const auto email = TrimInput(g_email);
@@ -1147,16 +1220,52 @@ void DrawStartupPreparation(ImDrawList* draw, const ImVec2& windowPos,
     }
 }
 
+bool AuthCaptionButton(const char* id, const ImVec2& position, float size, bool closeGlyph) {
+    ImGui::SetCursorScreenPos(position);
+    ImGui::PushID(id);
+    const bool pressed = ImGui::InvisibleButton("##caption", ImVec2(size, size));
+    const bool hovered = ImGui::IsItemHovered();
+    if (hovered) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+    const float hover = AnimateAuthState(ImGui::GetID("##hover"), hovered, 12.f);
+    ImGui::PopID();
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    if (hover > 0.01f) {
+        draw->AddRectFilled(position, Add(position, ImVec2(size, size)),
+            CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.10f * hover), S(7.f));
+    }
+    const ImVec4 color(
+        CyberTheme::Colors.TextDisabled.x +
+            (CyberTheme::Colors.Text.x - CyberTheme::Colors.TextDisabled.x) * hover,
+        CyberTheme::Colors.TextDisabled.y +
+            (CyberTheme::Colors.Text.y - CyberTheme::Colors.TextDisabled.y) * hover,
+        CyberTheme::Colors.TextDisabled.z +
+            (CyberTheme::Colors.Text.z - CyberTheme::Colors.TextDisabled.z) * hover,
+        1.f);
+    const ImU32 packed = CyberTheme::U32(color);
+    const float stroke = S(1.5f);
+    const float r = size * 0.26f;
+    const float cx = position.x + size * 0.5f;
+    const float cy = position.y + size * 0.5f;
+    if (closeGlyph) {
+        draw->AddLine(ImVec2(cx - r, cy - r), ImVec2(cx + r, cy + r), packed, stroke);
+        draw->AddLine(ImVec2(cx - r, cy + r), ImVec2(cx + r, cy - r), packed, stroke);
+    } else {
+        draw->AddLine(ImVec2(cx - r, cy), ImVec2(cx + r, cy), packed, stroke);
+    }
+    return pressed;
+}
+
 void DrawWindowControls(const ImVec2& position, float width) {
     const HWND window = GetActiveWindow();
-    ImGui::SetCursorScreenPos(Add(position, ImVec2(S(17.f), S(16.f))));
-    if (ImGui::Button("×##auth_close", ImVec2(S(27.f), S(27.f))))
+    const float size = S(28.f);
+    const float spacing = S(6.f);
+    const ImVec2 origin = Add(position, ImVec2(S(16.f), S(13.f)));
+    if (AuthCaptionButton("auth_close", origin, size, true))
         g_close_requested = true;
-    ImGui::SameLine(0.f, S(5.f));
-    if (ImGui::Button("-##auth_minimize", ImVec2(S(27.f), S(27.f))) && window)
+    if (AuthCaptionButton("auth_minimize", Add(origin, ImVec2(size + spacing, 0.f)), size, false) && window)
         ShowWindow(window, SW_MINIMIZE);
-    ImGui::SameLine(0.f, S(5.f));
-    ImGui::InvisibleButton("##auth_drag", ImVec2((std::max)(S(1.f), width - S(175.f)), S(27.f)));
+    ImGui::SetCursorScreenPos(Add(origin, ImVec2((size + spacing) * 2.f, 0.f)));
+    ImGui::InvisibleButton("##auth_drag", ImVec2((std::max)(S(1.f), width - S(180.f)), size));
     if (window && ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
         POINT cursor{};
         if (GetCursorPos(&cursor)) {
