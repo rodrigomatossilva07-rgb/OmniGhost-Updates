@@ -1,3 +1,4 @@
+#include "fonts.h"
 #include "toast_notifications.h"
 #include "theme.h"
 #include "icons.h"
@@ -32,7 +33,7 @@ ImU32 GetTypeColor(ToastType type, ImU32 custom) {
         case ToastType::Error:   return CyberTheme::U32(CyberTheme::Colors.Error);
         case ToastType::Custom:  return custom;
     }
-    return CyberTheme::U32(CyberTheme::Colors.Accent);
+    return CyberTheme::U32(CyberTheme::Colors.Gold);
 }
 
 const char* GetTypeIcon(ToastType type) {

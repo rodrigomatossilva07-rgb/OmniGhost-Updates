@@ -159,7 +159,7 @@ private:
 
     UserProfile profile_;
     ProfileChangeCallback change_callback_;
-    std::mutex mutex_;
+    mutable std::mutex mutex_;
     bool initialized_ = false;
 
     bool LoadFromDisk();

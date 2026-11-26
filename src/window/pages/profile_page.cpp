@@ -4,6 +4,9 @@
 #include "../../auth/discord_ipc.h"
 #include "imgui.h"
 #include "../fa_icons.h"
+#include "../toast_notifications.h"
+#include <Windows.h>
+#include <shellapi.h>
 
 namespace {
 
@@ -37,9 +40,9 @@ void DrawLicenseInfo(const OmniGhost::Auth::LicenseInfo& license) {
 
             char buf[64];
             if (diff.count() > 0) {
-                snprintf(buf, sizeof(buf), "%lld dias restantes", diff.count());
+                snprintf(buf, sizeof(buf), "%lld dias restantes", static_cast<long long>(diff.count()));
             } else {
-                snprintf(buf, sizeof(buf), "EXPIRADA (%lld dias atrás)", -diff.count());
+                snprintf(buf, sizeof(buf), "EXPIRADA (%lld dias atrás)", static_cast<long long>(-diff.count()));
             }
             CyberWidgets::KeyValueRow("Expiração", buf);
         }
@@ -63,10 +66,10 @@ void DrawLicenseInfo(const OmniGhost::Auth::LicenseInfo& license) {
     ImGui::SameLine();
     if (ImGui::Button("Aplicar Licença")) {
         if (OmniGhost::Auth::ProfileManager::Instance().ApplyLicense(license_input)) {
-            OmniGhost::UI::Toast::Success("Licença", "Aplicada com sucesso!");
+            (void)OmniGhost::UI::Toast::Success("Licença", "Aplicada com sucesso!");
             license_input[0] = 0;
         } else {
-            OmniGhost::UI::Toast::Error("Licença", "Chave inválida");
+            (void)OmniGhost::UI::Toast::Error("Licença", "Chave inválida");
         }
     }
 
@@ -95,7 +98,7 @@ void DrawDiscordSection(OmniGhost::Auth::UserProfile& profile) {
         ImGui::BeginGroup();
         if (ImGui::Button(ICON_FA_SYNC " Atualizar")) {
             OmniGhost::Auth::ProfileManager::Instance().UpdateDiscordProfile();
-            OmniGhost::UI::Toast::Info("Discord", "Perfil atualizado");
+            (void)OmniGhost::UI::Toast::Info("Discord", "Perfil atualizado");
         }
         if (ImGui::Button(ICON_FA_EXTERNAL_LINK " Abrir Discord")) {
             ShellExecuteA(nullptr, "open", "https://discord.com", nullptr, nullptr, SW_SHOWNORMAL);
@@ -131,7 +134,7 @@ void DrawLocalAccount(OmniGhost::Auth::UserProfile& profile) {
         profile.username = username_buf;
         profile.email = email_buf;
         OmniGhost::Auth::ProfileManager::Instance().Save();
-        OmniGhost::UI::Toast::Success("Conta", "Dados salvos");
+        (void)OmniGhost::UI::Toast::Success("Conta", "Dados salvos");
     }
 
     CyberWidgets::EndCard();
@@ -150,7 +153,7 @@ void DrawCloudSync(OmniGhost::Auth::UserProfile& profile) {
         CyberWidgets::InlineMessage("Configs serão sincronizadas ao fechar/abrir o menu", CyberWidgets::TextTone::Info);
         if (ImGui::Button(ICON_FA_CLOUD_UPLOAD " Sincronizar Agora")) {
             // TODO: Implementar sync real
-            OmniGhost::UI::Toast::Info("Sync", "Sincronização manual não implementada ainda");
+            (void)OmniGhost::UI::Toast::Info("Sync", "Sincronização manual não implementada ainda");
         }
     }
 
@@ -186,13 +189,13 @@ void DrawProfile() {
     CyberWidgets::BeginCard("AÇÕES");
     if (ImGui::Button(ICON_FA_SIGN_OUT " Logout")) {
         OmniGhost::Auth::ProfileManager::Instance().Logout();
-        OmniGhost::UI::Toast::Info("Logout", "Desconectado");
+        (void)OmniGhost::UI::Toast::Info("Logout", "Desconectado");
     }
     ImGui::SameLine();
     if (ImGui::Button(ICON_FA_TRASH " Reset Perfil")) {
         // TODO: Confirm dialog
         OmniGhost::Auth::ProfileManager::Instance().Logout();
-        OmniGhost::UI::Toast::Warning("Perfil", "Resetado");
+        (void)OmniGhost::UI::Toast::Warning("Perfil", "Resetado");
     }
     CyberWidgets::EndCard();
 }

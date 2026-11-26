@@ -4,6 +4,7 @@
 #endif
 
 #include "aimbot.h"
+#include "src/gameplay/triggerbot_integration.h"
 
 #ifdef UI_PREVIEW
 
@@ -84,7 +85,7 @@ namespace aimbot {
 
 
     static std::unique_ptr<Gameplay::UnifiedAim::UnifiedAimbot> g_unified_aimbot;
-static Gameplay::TriggerIntegration g_trigger_integration;
+static OmniGhost::Gameplay::TriggerIntegration g_trigger_integration;
 static bool g_trigger_initialized = false;
 
 
@@ -191,7 +192,7 @@ static bool g_trigger_initialized = false;
 
         // Initialize new triggerbot integration
         if (!g_trigger_initialized) {
-            Gameplay::TriggerIntegrationConfig tcfg;
+            OmniGhost::Gameplay::TriggerIntegrationConfig tcfg;
             tcfg.enabled = config.trigger_enabled;
             tcfg.visible_only = config.trigger_visibility_check;
             tcfg.fire_without_aim = config.trigger_always_on;
@@ -1008,7 +1009,7 @@ static bool g_trigger_initialized = false;
 
     static void RunTriggerLogic() {
     // Sync config to integration
-    Gameplay::TriggerIntegrationConfig tcfg;
+    OmniGhost::Gameplay::TriggerIntegrationConfig tcfg;
     tcfg.enabled = config.trigger_enabled;
     tcfg.visible_only = config.trigger_visibility_check;
     tcfg.fire_without_aim = config.trigger_always_on;
@@ -1056,7 +1057,7 @@ static bool g_trigger_initialized = false;
     current_target = tgt;
 
     // Convert to integration target info
-    Gameplay::TriggerTargetInfo target_info;
+    OmniGhost::Gameplay::TriggerTargetInfo target_info;
     target_info.entity_id = tgt.ped;
     target_info.screen_x = tgt.screen_pos.x;
     target_info.screen_y = tgt.screen_pos.y;

@@ -50,6 +50,8 @@ void SerializeAim(std::ostringstream& o) {
     WBool(o, "aim.trigger_always_on", a.trigger_always_on);
     WInt(o, "aim.trigger_bind", a.trigger_bind);
     WBool(o, "aim.trigger_head_only", a.trigger_head_only);
+    WBool(o, "aim.trigger_visibility_check", a.trigger_visibility_check);
+    WBool(o, "aim.trigger_team_check", a.trigger_team_check);
     WBool(o, "aim.trigger_show_fov", a.trigger_show_fov);
     WFloat(o, "aim.trigger_fov", a.trigger_fov);
     WFloat(o, "aim.trigger_delay", a.trigger_delay);
@@ -127,6 +129,8 @@ bool DeserializeAim(const std::string& key, const std::string& val) {
     if (bi("aim.trigger_always_on")) { a.trigger_always_on = toB(); return true; }
     if (bi("aim.trigger_bind")) { a.trigger_bind = toI(); return true; }
     if (bi("aim.trigger_head_only")) { a.trigger_head_only = toB(); return true; }
+    if (bi("aim.trigger_visibility_check")) { a.trigger_visibility_check = toB(); return true; }
+    if (bi("aim.trigger_team_check")) { a.trigger_team_check = toB(); return true; }
     if (bi("aim.trigger_show_fov")) { a.trigger_show_fov = toB(); return true; }
     if (bi("aim.trigger_fov")) { a.trigger_fov = toF(); return true; }
     if (bi("aim.trigger_delay")) { a.trigger_delay = toF(); return true; }

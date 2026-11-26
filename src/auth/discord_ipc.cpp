@@ -257,7 +257,7 @@ void Initialize() {
     if (g_initialized) return;
     g_initialized = true;
     // Warm-up attempt
-    TryGetCurrentProfile();
+    (void)TryGetCurrentProfile();
 }
 
 void Shutdown() {

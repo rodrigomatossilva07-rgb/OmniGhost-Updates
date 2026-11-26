@@ -214,6 +214,8 @@ namespace aimbot {
         float weapon_range_heavy = 300.f;
 
         bool trigger_enabled = false;
+        bool trigger_visibility_check = false;
+        bool trigger_team_check = true;
         bool trigger_always_on = true;
         int trigger_bind = 0;
         bool trigger_head_only = true;

@@ -56,7 +56,6 @@ bool Triggerbot::Update(bool crosshair_on_target,
             if (target_valid && crosshair_on_target && can_fire && cooldown_ready) {
                 // Inicia pre-fire ou dispara direto
                 if (config_.mode == TriggerMode::PreFire || config_.mode == TriggerMode::PrePost) {
-                    float pre_fire = GetRandomizedDelay(config_.pre_fire_ms);
                     state_.accumulated_pre_fire = 0.0f;
                     state_.phase_start = now;
                     TransitionTo(TriggerbotState::Phase::PreFire);

@@ -89,6 +89,32 @@ BezierCurve BezierCurve::Smooth() {
     return EaseInOut();
 }
 
+float CatmullRomSpline::Evaluate(float t) const {
+    if (points.empty()) return std::clamp(t, 0.0f, 1.0f);
+    if (points.size() == 1) return points.front().y;
+    const auto count = points.size();
+    const auto segments = closed ? count : count - 1;
+    const float position = std::clamp(t, 0.0f, 1.0f) * static_cast<float>(segments);
+    const auto segment = (std::min)(static_cast<std::size_t>(position), segments - 1);
+    const float u = position - static_cast<float>(segment);
+    const auto at = [&](std::ptrdiff_t index) -> float {
+        if (closed) {
+            const auto size = static_cast<std::ptrdiff_t>(count);
+            return points[static_cast<std::size_t>((index % size + size) % size)].y;
+        }
+        return points[static_cast<std::size_t>(std::clamp(index, std::ptrdiff_t{0}, static_cast<std::ptrdiff_t>(count - 1)))].y;
+    };
+    const auto i = static_cast<std::ptrdiff_t>(segment);
+    const float p0 = at(i - 1), p1 = at(i), p2 = at(i + 1), p3 = at(i + 2);
+    const float m1 = tension * (p2 - p0), m2 = tension * (p3 - p1);
+    const float u2 = u * u, u3 = u2 * u;
+    return (2 * u3 - 3 * u2 + 1) * p1 + (u3 - 2 * u2 + u) * m1 +
+           (-2 * u3 + 3 * u2) * p2 + (u3 - u2) * m2;
+}
+
+AimHumanizer::AimHumanizer(const HumanizerConfig& config)
+    : config_(config), rng_(std::random_device{}()) {}
+
 // ===== BSplineCurve Implementation =====
 
 void BSplineCurve::AddControlPoint(const ImVec2& point) {
@@ -113,38 +139,38 @@ float BSplineCurve::Evaluate(float t) const {
     // Para B-Spline uniforme grau 3, precisamos de pelo menos 4 pontos
     // Mapeia t para o intervalo de knots válido
     int n = static_cast<int>(control_points.size()) - 1;
-    int degree = std::min(this->degree, n);
+    int spline_degree = std::min(this->degree, n);
 
     // Knot vector uniforme
-    std::vector<float> knots(n + degree + 2);
+    std::vector<float> knots(n + spline_degree + 2);
     for (size_t i = 0; i < knots.size(); ++i) {
         knots[i] = static_cast<float>(i) / static_cast<float>(knots.size() - 1);
     }
 
     // Encontra span do knot
-    int span = degree;
+    int span = spline_degree;
     while (span < n && t >= knots[span + 1]) span++;
 
     // Cox-de Boor recursion
-    std::vector<float> N(degree + 1);
-    for (int j = 0; j <= degree; ++j) {
-        N[j] = (t >= knots[span - degree + j] && t < knots[span - degree + j + 1]) ? 1.0f : 0.0f;
+    std::vector<float> N(spline_degree + 1);
+    for (int j = 0; j <= spline_degree; ++j) {
+        N[j] = (t >= knots[span - spline_degree + j] && t < knots[span - spline_degree + j + 1]) ? 1.0f : 0.0f;
     }
 
-    for (int k = 1; k <= degree; ++k) {
-        for (int j = 0; j <= degree - k; ++j) {
-            float denom1 = knots[span - degree + j + k] - knots[span - degree + j];
-            float denom2 = knots[span - degree + j + k + 1] - knots[span - degree + j + 1];
-            float w1 = (denom1 != 0) ? (t - knots[span - degree + j]) / denom1 : 0.0f;
-            float w2 = (denom2 != 0) ? (knots[span - degree + j + k + 1] - t) / denom2 : 0.0f;
+    for (int k = 1; k <= spline_degree; ++k) {
+        for (int j = 0; j <= spline_degree - k; ++j) {
+            float denom1 = knots[span - spline_degree + j + k] - knots[span - spline_degree + j];
+            float denom2 = knots[span - spline_degree + j + k + 1] - knots[span - spline_degree + j + 1];
+            float w1 = (denom1 != 0) ? (t - knots[span - spline_degree + j]) / denom1 : 0.0f;
+            float w2 = (denom2 != 0) ? (knots[span - spline_degree + j + k + 1] - t) / denom2 : 0.0f;
             N[j] = w1 * N[j] + w2 * N[j + 1];
         }
     }
 
     // Avalia curva
     ImVec2 result(0, 0);
-    for (int j = 0; j <= degree; ++j) {
-        int idx = span - degree + j;
+    for (int j = 0; j <= spline_degree; ++j) {
+        int idx = span - spline_degree + j;
         if (idx >= 0 && idx < static_cast<int>(control_points.size())) {
             result.x += control_points[idx].x * N[j];
             result.y += control_points[idx].y * N[j];
@@ -641,7 +667,8 @@ float SmoothCurveEvaluator::EvaluateStaggered(float t) const {
 }
 
 void SmoothCurveEvaluator::UpdateSnapshot(CurveType type, float input, float output) const {
-    auto& snap = const_cast<VisualSnapshot&>(config_.last_snapshot);
+    auto& snap = config_.last_snapshot;
+    using VisualSnapshot = SmoothCurveConfig::VisualSnapshot;
     snap.valid = true;
     snap.target_x = input;
     snap.target_y = output;

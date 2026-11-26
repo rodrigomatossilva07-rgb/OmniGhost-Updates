@@ -31,10 +31,10 @@
 #include "src/auth/discord_ipc.h"
 #include "src/auth/user_profile.h"
 #include "src/gameplay/triggerbot_integration.h"
-#include "src/window/pages/profile_page.cpp"
 #include <shellapi.h>
 #ifndef UI_PREVIEW
 #include "../launcher/launcher_assets.h"
+#include "src/games/Fivem/aimbot/aimbot.h"
 #endif
 #ifdef UI_PREVIEW
 #include "preview/preview_runtime.h"
@@ -343,7 +343,7 @@ bool Overlay::CreateImGui()
     // Config versioning/migrations
     OmniGhost::Config::Versioning::SetMigrationLogCallback(
         [](uint32_t from, uint32_t to, const std::string& desc) {
-            OmniGhost::UI::Toast::Info("Config Migration", "v" + std::to_string(from) + " -> v" + std::to_string(to) + ": " + desc);
+            (void)OmniGhost::UI::Toast::Info("Config Migration", "v" + std::to_string(from) + " -> v" + std::to_string(to) + ": " + desc);
         });
 
     // Toast notifications
@@ -361,7 +361,7 @@ bool Overlay::CreateImGui()
     OmniGhost::Auth::ProfileManager::Instance().Initialize();
     OmniGhost::Auth::ProfileManager::Instance().SetProfileChangeCallback(
         [](const OmniGhost::Auth::UserProfile& p) {
-            OmniGhost::UI::Toast::Success("Perfil", p.GetDisplayName() + " (" + OmniGhost::Auth::RoleToString(p.role) + ")");
+            (void)OmniGhost::UI::Toast::Success("Perfil", p.GetDisplayName() + " (" + OmniGhost::Auth::RoleToString(p.role) + ")");
         });
 
     

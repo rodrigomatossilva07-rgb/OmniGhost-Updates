@@ -57,6 +57,7 @@ struct SlotConfig {
     float outline_width = 1.0f;
     bool background_enabled = false;
     ImU32 background_color = IM_COL32(0, 0, 0, 180);
+    ImVec2 background_padding = ImVec2(4, 2);
     int anchor = 0;           // 0=left, 1=right, 2=top, 3=bottom, 4=center
     int order = 0;            // Draw order
     int size = 1;             // 0=small, 1=medium, 2=regular

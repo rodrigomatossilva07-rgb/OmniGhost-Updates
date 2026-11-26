@@ -118,7 +118,7 @@ public:
 private:
     TriggerbotConfig config_;
     TriggerbotState state_;
-    std::mt19937 rng_{ static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()) };
+    mutable std::mt19937 rng_{ static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count()) };
 
     bool CheckTargetValid(uint64_t entity_id, float distance, bool visible,
                           int weapon_idx, bool knocked, bool teammate, bool npc, float hp_pct) const;

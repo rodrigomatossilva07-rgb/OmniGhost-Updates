@@ -4,7 +4,7 @@
 #include "gameplay/triggerbot_ui.h"
 
 void DrawFortniteAim() {
-    static Gameplay::TriggerIntegrationConfig fortnite_trigger_config;
+    static OmniGhost::Gameplay::TriggerIntegrationConfig fortnite_trigger_config;
 
     CyberWidgets::SectionTitle("Aim");
     CyberWidgets::InlineMessage("Fortnite controls are being configured.", CyberWidgets::TextTone::Info);

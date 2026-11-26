@@ -1,5 +1,8 @@
 #pragma once
 
+#define ICON_FA_BULLET            "\uf111"
+#define ICON_FA_SIGN_OUT          "\uf2f5"
+
 // FontAwesome 5 Free icon codepoints (Unicode)
 // These are the actual Unicode codepoints for FontAwesome 5 Free icons
 // Make sure FontAwesome font is loaded in fonts.cpp for these to render correctly

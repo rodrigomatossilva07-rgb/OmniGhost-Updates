@@ -170,7 +170,7 @@ void ThreatWarningSystem::Render(ImDrawList* dl, const ImVec2& crosshair_pos) {
     }
 }
 
-std::optional<ThreatWarningSystem::ThreatTarget> ThreatWarningSystem::GetHighestThreat() const {
+std::optional<ThreatTarget> ThreatWarningSystem::GetHighestThreat() const {
     if (active_threats_.empty()) return std::nullopt;
     return active_threats_.front();
 }

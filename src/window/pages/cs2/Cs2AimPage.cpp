@@ -10,7 +10,7 @@
 #include <cstdio>
 #include <algorithm>
 #include <cmath>
-#include "../../../fa_icons.h"
+#include "../../fa_icons.h"
 
 namespace {
 
@@ -253,7 +253,7 @@ void DrawCs2Aim() {
             ImGui::OpenPopup("##triggerbot_advanced_cs2");
         }
         if (ImGui::BeginPopupModal("##triggerbot_advanced_cs2", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-            static Gameplay::TriggerIntegrationConfig adv_config;
+            static OmniGhost::Gameplay::TriggerIntegrationConfig adv_config;
             
             static bool first_open = true;
             if (first_open) {
@@ -269,7 +269,7 @@ void DrawCs2Aim() {
                 first_open = false;
             }
             
-            if (Gameplay::UI::DrawTriggerbotConfig("Triggerbot Avançado (CS2)", adv_config, "CS2")) {
+            if (OmniGhost::Gameplay::UI::DrawTriggerbotConfig("Triggerbot Avançado (CS2)", adv_config, "CS2")) {
                 CS2::config.trigger_enabled = adv_config.enabled;
                 CS2::config.trigger_visibility_check = adv_config.visible_only;
                 CS2::config.trigger_always_on = adv_config.fire_without_aim;

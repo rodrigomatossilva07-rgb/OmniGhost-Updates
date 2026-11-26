@@ -2,6 +2,7 @@
 #include <algorithm>
 #include "../window/theme.h"
 #include "../window/icons.h"
+#include "../window/fa_icons.h"
 
 namespace OmniGhost::Gameplay::ESPText {
 
@@ -57,8 +58,7 @@ const std::array<SlotMeta, SLOT_COUNT>& GetAllSlots() {
 // ===== Render Helpers =====
 
 ImVec2 MeasureText(const char* text, float font_size) {
-    ImGuiContext& g = *ImGui::GetCurrentContext();
-    ImFont* font = g.IO.Fonts->Fonts[0]; // default font
+    ImFont* font = ImGui::GetFont();
     return font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, text);
 }
 
@@ -234,7 +234,7 @@ bool DrawAnchorSelector(const char* label, int& anchor) {
     if (ImGui::BeginCombo(label, anchors[anchor])) {
         for (int i = 0; i < 5; ++i) {
             bool selected = (anchor == i);
-            if (ImGui::Selectable(std::string(icons[i]) + " " + anchors[i]).c_str(), selected)) {
+            if (ImGui::Selectable((std::string(icons[i]) + " " + anchors[i]).c_str(), selected)) {
                 anchor = i;
                 changed = true;
             }
@@ -453,18 +453,18 @@ void DrawSlotPreview(const ESPTextConfig& config, const ImVec2& box_size) {
 namespace GameSlots {
 
 const std::vector<SlotMeta> g_fortnite_slots = {
-    { FortniteSlotID::BuildingMaterial, "mats", "Materiais", "Madeira/Tijolo/Metal", ICON_FA_HAMMER, true, 3, 2, 1 },
-    { FortniteSlotID::Shield, "shield", "Escudo", "Vida de escudo", ICON_FA_SHIELD_ALT, true, 1, 2, 1 },
-    { FortniteSlotID::Ping, "ping", "Ping", "Latência do jogador", ICON_FA_WIFI, false, 1, 6, 0 },
-    { FortniteSlotID::EliminationCount, "elims", "Elims", "Eliminações na partida", ICON_FA_SKULL, true, 1, 3, 1 },
-    { FortniteSlotID::CreativeMode, "creative", "Criativo", "Indicador modo criativo", ICON_FA_PAINT_BRUSH, false, 3, 4, 0 },
+    { static_cast<SlotID>(FortniteSlotID::BuildingMaterial), "mats", "Materiais", "Madeira/Tijolo/Metal", ICON_FA_HAMMER, true, 3, 2, 1 },
+    { static_cast<SlotID>(FortniteSlotID::Shield), "shield", "Escudo", "Vida de escudo", ICON_FA_SHIELD_ALT, true, 1, 2, 1 },
+    { static_cast<SlotID>(FortniteSlotID::Ping), "ping", "Ping", "Latência do jogador", ICON_FA_WIFI, false, 1, 6, 0 },
+    { static_cast<SlotID>(FortniteSlotID::EliminationCount), "elims", "Elims", "Eliminações na partida", ICON_FA_SKULL, true, 1, 3, 1 },
+    { static_cast<SlotID>(FortniteSlotID::CreativeMode), "creative", "Criativo", "Indicador modo criativo", ICON_FA_PAINT_BRUSH, false, 3, 4, 0 },
 };
 
 const std::vector<SlotMeta> g_cs2_slots = {
-    { CS2SlotID::Armor, "armor", "Armadura", "Kevlar + Helmet", ICON_FA_SHIELD_ALT, true, 1, 2, 1 },
-    { CS2SlotID::DefuseKit, "defuse", "Kit Desarme", "Possui defuse kit", ICON_FA_BOMB, true, 3, 4, 0 },
-    { CS2SlotID::ScopeZoom, "zoom", "Zoom", "Nível de zoom da sniper", ICON_FA_SEARCH, false, 1, 5, 0 },
-    { CS2SlotID::FlashDuration, "flash", "Flash", "Tempo restante de flash", ICON_FA_EYE, false, 3, 5, 0 },
+    { static_cast<SlotID>(CS2SlotID::Armor), "armor", "Armadura", "Kevlar + Helmet", ICON_FA_SHIELD_ALT, true, 1, 2, 1 },
+    { static_cast<SlotID>(CS2SlotID::DefuseKit), "defuse", "Kit Desarme", "Possui defuse kit", ICON_FA_BOMB, true, 3, 4, 0 },
+    { static_cast<SlotID>(CS2SlotID::ScopeZoom), "zoom", "Zoom", "Nível de zoom da sniper", ICON_FA_SEARCH, false, 1, 5, 0 },
+    { static_cast<SlotID>(CS2SlotID::FlashDuration), "flash", "Flash", "Tempo restante de flash", ICON_FA_EYE, false, 3, 5, 0 },
 };
 
 const std::vector<SlotMeta>& GetGameSlots(uint32_t game_hash) {

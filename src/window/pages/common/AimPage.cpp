@@ -1,6 +1,4 @@
 #include "../../widgets.h"
-#include "../../widgets_input.h"
-#include "../../widgets_layout.h"
 #include "../../theme.h"
 #include "../../localization.h"
 #include "aimbot/aim_type.h"
@@ -244,7 +242,7 @@ void DrawAim()
             ImGui::OpenPopup("##triggerbot_advanced");
         }
         if (ImGui::BeginPopupModal("##triggerbot_advanced", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-            static Gameplay::TriggerIntegrationConfig adv_config;
+            static OmniGhost::Gameplay::TriggerIntegrationConfig adv_config;
             
             // Sync from aimbot config on first open
             static bool first_open = true;
@@ -261,7 +259,7 @@ void DrawAim()
                 first_open = false;
             }
             
-            if (Gameplay::UI::DrawTriggerbotConfig("Triggerbot Avançado (FiveM)", adv_config, "FiveM")) {
+            if (OmniGhost::Gameplay::UI::DrawTriggerbotConfig("Triggerbot Avançado (FiveM)", adv_config, "FiveM")) {
                 // Sync back to aimbot config
                 aimbot::config.trigger_enabled = adv_config.enabled;
                 aimbot::config.trigger_visibility_check = adv_config.visible_only;
