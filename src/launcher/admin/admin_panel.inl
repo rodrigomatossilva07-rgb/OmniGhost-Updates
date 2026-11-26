@@ -1029,7 +1029,7 @@ void DrawAdminDevTools() {
         CyberWidgets::NotifyAdmin(OGS_CSTR("Lista de configurações atualizada."), CyberWidgets::ToastType::Success);
     }
     ImGui::SameLine();
-#if defined(NDEBUG)
+#if defined(NDEBUG) || defined(OMNIGHOST_PUBLISH_BUILD)
     state.showImGuiMetrics = false;
     constexpr bool metricsAvailable = false;
 #else
@@ -1038,7 +1038,7 @@ void DrawAdminDevTools() {
     if (CyberWidgets::Button(state.showImGuiMetrics ? OGS_CSTR("FECHAR IMGUI METRICS") : OGS_CSTR("IMGUI METRICS"),
                              CyberWidgets::ButtonStyle::Ghost, ImVec2(S(190.f), S(34.f)), metricsAvailable))
         state.showImGuiMetrics = !state.showImGuiMetrics;
-#if defined(NDEBUG)
+#if defined(NDEBUG) || defined(OMNIGHOST_PUBLISH_BUILD)
     CyberWidgets::InlineMessage(
         OGS_CSTR("Inspeção arbitrária de memória, simulação de falhas e force-crash não são expostos em builds Release."),
         CyberWidgets::TextTone::Info);
@@ -1051,12 +1051,12 @@ void DrawAdminDevTools() {
         CyberWidgets::NotifyAdmin(OGS_CSTR("Memory Inspector: implementar janela separada"), CyberWidgets::ToastType::Info);
     }
     ImGui::SameLine();
-    if (CyberWidgets::Button(OGS_CSTR("SIMULAR FALHA DMA"), CyberWidgets::ButtonStyle::Warning, ImVec2(S(180.f), S(30.f)))) {
+    if (CyberWidgets::Button(OGS_CSTR("SIMULAR FALHA DMA"), CyberWidgets::ButtonStyle::Secondary, ImVec2(S(180.f), S(30.f)))) {
         // Simulate DMA read failure
         CyberWidgets::NotifyAdmin(OGS_CSTR("Simulação de falha DMA: implementar injeção de erro"), CyberWidgets::ToastType::Warning);
     }
     ImGui::SameLine();
-    if (CyberWidgets::Button(OGS_CSTR("FORCE CRASH"), CyberWidgets::ButtonStyle::Error, ImVec2(S(140.f), S(30.f)))) {
+    if (CyberWidgets::Button(OGS_CSTR("FORCE CRASH"), CyberWidgets::ButtonStyle::Destructive, ImVec2(S(140.f), S(30.f)))) {
         if (ImGui::IsKeyDown(ImGuiMod_Ctrl) && ImGui::IsKeyDown(ImGuiMod_Shift)) {
             *(volatile int*)0 = 0; // intentional crash for testing
         } else {
@@ -1066,7 +1066,7 @@ void DrawAdminDevTools() {
 #endif
     CyberWidgets::EndCard();
 
-#if !defined(NDEBUG)
+#if !defined(NDEBUG) && !defined(OMNIGHOST_PUBLISH_BUILD)
     if (state.showImGuiMetrics) ImGui::ShowMetricsWindow(&state.showImGuiMetrics);
 #endif
 }
