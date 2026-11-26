@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Net.Http.Json;
 
 namespace OmniGhost.AdminApi;
 
@@ -22,11 +23,24 @@ public sealed class AuditLog
     private const int MaximumArchives = 5;
     private readonly AdminOptions options;
     private readonly SemaphoreSlim gate = new(1, 1);
+    private readonly HttpClient? remoteAudit;
+    private readonly Uri? remoteAuditUri;
+    private bool remoteInitialized;
     private string previousHash = new('0', 64);
 
     public AuditLog(AdminOptions options)
     {
         this.options = options;
+        var remoteUrl = Environment.GetEnvironmentVariable("OMNIGHOST_ADMIN_AUDIT_URL");
+        var remoteSecret = Environment.GetEnvironmentVariable("OMNIGHOST_ADMIN_AUDIT_SECRET");
+        if (!string.IsNullOrWhiteSpace(remoteUrl) || !string.IsNullOrWhiteSpace(remoteSecret)) {
+            if (!Uri.TryCreate(remoteUrl, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps || string.IsNullOrWhiteSpace(remoteSecret))
+                throw new InvalidOperationException("Remote audit requires an HTTPS URL and secret.");
+            remoteAuditUri = uri;
+            remoteAudit = new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(10) };
+            remoteAudit.DefaultRequestHeaders.Add("X-Omni-Audit-Secret", remoteSecret);
+            return;
+        }
         var directory = Path.GetDirectoryName(options.AuditPath);
         if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
         previousHash = ReadLastHash(options.AuditPath) ?? previousHash;
@@ -36,17 +50,32 @@ public sealed class AuditLog
     {
         await gate.WaitAsync();
         try {
-            RotateIfRequired();
+            if (remoteAudit is not null && !remoteInitialized) {
+                var recent = await ReadRemoteAsync(1, CancellationToken.None);
+                previousHash = recent.LastOrDefault()?.Hash ?? previousHash;
+                remoteInitialized = true;
+            }
+            if (remoteAudit is null) RotateIfRequired();
             var timestamp = DateTimeOffset.UtcNow;
             var safeDetail = Sanitize(detail, 512);
+            // Route templates retain the operation while avoiding credentials, IP addresses,
+            // and account identifiers embedded in concrete request paths.
+            var route = context.GetEndpoint() is RouteEndpoint endpoint
+                ? endpoint.RoutePattern.RawText ?? "unknown"
+                : "unknown";
             var material = string.Join('|', timestamp.ToString("O"), context.TraceIdentifier, actor,
-                context.Request.Method, context.Request.Path.Value ?? string.Empty, action, success, safeDetail, previousHash);
+                context.Request.Method, route, action, success, safeDetail, previousHash);
             var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material))).ToLowerInvariant();
             var record = new AuditRecord(timestamp, context.TraceIdentifier, actor,
-                context.Request.Method, context.Request.Path.Value ?? string.Empty, action, success,
+                context.Request.Method, route, action, success,
                 safeDetail, previousHash, hash);
-            await File.AppendAllTextAsync(options.AuditPath, JsonSerializer.Serialize(record) + Environment.NewLine,
-                Encoding.UTF8, CancellationToken.None);
+            if (remoteAudit is not null) {
+                using var result = await remoteAudit.PostAsJsonAsync(remoteAuditUri, record, CancellationToken.None);
+                result.EnsureSuccessStatusCode();
+            } else {
+                await File.AppendAllTextAsync(options.AuditPath, JsonSerializer.Serialize(record) + Environment.NewLine,
+                    Encoding.UTF8, CancellationToken.None);
+            }
             previousHash = hash;
         } finally {
             gate.Release();
@@ -55,6 +84,7 @@ public sealed class AuditLog
 
     public async Task<IReadOnlyList<AuditRecord>> ReadRecentAsync(int maximum, CancellationToken cancellationToken)
     {
+        if (remoteAudit is not null) return await ReadRemoteAsync(maximum, cancellationToken);
         if (!File.Exists(options.AuditPath)) return [];
         var lines = await File.ReadAllLinesAsync(options.AuditPath, cancellationToken);
         var records = new List<AuditRecord>();
@@ -65,6 +95,12 @@ public sealed class AuditLog
             } catch (JsonException) { }
         }
         return records;
+    }
+
+    private async Task<IReadOnlyList<AuditRecord>> ReadRemoteAsync(int maximum, CancellationToken cancellationToken)
+    {
+        var url = new UriBuilder(remoteAuditUri!) { Query = $"limit={Math.Clamp(maximum, 1, 1000)}" }.Uri;
+        return await remoteAudit!.GetFromJsonAsync<List<AuditRecord>>(url, cancellationToken) ?? [];
     }
 
     private static string? ReadLastHash(string path)

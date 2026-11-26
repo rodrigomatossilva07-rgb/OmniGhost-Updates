@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidatePattern('^[A-Za-z0-9_.-]{1,64}$')]
+    [ValidatePattern('^[A-Za-z0-9_@.-]{1,64}$')]
     [string]$Actor
 )
 

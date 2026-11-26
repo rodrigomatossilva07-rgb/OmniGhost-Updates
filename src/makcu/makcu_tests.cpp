@@ -115,7 +115,7 @@ void Check(bool condition, const char* label) {
 void TestTextHandshakeV27() {
     const auto descriptor = makcu::MakcuFirmwareDetector::ParseTextHandshake(
         OGS_LIT(">>> km.version()\r\n>>> V27\r\n"), 4000000);
-    Check(descriptor.family == makcu::FirmwareFamily::LegacyText, OGS_CSTR("V27 â†’ LegacyText"));
+    Check(descriptor.family == makcu::FirmwareFamily::LegacyText, OGS_CSTR("V27 → LegacyText"));
     Check(descriptor.numericVersionKnown, OGS_CSTR("V27 version known"));
     Check(descriptor.numericVersion == 27, OGS_CSTR("V27 numeric == 27"));
     Check(descriptor.compatible, OGS_CSTR("V27 compatible"));
@@ -124,7 +124,7 @@ void TestTextHandshakeV27() {
 void TestTextHandshakeV29() {
     const auto descriptor = makcu::MakcuFirmwareDetector::ParseTextHandshake(
         OGS_LIT(">>> km.version()\r\n>>> V29\r\n"), 115200);
-    Check(descriptor.family == makcu::FirmwareFamily::LegacyText, OGS_CSTR("V29 â†’ LegacyText"));
+    Check(descriptor.family == makcu::FirmwareFamily::LegacyText, OGS_CSTR("V29 → LegacyText"));
     Check(descriptor.numericVersion == 29, OGS_CSTR("V29 numeric == 29"));
     Check(descriptor.compatible, OGS_CSTR("V29 compatible"));
 }
@@ -132,7 +132,7 @@ void TestTextHandshakeV29() {
 void TestTextHandshakeV30() {
     const auto descriptor = makcu::MakcuFirmwareDetector::ParseTextHandshake(
         OGS_LIT(">>> km.version()\r\n>>> V30\r\n"), 4000000);
-    Check(descriptor.family == makcu::FirmwareFamily::V4, "V30 â†’ V4");
+    Check(descriptor.family == makcu::FirmwareFamily::V4, "V30 → V4");
     Check(descriptor.numericVersion == 30, OGS_CSTR("V30 numeric == 30"));
     Check(descriptor.compatible, OGS_CSTR("V30 compatible"));
 }
@@ -140,7 +140,7 @@ void TestTextHandshakeV30() {
 void TestTextHandshakeMakcuIdentity() {
     const auto descriptor = makcu::MakcuFirmwareDetector::ParseTextHandshake(
         OGS_LIT(">>> km.MAKCU\r\n"), 4000000);
-    Check(descriptor.family == makcu::FirmwareFamily::V4, OGS_CSTR("km.MAKCU â†’ V4"));
+    Check(descriptor.family == makcu::FirmwareFamily::V4, OGS_CSTR("km.MAKCU → V4"));
     Check(!descriptor.numericVersionKnown, OGS_CSTR("km.MAKCU version not yet known"));
     Check(descriptor.compatible, OGS_CSTR("km.MAKCU compatible"));
 }
@@ -148,14 +148,14 @@ void TestTextHandshakeMakcuIdentity() {
 void TestUnknownFirmware() {
     const auto descriptor = makcu::MakcuFirmwareDetector::ParseTextHandshake(
         OGS_LIT(">>> km.version()\r\n>>> SomeRandomDevice v42\r\n"), 4000000);
-    Check(descriptor.family == makcu::FirmwareFamily::Unknown, OGS_CSTR("unknown identity â†’ Unknown"));
+    Check(descriptor.family == makcu::FirmwareFamily::Unknown, OGS_CSTR("unknown identity → Unknown"));
     Check(!descriptor.compatible, OGS_CSTR("unknown identity not compatible"));
 }
 
 void TestEmptyHandshake() {
     const auto descriptor = makcu::MakcuFirmwareDetector::ParseTextHandshake(
         "", 4000000);
-    Check(descriptor.family == makcu::FirmwareFamily::Unknown, OGS_CSTR("empty â†’ Unknown"));
+    Check(descriptor.family == makcu::FirmwareFamily::Unknown, OGS_CSTR("empty → Unknown"));
     Check(!descriptor.compatible, OGS_CSTR("empty not compatible"));
 }
 
@@ -170,7 +170,7 @@ void TestV4BinaryVersionParse() {
 void TestV4BinaryVersionGarbage() {
     std::vector<uint8_t> response = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05};
     const auto version = makcu::MakcuFirmwareDetector::ParseV4FirmwareVersion(response);
-    Check(!version.has_value(), OGS_CSTR("garbage â†’ no version"));
+    Check(!version.has_value(), OGS_CSTR("garbage → no version"));
 }
 
 void TestV4DeviceKindsParse() {
@@ -434,7 +434,7 @@ void TestUnknownFirmwareNoProtocol() {
     makcu::FirmwareDescriptor descriptor;
     descriptor.family = makcu::FirmwareFamily::Unknown;
     auto protocol = makcu::MakcuProtocolRegistry::Create(descriptor);
-    Check(protocol == nullptr, OGS_CSTR("Unknown firmware â†’ no protocol adapter"));
+    Check(protocol == nullptr, OGS_CSTR("Unknown firmware → no protocol adapter"));
 }
 
 
@@ -499,7 +499,7 @@ void TestConnectNoResponse() {
     makcu::MakcuConnectionManager manager;
     transport.setResponses({{}, {}, {}, {}});
     const auto attempt = manager.Connect(transport, OGS_LIT("COM3"));
-    Check(!attempt.connected, OGS_CSTR("No response â†’ not connected"));
+    Check(!attempt.connected, OGS_CSTR("No response → not connected"));
 }
 
 void TestConnectPurgesBeforeProbe() {

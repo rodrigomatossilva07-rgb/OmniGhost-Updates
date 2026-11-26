@@ -17,15 +17,20 @@
 #include "changelog.h"
 #include "ui_feedback.h"
 #include "global_search.h"
+#include "toast_notifications.h"
 #include "gameplay/dma_telemetry_log.h"
 #include "../config/app_settings.h"
 #include "../config/config_manager.h"
+#include "../config/config_versioning.h"
 #include "../platform/app_paths.h"
 #include "../platform/monitor_utils.h"
 #include "../platform/text_encoding.h"
 #include "game/esp_manager.h"
 #include "src/games/Cs2/cs2_game.h"
 #include "src/games/Rust/rust_game.h"
+#include "src/auth/discord_ipc.h"
+#include "src/auth/user_profile.h"
+#include "src/window/pages/profile_page.cpp"
 #include <shellapi.h>
 #ifndef UI_PREVIEW
 #include "../launcher/launcher_assets.h"
@@ -62,7 +67,7 @@ namespace {
         case MenuTab::TAB_CS2_STATUS:       return { Loc::Tr("nav.status"), Loc::Tr("tab.desc.cs2_status") };
         case MenuTab::TAB_FORTNITE_VISUALS: return { "VISUAIS FORTNITE", "ESP e informação" };
         case MenuTab::TAB_FORTNITE_AIM:     return { "MIRA FORTNITE", "Alvo e assistência" };
-        case MenuTab::TAB_FORTNITE_STATUS:  return { "SISTEMA FORTNITE", "Ligação e diagnóstico" };
+        case MenuTab::TAB_PROFILE:          return { "PERFIL", "Conta, Discord, licença e sincronização" };
         default:                            return { "OMNIGHOST", "Centro de controlo" };
         }
     }
@@ -185,7 +190,7 @@ namespace {
             break;
         case MenuTab::TAB_FORTNITE_VISUALS:  DrawFortniteVisuals(); break;
         case MenuTab::TAB_FORTNITE_AIM:      DrawFortniteAim(); break;
-        case MenuTab::TAB_FORTNITE_STATUS:   DrawFortniteStatus(); break;
+        case MenuTab::TAB_PROFILE:           DrawProfile(); break;
 
 
         case MenuTab::TAB_UNIFIED_AIM:       DrawUnifiedAim(); break;
@@ -234,7 +239,6 @@ namespace {
         } else if (game == OmniGhost::ActiveGame::Fortnite) {
             add("Visuais Fortnite", MenuTab::TAB_FORTNITE_VISUALS, "ESP e apresentação");
             add("Mira Fortnite", MenuTab::TAB_FORTNITE_AIM, "Assistência");
-            add("Sistema Fortnite", MenuTab::TAB_FORTNITE_STATUS, "Diagnóstico");
         } else {
             add("Visuais FiveM", MenuTab::TAB_VISUALS, "ESP e apresentação");
             add("Mira FiveM", MenuTab::TAB_AIM, "Assistência");
@@ -245,6 +249,8 @@ namespace {
         }
         add("Configurações", MenuTab::TAB_CONFIGS, "Interface e desempenho");
         add("Guardar configurações", MenuTab::TAB_SAVECONFIG, "Perfis");
+        add("Perfil", MenuTab::TAB_PROFILE, "Conta e Discord");
+        add("Triggerbot", MenuTab::TAB_TRIGGERBOT, "Disparo automático");
     }
 
     void DrawTechGrid(ImDrawList* dl, const ImVec2& window_pos, const ImVec2& window_size,
@@ -333,6 +339,33 @@ bool Overlay::CreateImGui()
     Changelog::Initialize();
     OmniGhost::UiFeedback::Initialize();
     OmniGhost::UiFeedback::PlayStartupOnce();
+
+    // ===== NOVOS SISTEMAS =====
+    // Config versioning/migrations
+    OmniGhost::Config::Versioning::SetMigrationLogCallback(
+        [](uint32_t from, uint32_t to, const std::string& desc) {
+            OmniGhost::UI::Toast::Info("Config Migration", "v" + std::to_string(from) + " -> v" + std::to_string(to) + ": " + desc);
+        });
+
+    // Toast notifications
+    OmniGhost::UI::Toast::ToastConfig toast_cfg;
+    toast_cfg.enter_duration = 0.34f;
+    toast_cfg.hold_duration = 3.40f;
+    toast_cfg.exit_duration = 0.28f;
+    toast_cfg.max_toasts = 5;
+    OmniGhost::UI::Toast::Initialize(toast_cfg);
+
+    // Discord IPC
+    OmniGhost::Auth::DiscordIPC::Initialize();
+
+    // User Profile
+    OmniGhost::Auth::ProfileManager::Instance().Initialize();
+    OmniGhost::Auth::ProfileManager::Instance().SetProfileChangeCallback(
+        [](const OmniGhost::Auth::UserProfile& p) {
+            OmniGhost::UI::Toast::Success("Perfil", p.GetDisplayName() + " (" + OmniGhost::Auth::RoleToString(p.role) + ")");
+        });
+
+    
 
 
 
@@ -642,6 +675,19 @@ const PerformanceMode::State performance = PerformanceMode::Update(
     ImGui::PopStyleColor(3);
     ImGui::PopStyleVar(3);
     GlobalSearch::DrawCommandPalette(&command_palette_open);
+
+    // ===== NOVOS SISTEMAS: Update & Render =====
+    // Discord profile update (throttled)
+    static float discord_update_timer = 0.0f;
+    discord_update_timer += ImGui::GetIO().DeltaTime;
+    if (discord_update_timer > 30.0f) { // A cada 30s
+        OmniGhost::Auth::ProfileManager::Instance().UpdateDiscordProfile();
+        discord_update_timer = 0.0f;
+    }
+
+    // Toast notifications
+    OmniGhost::UI::Toast::Update(ImGui::GetIO().DeltaTime);
+    OmniGhost::UI::Toast::Render();
 }
 
 void Overlay::WaitForEvents(std::chrono::milliseconds timeout) {

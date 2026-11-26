@@ -34,6 +34,8 @@ namespace {
         {"nav.world", {"Mundo", "World", "World", "World", "World", "World", nullptr}},
         {"nav.players", {"Jogadores", "Players", "Players", "Players", "Players", "Players", nullptr}},
         {"nav.radar", {"Radar", "Radar", "Radar", "Radar", "Radar", "Radar", nullptr}},
+        {"nav.profile", {"Perfil", "Profile", "Profil", "Perfil", "Profil", "Profil", nullptr}},
+        {"nav.trigger", {"Triggerbot", "Triggerbot", "Triggerbot", "Triggerbot", "Triggerbot", "Triggerbot", nullptr}},
         {"nav.misc", {"Diversos", "Misc", "Misc", "Misc", "Misc", "Misc", nullptr}},
         {"nav.debug", {"Diagnóstico", "Diagnostics", "Diagnostics", "Diagnostics", "Diagnostics", "Diagnostics", nullptr}},
         {"nav.trigger", {"Disparo automático", "Trigger", "Trigger", "Trigger", "Trigger", "Trigger", nullptr}},

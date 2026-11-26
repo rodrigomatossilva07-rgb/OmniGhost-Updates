@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.20)
+project(PhysExtractorKv3 LANGUAGES CXX)
+add_library(phys_kv3 kv3_parser.cpp)
+target_compile_features(phys_kv3 PUBLIC cxx_std_17)
+add_executable(phys_kv3_test kv3_parser_test.cpp)
+target_link_libraries(phys_kv3_test PRIVATE phys_kv3)
+enable_testing()
+add_test(NAME phys_kv3_test COMMAND phys_kv3_test)

@@ -1,0 +1,5 @@
+*
+!*.cs
+!*.csproj
+!appsettings.json
+!Dockerfile.cloudflare

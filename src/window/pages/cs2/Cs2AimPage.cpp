@@ -4,6 +4,7 @@
 #include "config/cs2_config.h"
 #include "aimbot/cs2_aim.h"
 #include "aimbot/aim_type.h"
+#include "gameplay/triggerbot_ui.h"
 #include "imgui.h"
 #include <Windows.h>
 #include <cstdio>
@@ -244,6 +245,43 @@ void DrawCs2Aim() {
         float delay_ms = static_cast<float>(CS2::config.trigger_delay_ms);
         if (CyberWidgets::SliderFloat(Loc::Tr("aim.trigger_reaction"), &delay_ms, 0.f, 500.f, "%.0f ms"))
             CS2::config.trigger_delay_ms = static_cast<int>(delay_ms);
+
+        // Advanced triggerbot config button
+        ImGui::Separator();
+        if (ImGui::Button(ICON_FA_COGS " Configuração Avançada Triggerbot", ImVec2(-1, 0))) {
+            ImGui::OpenPopup("##triggerbot_advanced_cs2");
+        }
+        if (ImGui::BeginPopupModal("##triggerbot_advanced_cs2", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+            static Gameplay::TriggerIntegrationConfig adv_config;
+            
+            static bool first_open = true;
+            if (first_open) {
+                adv_config.enabled = CS2::config.trigger_enabled;
+                adv_config.visible_only = CS2::config.trigger_visibility_check;
+                adv_config.fire_without_aim = CS2::config.trigger_always_on;
+                adv_config.mode = 3; // PrePost
+                adv_config.pre_fire_ms = CS2::config.trigger_delay_ms;
+                adv_config.post_fire_ms = 50.0f;
+                adv_config.min_time_between_shots = 50.0f;
+                adv_config.deadzone_px = 5.0f;
+                adv_config.max_distance_m = CS2::config.aim_max_dist;
+                first_open = false;
+            }
+            
+            if (Gameplay::UI::DrawTriggerbotConfig("Triggerbot Avançado (CS2)", adv_config, "CS2")) {
+                CS2::config.trigger_enabled = adv_config.enabled;
+                CS2::config.trigger_visibility_check = adv_config.visible_only;
+                CS2::config.trigger_always_on = adv_config.fire_without_aim;
+                CS2::config.trigger_delay_ms = static_cast<int>(adv_config.pre_fire_ms);
+            }
+            
+            ImGui::Separator();
+            if (ImGui::Button("Fechar", ImVec2(-1, 0))) {
+                ImGui::CloseCurrentPopup();
+                first_open = true;
+            }
+            ImGui::EndPopup();
+        }
     }
     CyberWidgets::EndCard();
 }

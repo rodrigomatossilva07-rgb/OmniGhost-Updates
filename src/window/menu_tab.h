@@ -10,6 +10,7 @@ enum class MenuTab : int {
     TAB_SAVECONFIG,
     TAB_STATUS,
     TAB_RADAR,
+    TAB_PROFILE,
 
     TAB_CS2_VISUALS = 100,
     TAB_CS2_AIM,
@@ -39,7 +40,6 @@ enum class MenuTab : int {
 
     TAB_FORTNITE_VISUALS = 500,
     TAB_FORTNITE_AIM,
-    TAB_FORTNITE_STATUS,
 
 };
 
@@ -51,6 +51,7 @@ void DrawRadar();
 void DrawFriends();
 void DrawSaveConfigs();
 void DrawFiveMStatus();
+void DrawProfile();
 
 class Overlay;
 void DrawConfigs(Overlay* self);
@@ -64,7 +65,6 @@ void DrawCs2Status();
 
 void DrawFortniteVisuals();
 void DrawFortniteAim();
-void DrawFortniteStatus();
 
 
 void DrawUnifiedAim();

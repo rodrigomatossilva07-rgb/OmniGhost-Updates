@@ -88,5 +88,5 @@ public sealed record AdminOptions(
 
     private static bool IsActor(string value) =>
         value.Length is >= 1 and <= 64 && value.All(character =>
-            char.IsAsciiLetterOrDigit(character) || character is '-' or '_' or '.');
+            char.IsAsciiLetterOrDigit(character) || character is '-' or '_' or '.' or '@');
 }

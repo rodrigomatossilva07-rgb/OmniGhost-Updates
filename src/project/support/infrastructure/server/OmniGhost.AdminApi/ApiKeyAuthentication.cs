@@ -13,7 +13,8 @@ public sealed class ApiKeyAuthenticator(AdminOptions options)
             return null;
 
         var credential = authorization[prefix.Length..].Trim();
-        var separator = credential.IndexOf('.');
+        // Generated secrets are base64url and contain no dots; account names may contain dots.
+        var separator = credential.LastIndexOf('.');
         if (separator <= 0 || separator == credential.Length - 1) return null;
         var actor = credential[..separator];
         var secret = credential[(separator + 1)..];

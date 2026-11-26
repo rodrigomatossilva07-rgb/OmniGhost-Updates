@@ -90,6 +90,7 @@ bool JsonGetBool(ParsedJson* json, const char* key, bool defaultValue = false);
 int JsonGetInt(ParsedJson* json, const char* key, int defaultValue = 0);
 const char* JsonGetString(ParsedJson* json, const char* key, const char* defaultValue = "");
 ParsedJson* JsonGetArray(ParsedJson* json, const char* key);
+ParsedJson* JsonGetObject(ParsedJson* json, const char* key);
 int JsonArraySize(ParsedJson* array);
 ParsedJson* JsonArrayGet(ParsedJson* array, int index);
 bool JsonHasKey(ParsedJson* json, const char* key);
@@ -367,8 +368,10 @@ bool Draw() {
         });
     }
 
-    if (g_nav == static_cast<int>(NavPage::Admin) && !OmniGhost::Licensing::IsAdmin())
+    if (g_nav == static_cast<int>(NavPage::Admin) && !OmniGhost::Licensing::IsAdmin()) {
+        AdminPanel::EndAdminApiSession();
         ChangeNavigation(static_cast<int>(NavPage::Home));
+    }
 
     const PerformanceMode::State performance = PerformanceMode::Update(
         ImGui::GetIO().Framerate,
@@ -385,7 +388,8 @@ bool Draw() {
         else if (g_nav != static_cast<int>(NavPage::Home)) ChangeNavigation(static_cast<int>(NavPage::Home));
     }
 
-    DrawBackground(background, display, performance.effective, !onboardingRequired);
+    DrawBackground(background, display, performance.effective || g_nav == static_cast<int>(NavPage::Admin),
+                   !onboardingRequired && g_nav != static_cast<int>(NavPage::Admin));
 
     if (g_nav == static_cast<int>(NavPage::Home)) {
         DrawHome(display);

@@ -84,7 +84,7 @@ namespace {
             // Latin and Cyrillic characters used by the available languages.
             static const ImWchar ranges[] = {
                 0x0020, 0x024F, 0x0400, 0x052F, 0x2000, 0x206F,
-                0x20AC, 0x20AC, 0x2190, 0x2193, 0x2713, 0x2713, 0
+                0x20AC, 0x20AC, 0x2190, 0x2193, 0x2605, 0x2606, 0x2713, 0x2713, 0
             };
             if (ImFont* font = atlas->AddFontFromFileTTF(candidate.c_str(), size_pixels, &cfg, ranges))
                 return font;

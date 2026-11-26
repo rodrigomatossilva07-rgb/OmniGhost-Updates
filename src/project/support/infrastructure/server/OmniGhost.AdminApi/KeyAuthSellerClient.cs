@@ -42,13 +42,14 @@ public sealed class KeyAuthSellerClient : IDisposable
             new("type", type)
         };
         content.AddRange(parameters);
-        var uri = options.KeyAuthSellerEndpoint;
+        // The Seller API accepts these operations as query parameters on GET.
+        // Never include this URI in logs or errors: it contains the seller key.
+        var query = string.Join("&", content.Where(item => item.Value is not null)
+            .Select(item => $"{Uri.EscapeDataString(item.Key)}={Uri.EscapeDataString(item.Value!)}"));
+        var uri = new UriBuilder(options.KeyAuthSellerEndpoint) { Query = query }.Uri;
 
         try {
-            using var body = new FormUrlEncodedContent(
-                content.Where(item => item.Value is not null)
-                       .Select(item => new KeyValuePair<string, string>(item.Key, item.Value!)));
-            using var request = new HttpRequestMessage(HttpMethod.Post, uri) { Content = body };
+            using var request = new HttpRequestMessage(HttpMethod.Get, uri);
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             if ((int)response.StatusCode is < 200 or >= 300)
                 return new(false, $"KeyAuth returned HTTP {(int)response.StatusCode}.", new JsonObject());

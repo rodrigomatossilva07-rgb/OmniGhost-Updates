@@ -428,7 +428,7 @@ public static class AdminEndpoints
         var response = await keyAuth.CallAsync("fetchallbans", context.RequestAborted);
         if (!response.Success) return UpstreamFailure(response);
         var bans = response.Payload["bans"] as JsonArray ?? [];
-        return Results.Ok(new { items = bans.Select(node => node.DeepClone()).ToList(), count = bans.Count });
+        return Results.Ok(new { items = bans.Select(node => node?.DeepClone()).ToList(), count = bans.Count });
     }
 
     private static async Task<IResult> CreateIpBanAsync(HttpContext context, KeyAuthSellerClient keyAuth, AuditLog audit, JsonObject body)
@@ -500,14 +500,14 @@ public static class AdminEndpoints
         var response = await keyAuth.CallAsync("fetchannouncements", context.RequestAborted);
         if (!response.Success) return UpstreamFailure(response);
         var anns = response.Payload["announcements"] as JsonArray ?? [];
-        return Results.Ok(new { items = anns.Select(node => node.DeepClone()).ToList(), count = anns.Count });
+        return Results.Ok(new { items = anns.Select(node => node?.DeepClone()).ToList(), count = anns.Count });
     }
 
     private static async Task<IResult> CreateAnnouncementAsync(HttpContext context, KeyAuthSellerClient keyAuth, AuditLog audit, CreateAnnouncementRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Title) || request.Title.Length > 128 ||
             string.IsNullOrWhiteSpace(request.Body) || request.Body.Length > 8192 ||
-            !new[] { "info", "warning", "critical" }.Contains(request.Severity?.ToLowerInvariant()))
+            string.IsNullOrWhiteSpace(request.Severity) || !new[] { "info", "warning", "critical" }.Contains(request.Severity.ToLowerInvariant()))
             return Results.BadRequest(new { error = "Title (max 128), body (max 8192), severity (info/warning/critical) required." });
         var games = request.TargetGames is not null && request.TargetGames.Length > 0
             ? string.Join(",", request.TargetGames.Where(g => ValidIdentifier(g, 32)))
@@ -532,7 +532,7 @@ public static class AdminEndpoints
             parameters.Add(Parameter("games", games));
         }
         if (request.IsActive.HasValue) parameters.Add(Parameter("active", request.IsActive.Value ? "true" : "false"));
-        var response = await keyAuth.CallAsync("editannouncement", context.RequestAborted, parameters);
+        var response = await keyAuth.CallAsync("editannouncement", parameters, context.RequestAborted);
         await audit.WriteAsync(context.Actor(), context, "announcement.update", response.Success, $"id={id}; result={response.Message}");
         return SellerResult(response);
     }
@@ -550,7 +550,7 @@ public static class AdminEndpoints
         var response = await keyAuth.CallAsync("fetchmaintenance", context.RequestAborted);
         if (!response.Success) return UpstreamFailure(response);
         var windows = response.Payload["maintenance"] as JsonArray ?? [];
-        return Results.Ok(new { items = windows.Select(node => node.DeepClone()).ToList(), count = windows.Count });
+        return Results.Ok(new { items = windows.Select(node => node?.DeepClone()).ToList(), count = windows.Count });
     }
 
     private static async Task<IResult> CreateMaintenanceWindowAsync(HttpContext context, KeyAuthSellerClient keyAuth, AuditLog audit, CreateMaintenanceWindowRequest request)

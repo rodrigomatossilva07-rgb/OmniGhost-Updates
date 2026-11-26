@@ -33,6 +33,7 @@ struct AdminResponse {
 class AdminApiClient {
 public:
     explicit AdminApiClient(const AdminConfig& config);
+    ~AdminApiClient();
 
     // Users
     AdminResponse ListUsers(std::string_view filter = "", int page = 1, int pageSize = 50);

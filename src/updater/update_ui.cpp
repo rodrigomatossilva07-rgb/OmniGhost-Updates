@@ -91,7 +91,7 @@ void DrawVersionLine(const Update::Snapshot& state) {
     }
     const std::string available = UiFormat::Version(state.availableVersion);
     CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-        "%s  â†’  %s", installed.c_str(), available.c_str());
+        "%s  →  %s", installed.c_str(), available.c_str());
 }
 
 }
@@ -234,7 +234,7 @@ void Draw() {
             service.InstallPreparedUpdateAsync();
         if (!state.mandatory) {
             ImGui::SameLine();
-            if (CyberWidgets::Button(state.installOnExit ? OGS_CSTR("Instalar ao sair âœ“") : OGS_CSTR("Instalar ao sair"),
+            if (CyberWidgets::Button(state.installOnExit ? OGS_CSTR("Instalar ao sair ✓") : OGS_CSTR("Instalar ao sair"),
                     CyberWidgets::ButtonStyle::Secondary, ImVec2(CyberTheme::Px(150.0f), CyberTheme::Px(34.0f))))
                 service.ScheduleInstallOnExit();
             if (CyberWidgets::Button(OGS_CSTR("Mais tarde"), CyberWidgets::ButtonStyle::Ghost,
@@ -250,7 +250,7 @@ void Draw() {
         if (!state.updateFromVersion.empty()) {
             const std::string from = UiFormat::Version(state.updateFromVersion);
             const std::string to = UiFormat::Version(OmniGhost::Version);
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Success, "%s â†’ %s", from.c_str(), to.c_str());
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Success, "%s → %s", from.c_str(), to.c_str());
         }
         if (!state.releaseNotesForCompletedUpdate.empty()) {
             if (CyberWidgets::Button(OGS_CSTR("O que há de novo"), CyberWidgets::ButtonStyle::Secondary,

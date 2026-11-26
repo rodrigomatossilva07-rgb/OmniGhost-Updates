@@ -16,6 +16,8 @@ namespace CyberIcons {
     void DrawVehicleIcon(ImDrawList* draw_list, ImVec2 pos, float size, ImU32 color);
     void DrawStatusIcon(ImDrawList* draw_list, ImVec2 pos, float size, ImU32 color);
     void DrawRadarIcon(ImDrawList* draw_list, ImVec2 pos, float size, ImU32 color);
+    void DrawProfileIcon(ImDrawList* draw_list, ImVec2 pos, float size, ImU32 color);
+    void DrawTriggerIcon(ImDrawList* draw_list, ImVec2 pos, float size, ImU32 color);
 
 
     inline void DrawBuildIcon(ImDrawList* d, ImVec2 p, float s, ImU32 c) { DrawStatusIcon(d, p, s, c); }

@@ -207,7 +207,7 @@ void DrawAimPreview() {
 
         ImVec2 info_pos(origin.x + 20.f, origin.y + 20.f);
         char fov_str[32];
-        std::snprintf(fov_str, sizeof(fov_str), "FOV: %.0fÂ°", state.fov);
+        std::snprintf(fov_str, sizeof(fov_str), "FOV: %.0f°", state.fov);
         draw->AddText(info_pos, CyberTheme::U32(CyberTheme::Colors.Text), fov_str);
 
         char bone_str[32];
@@ -507,15 +507,15 @@ void DrawCommunityConfigHub() {
             if (item.official) CyberWidgets::Badge("OFICIAL", CyberWidgets::TextTone::Accent);
             else if (item.verified) CyberWidgets::Badge("VERIFICADA", CyberWidgets::TextTone::Success);
             else CyberWidgets::Badge(item.status.c_str(), CyberWidgets::TextTone::Warning);
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%s Â· v%d Â· %d downloads Â· %.1f/5",
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%s · v%d · %d downloads · %.1f/5",
                 item.author.c_str(), item.version, item.downloads, item.rating);
             CyberWidgets::TextLineF(item.compatible ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning,
-                "Schema %d Â· Launcher mínimo %s Â· %s", item.schema_version, item.min_launcher_version.c_str(),
+                "Schema %d · Launcher mínimo %s · %s", item.schema_version, item.min_launcher_version.c_str(),
                 item.compatible ? "Compatível" : "Requer launcher mais recente");
             if (!item.description.empty()) CyberWidgets::TextLine(item.description.c_str(), CyberWidgets::TextTone::Secondary);
             if (!item.tags.empty()) {
                 std::string label;
-                for (const auto& tag : item.tags) { if (!label.empty()) label += " Â· "; label += tag; }
+                for (const auto& tag : item.tags) { if (!label.empty()) label += " · "; label += tag; }
                 CyberWidgets::TextLine(label.c_str(), CyberWidgets::TextTone::Accent);
             }
             if (CyberWidgets::CyberButton(Loc::Tr("save.preview"), ImVec2(130.f, 30.f))) {
@@ -541,7 +541,7 @@ void DrawCommunityConfigHub() {
             ImGui::SameLine();
             for (int star = 1; star <= 5; ++star) {
                 if (star > 1) ImGui::SameLine(0.f, 3.f);
-                const std::string label = (star <= item.my_rating ? "â˜…##rate" : "â˜†##rate") + std::to_string(star);
+                const std::string label = (star <= item.my_rating ? "★##rate" : "☆##rate") + std::to_string(star);
                 if (CyberWidgets::Button(label.c_str(), CyberWidgets::ButtonStyle::Ghost, ImVec2(30.f, 30.f))) {
                     const bool ok = config_manager::RateCommunityConfig(item.id, star);
                     if (ok) loaded = config_manager::RefreshCommunityConfigs(scopeValue, search, sortValue);
@@ -615,7 +615,7 @@ void DrawSaveConfigs()
     };
 
     CyberWidgets::BeginCard(app_settings::T("Perfis por jogo", "Game profiles", "Spielprofile", "Perfiles de juego", "Profils de jeu", "Profili di gioco", "Профили игр"));
-    CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, std::string{app_settings::T("%s Â· perfil atual: %s", "%s Â· current profile: %s", "%s Â· aktuelles Profil: %s", "%s Â· perfil actual: %s", "%s Â· profil actuel: %s", "%s Â· profilo attuale: %s", "%s Â· текущий профиль: %s")}.c_str(),
+    CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, std::string{app_settings::T("%s · perfil atual: %s", "%s · current profile: %s", "%s · aktuelles Profil: %s", "%s · perfil actual: %s", "%s · profil actuel: %s", "%s · profilo attuale: %s", "%s · текущий профиль: %s")}.c_str(),
         ActiveGameName(), config_manager::CurrentGameProfileName());
     CyberWidgets::TextLine(app_settings::T("Os perfis são apenas conjuntos de configuração; não indicam segurança nem deteção.",
                                           "Profiles are configuration sets; they do not indicate safety or detection.",

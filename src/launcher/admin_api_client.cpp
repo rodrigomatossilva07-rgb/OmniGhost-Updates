@@ -13,6 +13,10 @@ using json = nlohmann::json;
 AdminApiClient::AdminApiClient(const AdminConfig& config)
     : config_(config), http_(std::make_unique<OmniGhost::Update::WinHttpClient>()) {}
 
+AdminApiClient::~AdminApiClient() {
+    if (!config_.apiKey.empty()) SecureZeroMemory(config_.apiKey.data(), config_.apiKey.size());
+}
+
 std::string AdminApiClient::BuildUrl(std::string_view path) const {
     std::string url = config_.baseUrl;
     if (!url.empty() && url.back() == '/') url.pop_back();
@@ -49,6 +53,10 @@ AdminResponse AdminApiClient::RequestInternal(std::string_view method, const std
         result.error = "Invalid URL";
         return result;
     }
+    if (comp.nScheme != INTERNET_SCHEME_HTTPS || comp.dwHostNameLength == 0) {
+        result.error = "A Admin API requer um endereço HTTPS válido.";
+        return result;
+    }
 
     std::vector<wchar_t> host(comp.dwHostNameLength + 1);
     std::vector<wchar_t> pathW(comp.dwUrlPathLength + 1);
@@ -73,6 +81,11 @@ AdminResponse AdminApiClient::RequestInternal(std::string_view method, const std
     auto request = OmniGhost::Platform::MakeWinHttpHandle(
         WinHttpOpenRequest(connection.get(), methodW.c_str(), comp.lpszUrlPath, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE));
     if (!request) { result.error = "WinHttpOpenRequest failed"; return result; }
+    DWORD redirectPolicy = WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
+    if (!WinHttpSetOption(request.get(), WINHTTP_OPTION_REDIRECT_POLICY, &redirectPolicy, sizeof(redirectPolicy))) {
+        result.error = "Não foi possível proteger a ligação administrativa.";
+        return result;
+    }
 
     DWORD protocols = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3;
     WinHttpSetOption(request.get(), WINHTTP_OPTION_SECURE_PROTOCOLS, &protocols, sizeof(protocols));

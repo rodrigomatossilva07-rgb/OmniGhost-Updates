@@ -1,4 +1,6 @@
 using System.Threading.RateLimiting;
+using System.Security.Cryptography;
+using System.Text;
 using OmniGhost.AdminApi;
 
 var builder = WebApplication.CreateSlimBuilder(args);
@@ -30,7 +32,21 @@ builder.Services.AddRateLimiter(configuration => {
 var app = builder.Build();
 if (!app.Environment.IsDevelopment()) {
     app.UseHsts();
-    if (adminOptions.TrustForwardedHttps) {
+    var containerProxySecret = Environment.GetEnvironmentVariable("OMNIGHOST_ADMIN_CONTAINER_PROXY_SECRET");
+    if (!string.IsNullOrWhiteSpace(containerProxySecret)) {
+        app.Use(async (context, next) => {
+            var supplied = context.Request.Headers["X-Omni-Container-Proxy"].ToString();
+            var expectedHash = SHA256.HashData(Encoding.UTF8.GetBytes(containerProxySecret));
+            var suppliedHash = SHA256.HashData(Encoding.UTF8.GetBytes(supplied));
+            if (!CryptographicOperations.FixedTimeEquals(expectedHash, suppliedHash)) {
+                await Results.Problem("Secure proxy authentication required.", statusCode: StatusCodes.Status403Forbidden).ExecuteAsync(context);
+                return;
+            }
+            context.Request.Scheme = "https";
+            context.Request.Headers.Remove("X-Omni-Container-Proxy");
+            await next();
+        });
+    } else if (adminOptions.TrustForwardedHttps) {
 
 
 

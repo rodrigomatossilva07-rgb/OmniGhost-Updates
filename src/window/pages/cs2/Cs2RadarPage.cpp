@@ -328,7 +328,7 @@ void DrawCs2Status() {
     std::snprintf(value, sizeof(value), "%d de %d elegíveis", filterCandidates, aliveRemote);
     HealthRow("Após filtros", value,
         aliveRemote == 0 || filterCandidates > 0 ? HealthStatus::Ok : HealthStatus::Warning);
-    std::snprintf(value, sizeof(value), "equipa %d Â· bots %d Â· visib. %d Â· distância %d",
+    std::snprintf(value, sizeof(value), "equipa %d · bots %d · visib. %d · distância %d",
         rejectedTeam, rejectedBots, rejectedVisibility, rejectedDistance);
     KeyValueRow("Excluídos", value);
     KeyValueRow("Equipa", CS2::config.team_check ? "Ocultar aliados" : "Mostrar todos");

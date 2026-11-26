@@ -55,6 +55,7 @@ namespace aimbot {
 #endif
 
 #include "gameplay/unified_aim.h"
+#include "gameplay/triggerbot_integration.h"
 #include <memory>
 
 namespace aimbot {
@@ -83,6 +84,8 @@ namespace aimbot {
 
 
     static std::unique_ptr<Gameplay::UnifiedAim::UnifiedAimbot> g_unified_aimbot;
+static Gameplay::TriggerIntegration g_trigger_integration;
+static bool g_trigger_initialized = false;
 
 
 
@@ -185,6 +188,33 @@ namespace aimbot {
         current_target = {};
         beeped_for_lock = false;
         ResetAimStabilityState();
+
+        // Initialize new triggerbot integration
+        if (!g_trigger_initialized) {
+            Gameplay::TriggerIntegrationConfig tcfg;
+            tcfg.enabled = config.trigger_enabled;
+            tcfg.visible_only = config.trigger_visibility_check;
+            tcfg.fire_without_aim = config.trigger_always_on;
+            tcfg.mode = config.trigger_burst ? 4 : 3; // Burst or PrePost
+            tcfg.pre_fire_ms = config.trigger_delay * 1000.0f;
+            tcfg.post_fire_ms = config.trigger_cooldown * 1000.0f;
+            tcfg.min_time_between_shots = config.trigger_cooldown * 1000.0f;
+            tcfg.deadzone_px = config.trigger_fov;
+            tcfg.max_distance_m = EffectiveMaxDistance(true);
+            tcfg.weapon_mask = ~0ULL;
+            tcfg.reaction_variance_ms = config.trigger_random_extra * 1000.0f;
+            tcfg.simulate_human_reaction = true;
+            tcfg.burst_shots = 3;
+            tcfg.burst_interval_ms = config.trigger_burst_duration * 1000.0f;
+            tcfg.burst_cooldown_ms = config.trigger_burst_interval * 1000.0f;
+            tcfg.ignore_knocked = true;
+            tcfg.ignore_teammates = config.trigger_team_check;
+            tcfg.ignore_npcs = false;
+            tcfg.min_health_percent = 1.0f;
+            
+            g_trigger_integration.Initialize(tcfg);
+            g_trigger_initialized = true;
+        }
     }
 
     void ResetTrackingState() {

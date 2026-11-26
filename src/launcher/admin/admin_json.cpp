@@ -48,6 +48,13 @@ ParsedJson* JsonGetArray(ParsedJson* json, const char* key) {
     return result;
 }
 
+ParsedJson* JsonGetObject(ParsedJson* json, const char* key) {
+    if (!json || !json->value.contains(key) || !json->value[key].is_object()) return nullptr;
+    auto* result = new ParsedJson();
+    result->value = json->value[key];
+    return result;
+}
+
 int JsonArraySize(ParsedJson* array) {
     if (!array || !array->value.is_array()) return 0;
     return static_cast<int>(array->value.size());

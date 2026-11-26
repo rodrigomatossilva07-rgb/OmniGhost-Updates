@@ -202,4 +202,31 @@ namespace CyberIcons {
         dl->AddLine(ImVec2(c.x - r, c.y), ImVec2(c.x + r, c.y), color, 1.0f);
     }
 
+    void DrawProfileIcon(ImDrawList* dl, ImVec2 pos, float size, ImU32 color) {
+        const ImVec2 c = C(pos, size);
+        // Silhueta de usuário
+        dl->AddCircle(ImVec2(c.x, c.y - size * 0.08f), size * 0.18f, color, 12, 1.8f);
+        dl->AddBezierCubic(
+            ImVec2(pos.x + size * 0.15f, pos.y + size * 0.88f),
+            ImVec2(pos.x + size * 0.15f, pos.y + size * 0.52f),
+            ImVec2(pos.x + size * 0.85f, pos.y + size * 0.52f),
+            ImVec2(pos.x + size * 0.85f, pos.y + size * 0.88f),
+            color, 1.8f);
+        // Badge pequeno no canto (indicador de status)
+        dl->AddCircleFilled(ImVec2(pos.x + size * 0.75f, pos.y + size * 0.75f), size * 0.07f, IM_COL32(100, 255, 150, 255), 8);
+    }
+
+    void DrawTriggerIcon(ImDrawList* dl, ImVec2 pos, float size, ImU32 color) {
+        const ImVec2 c = C(pos, size);
+        // Ícone de gatilho/trigger
+        dl->AddCircle(c, size * 0.35f, color, 16, 1.8f);
+        // Gatilho
+        dl->AddLine(ImVec2(c.x + size * 0.35f, c.y),
+                    ImVec2(c.x + size * 0.55f, c.y), color, 2.0f);
+        dl->AddLine(ImVec2(c.x + size * 0.55f, c.y - size * 0.15f),
+                    ImVec2(c.x + size * 0.55f, c.y + size * 0.15f), color, 1.5f);
+        // Círculo central (mira)
+        dl->AddCircleFilled(c, size * 0.08f, color, 8);
+    }
+
 }

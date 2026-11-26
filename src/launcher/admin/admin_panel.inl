@@ -30,6 +30,9 @@ enum class Section : int {
     Security,
     Developer,
     Support,
+    Marketplace,
+    ApiConfig,
+    Preferences,
 };
 
 struct UiState {
@@ -89,6 +92,11 @@ struct UiState {
     std::string adminApiUrl;
     std::string adminApiKey;
     bool configSaved = false;
+    bool connecting = false;
+    bool compactNavigation = false;
+    double connectedAt = 0.0;
+    std::string connectionMessage;
+    std::future<LauncherAdmin::AdminResponse> connectionRequest;
 };
 
 UiState& State() {
@@ -96,18 +104,34 @@ UiState& State() {
     return state;
 }
 
-static LauncherAdmin::AdminApiClient* GetApiClient() {
-    static LauncherAdmin::AdminApiClient* client = nullptr;
+static std::unique_ptr<LauncherAdmin::AdminApiClient> g_adminClient;
+
+void EndAdminApiSession() {
     auto& state = State();
-    if (!client || client->GetConfigHash() != std::hash<std::string>{}(state.adminApiUrl + "|" + state.adminApiKey)) {
+    state.configSaved = false;
+    state.connectedAt = 0.0;
+    g_adminClient.reset();
+    if (!state.adminApiKey.empty()) {
+        SecureZeroMemory(state.adminApiKey.data(), state.adminApiKey.size());
+        state.adminApiKey.clear();
+    }
+}
+
+static LauncherAdmin::AdminApiClient* GetApiClient() {
+    auto& state = State();
+    if (state.configSaved && ImGui::GetTime() - state.connectedAt > 900.0) {
+        EndAdminApiSession();
+        state.connectionMessage = "Sessão administrativa expirada. Liga novamente.";
+    }
+    if (!state.configSaved) return nullptr;
+    if (!g_adminClient || g_adminClient->GetConfigHash() != std::hash<std::string>{}(state.adminApiUrl + "|" + state.adminApiKey)) {
         if (state.adminApiUrl.empty() || state.adminApiKey.empty()) return nullptr;
         LauncherAdmin::AdminConfig cfg;
         cfg.baseUrl = state.adminApiUrl;
         cfg.apiKey = state.adminApiKey;
-        delete client;
-        client = new LauncherAdmin::AdminApiClient(cfg);
+        g_adminClient = std::make_unique<LauncherAdmin::AdminApiClient>(cfg);
     }
-    return client;
+    return g_adminClient.get();
 }
 
 bool OpenExternal(const wchar_t* url, const char* failure) {
@@ -128,37 +152,51 @@ const char* SectionTitle(Section section) {
     case Section::Security: return OGS_CSTR("Segurança e auditoria");
     case Section::Developer: return OGS_CSTR("Ferramentas");
     case Section::Support: return OGS_CSTR("Suporte e operações");
+    case Section::Marketplace: return OGS_CSTR("Marketplace");
+    case Section::ApiConfig: return OGS_CSTR("Admin API");
+    case Section::Preferences: return OGS_CSTR("Preferências administrativas");
     }
     return OGS_CSTR("Admin");
 }
 
 void DrawSectionNavigation() {
-    static const struct Entry { Section section; const char* label; } entries[] = {
-        {Section::Overview, OGS_CSTR("VISÃO GERAL")},
-        {Section::Users, OGS_CSTR("UTILIZADORES")},
-        {Section::Licenses, OGS_CSTR("LICENÇAS")},
-        {Section::Analytics, OGS_CSTR("ANALYTICS")},
-        {Section::Games, OGS_CSTR("JOGOS / OFFSETS")},
-        {Section::Builds, OGS_CSTR("BUILDS / RELEASES")},
-        {Section::Security, OGS_CSTR("SEGURANÇA")},
-        {Section::Developer, OGS_CSTR("FERRAMENTAS")},
-        {Section::Support, OGS_CSTR("SUPORTE")},
+    static const struct Entry { Section section; const char* label; const char* group; const char* icon; } entries[] = {
+        {Section::Overview, "Visão geral", "PRINCIPAL", "01"},
+        {Section::Analytics, "Análise", "PRINCIPAL", "02"},
+        {Section::Users, "Utilizadores", "GESTÃO", "03"},
+        {Section::Licenses, "Licenças", "GESTÃO", "04"},
+        {Section::Games, "Produtos", "GESTÃO", "05"},
+        {Section::Marketplace, "Marketplace", "GESTÃO", "06"},
+        {Section::Builds, "Builds e versões", "SISTEMA", "07"},
+        {Section::Security, "Segurança", "SISTEMA", "08"},
+        {Section::Developer, "Ferramentas", "SISTEMA", "09"},
+        {Section::Support, "Suporte", "SISTEMA", "10"},
+        {Section::ApiConfig, "Admin API", "CONFIGURAÇÃO", "11"},
+        {Section::Preferences, "Preferências", "CONFIGURAÇÃO", "12"},
     };
 
     UiState& state = State();
-    CyberWidgets::Badge(OGS_CSTR("ADMIN CONTROL"), CyberWidgets::TextTone::Accent);
-    ImGui::Dummy(ImVec2(0.f, S(9.f)));
+    if (CyberWidgets::CyberButton(state.compactNavigation ? ">>" : "Painel administrativo  <<",
+            ImVec2(-1.f, S(36.f)))) state.compactNavigation = !state.compactNavigation;
+    ImGui::Dummy(ImVec2(0.f, S(5.f)));
+    const char* previousGroup = nullptr;
     for (const Entry& entry : entries) {
+        if (!state.compactNavigation && (!previousGroup || std::strcmp(previousGroup, entry.group) != 0)) {
+            ImGui::Dummy(ImVec2(0.f, S(6.f)));
+            ImGui::TextColored(CyberTheme::Colors.TextDisabled, "%s", entry.group);
+            previousGroup = entry.group;
+        }
         const bool selected = state.section == entry.section;
         ImGui::PushID(static_cast<int>(entry.section));
-        if (selected) {
-            const ImVec4 selectedColor = CyberTheme::Mix(CyberTheme::Colors.Card, CyberTheme::Colors.Gold, .16f);
-            ImGui::PushStyleColor(ImGuiCol_Header, selectedColor);
-            ImGui::PushStyleColor(ImGuiCol_HeaderHovered, selectedColor);
-        }
-        if (ImGui::Selectable(entry.label, selected, 0, ImVec2(ImGui::GetContentRegionAvail().x, S(34.f))))
+        const std::string label = state.compactNavigation ? entry.icon : std::string(entry.icon) + "   " + entry.label;
+        if (CyberWidgets::Button(label.c_str(), CyberWidgets::ButtonStyle::Secondary, ImVec2(-1.f, S(34.f))))
             state.section = entry.section;
-        if (selected) ImGui::PopStyleColor(2);
+        if (state.compactNavigation && ImGui::IsItemHovered()) ImGui::SetTooltip("%s", entry.label);
+        if (selected) {
+            const ImVec2 a = ImGui::GetItemRectMin(), b = ImGui::GetItemRectMax();
+            ImGui::GetWindowDrawList()->AddRect(a, b, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, .75f), CyberTheme::Metrics::ControlRounding);
+            ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(a.x, a.y + S(5.f)), ImVec2(a.x + S(3.f), b.y - S(5.f)), C_GOLD(), S(1.f));
+        }
         ImGui::PopID();
     }
 }
@@ -179,30 +217,67 @@ void DrawRemoteBoundary(const char* title, const char* description, bool keyAuth
 
 void DrawApiConfig() {
     UiState& state = State();
-    CyberWidgets::BeginCard(OGS_CSTR("CONFIGURAÇÃO DA ADMIN API"), 0.f);
-    CyberWidgets::TextLine(OGS_CSTR("Configure a URL e a chave da Admin API para ativar as funcionalidades remotas."), CyberWidgets::TextTone::Secondary);
+    if (state.connecting && state.connectionRequest.valid() &&
+        state.connectionRequest.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        try {
+            const auto response = state.connectionRequest.get();
+            state.configSaved = response.success() && OmniGhost::Licensing::IsAdmin();
+            state.connectedAt = state.configSaved ? ImGui::GetTime() : 0.0;
+            state.connectionMessage = state.configSaved ? "Ligação e autorização confirmadas."
+                : response.statusCode == 401 ? "Credencial inválida ou expirada."
+                : response.statusCode == 403 ? "A conta não tem permissão administrativa no servidor."
+                : "Não foi possível ligar à Admin API. Verifica o serviço e tenta novamente.";
+        } catch (...) {
+            state.configSaved = false;
+            state.connectionMessage = "Não foi possível ligar à Admin API.";
+        }
+        state.connecting = false;
+    }
+    CyberWidgets::BeginCard(OGS_CSTR("Configuração da Admin API"), (std::min)(ImGui::GetContentRegionAvail().x, S(700.f)));
+    CyberWidgets::TextLine(OGS_CSTR("Usa o endereço do servidor autorizado e uma credencial individual. A chave fica apenas nesta sessão."), CyberWidgets::TextTone::Secondary);
+    CyberWidgets::TextLine(OGS_CSTR("Indica o endereço HTTPS real do teu servidor. O endereço apresentado é apenas um exemplo."), CyberWidgets::TextTone::Secondary);
     ImGui::Dummy(ImVec2(0.f, S(9.f)));
 
+    CyberWidgets::TextLine("Endereço HTTPS do servidor", CyberWidgets::TextTone::Primary);
+    ImGui::BeginDisabled(state.connecting || state.configSaved);
     ImGui::SetNextItemWidth(-1.f);
-    if (ImGui::InputTextWithHint(OGS_CSTR("##admin_api_url"), OGS_CSTR("https://admin.omnighost.store"), &state.adminApiUrl)) {
-        state.adminApiUrl.shrink_to_fit();
-    }
+    ImGui::InputTextWithHint(OGS_CSTR("##admin_api_url"), OGS_CSTR("https://admin.omnighost.store"), &state.adminApiUrl);
     ImGui::Dummy(ImVec2(0.f, S(6.f)));
+    CyberWidgets::TextLine("Credencial administrativa individual", CyberWidgets::TextTone::Primary);
     ImGui::SetNextItemWidth(-1.f);
-    if (ImGui::InputTextWithHint(OGS_CSTR("##admin_api_key"), OGS_CSTR("actor.secret (Bearer token)"), &state.adminApiKey, ImGuiInputTextFlags_Password)) {
-        state.adminApiKey.shrink_to_fit();
-    }
+    ImGui::InputTextWithHint(OGS_CSTR("##admin_api_key"), OGS_CSTR("utilizador.segredo"), &state.adminApiKey, ImGuiInputTextFlags_Password);
+    ImGui::EndDisabled();
     ImGui::Dummy(ImVec2(0.f, S(9.f)));
 
-    bool hasConfig = !state.adminApiUrl.empty() && !state.adminApiKey.empty();
-    if (CyberWidgets::Button(hasConfig ? OGS_CSTR("RECONECTAR") : OGS_CSTR("SALVAR E CONECTAR"),
-                             CyberWidgets::ButtonStyle::Primary, ImVec2(S(180.f), S(34.f)), hasConfig)) {
-        state.configSaved = true;
+    const bool hasConfig = !state.adminApiUrl.empty() && !state.adminApiKey.empty();
+    if (!state.configSaved && CyberWidgets::LoadingButton("Guardar e ligar", "A ligar...", state.connecting,
+            CyberWidgets::ButtonStyle::Primary, ImVec2(S(180.f), S(34.f)), hasConfig)) {
+        LauncherAdmin::AdminConfig config{state.adminApiUrl, state.adminApiKey};
+        state.connectionMessage.clear();
+        state.connecting = true;
+        state.connectionRequest = std::async(std::launch::async, [config = std::move(config)]() mutable {
+            LauncherAdmin::AdminApiClient probe(config);
+            if (!config.apiKey.empty()) SecureZeroMemory(config.apiKey.data(), config.apiKey.size());
+            return probe.GetCapabilities();
+        });
+    } else if (state.configSaved && CyberWidgets::Button("Terminar sessão administrativa",
+                   CyberWidgets::ButtonStyle::Destructive, ImVec2(S(240.f), S(34.f)))) {
+        EndAdminApiSession();
+        state.connectionMessage = "Sessão administrativa terminada neste dispositivo.";
     }
-    ImGui::SameLine();
-    CyberWidgets::TextLine(hasConfig ? OGS_CSTR("✓ Configurado") : OGS_CSTR("✗ Não configurado"),
-                           hasConfig ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Error);
+    if (!state.connectionMessage.empty())
+        CyberWidgets::TextLine(state.connectionMessage.c_str(), state.configSaved ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
     CyberWidgets::EndCard();
+}
+
+bool RequireAdminApi() {
+    if (GetApiClient()) return true;
+    CyberWidgets::BeginCard("Admin API", (std::min)(ImGui::GetContentRegionAvail().x, S(700.f)));
+    CyberWidgets::TextLine("Esta página precisa de uma ligação administrativa autenticada.", CyberWidgets::TextTone::Secondary);
+    if (!State().connectionMessage.empty()) CyberWidgets::TextLine(State().connectionMessage.c_str(), CyberWidgets::TextTone::Warning);
+    if (CyberWidgets::Button("Configurar Admin API", CyberWidgets::ButtonStyle::Primary, ImVec2(S(190.f), S(34.f)))) State().section = Section::ApiConfig;
+    CyberWidgets::EndCard();
+    return false;
 }
 
 void DrawAdminOverview() {
@@ -226,9 +301,8 @@ void DrawAdminOverview() {
     CyberWidgets::Badge(OGS_CSTR("AUTORIZADA"), CyberWidgets::TextTone::Success);
     ImGui::Dummy(ImVec2(0.f, S(7.f)));
     CyberWidgets::KeyValueRow(OGS_CSTR("Operador"), license.remoteUsername.empty() ? "—" : license.remoteUsername.c_str());
-    CyberWidgets::KeyValueRow(OGS_CSTR("Subscrição"), OGS_CSTR("Admin"));
-    CyberWidgets::KeyValueRow(OGS_CSTR("Permissões de produto"), OGS_CSTR("Todos os jogos"));
-    CyberWidgets::HealthRow(OGS_CSTR("Sessão KeyAuth"), license.remoteAuthenticated ? OGS_CSTR("Autenticada") : OGS_CSTR("Inválida"),
+    CyberWidgets::KeyValueRow(OGS_CSTR("Autenticação"), license.websiteAccount ? "OmniGhost" : "KeyAuth");
+    CyberWidgets::HealthRow(OGS_CSTR("Sessão da conta"), license.remoteAuthenticated ? OGS_CSTR("Autenticada") : OGS_CSTR("Inválida"),
         license.remoteAuthenticated ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Error);
     CyberWidgets::EndCard();
 
@@ -243,11 +317,16 @@ void DrawAdminOverview() {
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0.f, gap));
-    CyberWidgets::BeginCard(OGS_CSTR("RESUMO LOCAL"), 0.f);
+    CyberWidgets::BeginCard(OGS_CSTR("RESUMO DESTE DISPOSITIVO"), 0.f);
     CyberWidgets::KeyValueRow(OGS_CSTR("Jogos instalados"), std::to_string(installed).c_str());
     CyberWidgets::KeyValueRow(OGS_CSTR("Jogos ativos"), std::to_string(running).c_str());
     CyberWidgets::KeyValueRow(OGS_CSTR("Sessões registadas neste dispositivo"), std::to_string(sessions).c_str());
     CyberWidgets::KeyValueRow(OGS_CSTR("Build"), OmniGhost::BuildInfo::BuildId);
+    CyberWidgets::EndCard();
+
+    ImGui::Dummy(ImVec2(0.f, gap));
+    CyberWidgets::BeginCard("Atividade administrativa", 0.f);
+    CyberWidgets::EmptyState("SEM ATIVIDADE DISPONÍVEL", State().configSaved ? "Não existem eventos administrativos disponíveis nesta vista." : "Liga a Admin API para consultar os dados administrativos disponíveis.");
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0.f, gap));
@@ -258,7 +337,7 @@ void DrawAdminOverview() {
     if (CyberWidgets::Button(OGS_CSTR("GITHUB ACTIONS"), CyberWidgets::ButtonStyle::Secondary, ImVec2(S(175.f), S(34.f))))
         OpenExternal(OGS_WCSTR("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/actions"), OGS_CSTR("Não foi possível abrir o GitHub Actions."));
     ImGui::SameLine();
-    if (CyberWidgets::Button(OGS_CSTR("VERIFICAR UPDATE"), CyberWidgets::ButtonStyle::Ghost, ImVec2(S(175.f), S(34.f))))
+    if (CyberWidgets::Button(OGS_CSTR("PROCURAR ATUALIZAÇÕES"), CyberWidgets::ButtonStyle::Ghost, ImVec2(S(210.f), S(34.f))))
         OmniGhost::Update::UpdateService::Instance().CheckAsync(true);
     CyberWidgets::EndCard();
 
@@ -267,19 +346,12 @@ void DrawAdminOverview() {
     auto* api = GetApiClient();
     CyberWidgets::BeginCard(OGS_CSTR("ADMIN API STATUS"), 0.f);
     if (api) {
-        auto caps = api->GetCapabilities();
-        if (caps.success()) {
-            CyberWidgets::Badge(OGS_CSTR("CONECTADO"), CyberWidgets::TextTone::Success);
-            ImGui::Dummy(ImVec2(0.f, S(5.f)));
-            CyberWidgets::KeyValueRow(OGS_CSTR("Base URL"), State().adminApiUrl.c_str());
-            CyberWidgets::KeyValueRow(OGS_CSTR("Capacidades"), OGS_CSTR("Users, Licenses, Security, Support, Analytics"));
-        } else {
-            CyberWidgets::Badge(OGS_CSTR("ERRO DE CONEXÃO"), CyberWidgets::TextTone::Error);
-            CyberWidgets::TextLine(caps.error.c_str(), CyberWidgets::TextTone::Error);
-        }
+        CyberWidgets::Badge(OGS_CSTR("LIGAÇÃO CONFIRMADA"), CyberWidgets::TextTone::Success);
+        CyberWidgets::KeyValueRow(OGS_CSTR("Servidor"), State().adminApiUrl.c_str());
     } else {
         CyberWidgets::Badge(OGS_CSTR("NÃO CONFIGURADO"), CyberWidgets::TextTone::Warning);
-        CyberWidgets::TextLine(OGS_CSTR("Configure a Admin API acima para ativar funcionalidades remotas."), CyberWidgets::TextTone::Secondary);
+        CyberWidgets::TextLine(OGS_CSTR("Liga a Admin API para consultar dados remotos."), CyberWidgets::TextTone::Secondary);
+        if (CyberWidgets::Button("Configurar Admin API", CyberWidgets::ButtonStyle::Secondary, ImVec2(S(190.f), S(34.f)))) State().section = Section::ApiConfig;
     }
     CyberWidgets::EndCard();
 }
@@ -289,8 +361,7 @@ void DrawAdminUsers() {
     UiState& state = State();
     auto* api = GetApiClient();
 
-    DrawApiConfig();
-    if (!api) return;
+    if (!RequireAdminApi()) return;
 
     ImGui::Dummy(ImVec2(0.f, S(12.f)));
     CyberWidgets::BeginCard(OGS_CSTR("PESQUISA DE UTILIZADORES"), 0.f);
@@ -355,9 +426,9 @@ void DrawAdminUsers() {
             ImGui::TableSetColumnIndex(1);
             ImGui::Text("%s", JsonGetString(user, "email", "—"));
             ImGui::TableSetColumnIndex(2);
-            ImGui::Text("%s", JsonGetString(user, "ip", "—"));
+            ImGui::TextUnformatted("Oculto");
             ImGui::TableSetColumnIndex(3);
-            ImGui::Text("%s", JsonGetString(user, "hwid", "—"));
+            ImGui::TextUnformatted("Oculto");
             ImGui::TableSetColumnIndex(4);
             bool banned = JsonGetBool(user, "banned", false);
             FreeParsedJson(user);
@@ -456,8 +527,7 @@ void DrawAdminUsers() {
         if (detailResp.success()) {
             ParsedJson* u = ParseAdminResponse(detailResp);
             ImGui::Text("Email: %s", JsonGetString(u, "email", "—"));
-            ImGui::Text("IP: %s", JsonGetString(u, "ip", "—"));
-            ImGui::Text("HWID: %s", JsonGetString(u, "hwid", "—"));
+            ImGui::TextUnformatted("IP e HWID: ocultos por privacidade");
             ImGui::Text("Criado: %s", JsonGetString(u, "createdate", "—"));
             ImGui::Text("Último login: %s", JsonGetString(u, "lastlogin", "—"));
             ImGui::Text("Banido: %s", JsonGetBool(u, "banned", false) ? "Sim" : "Não");
@@ -488,8 +558,7 @@ void DrawAdminLicenses() {
     UiState& state = State();
     auto* api = GetApiClient();
 
-    DrawApiConfig();
-    if (!api) return;
+    if (!RequireAdminApi()) return;
 
     ImGui::Dummy(ImVec2(0.f, S(12.f)));
     CyberWidgets::BeginCard(OGS_CSTR("GERAR LICENÇAS"), 0.f);
@@ -586,7 +655,8 @@ void DrawAdminLicenses() {
             if (!key) continue;
             ImGui::TableNextRow();
             const std::string keyStr = JsonGetString(key, "key", "—");
-            ImGui::TableSetColumnIndex(0); ImGui::Text("%s", keyStr.c_str());
+            const std::string maskedKey = keyStr.size() > 4 ? "****" + keyStr.substr(keyStr.size() - 4) : "****";
+            ImGui::TableSetColumnIndex(0); ImGui::Text("%s", maskedKey.c_str());
             ImGui::TableSetColumnIndex(1);
             const std::string status = JsonGetString(key, "status", "—");
             if (status == "banned") CyberWidgets::Badge(OGS_CSTR("BANIDA"), CyberWidgets::TextTone::Error);
@@ -638,7 +708,7 @@ void DrawAdminLicenses() {
             // Popups
             if (ImGui::BeginPopupModal("BanLicensePopup", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
                 static char reason[256]{}; static bool userToo = false;
-                ImGui::Text("Banir licença: %s", keyStr.c_str());
+                ImGui::Text("Banir licença: %s", maskedKey.c_str());
                 ImGui::InputTextWithHint("##ban_lic_reason", "Motivo...", reason, sizeof(reason));
                 ImGui::Checkbox("Banir utilizador também", &userToo);
                 if (ImGui::Button("Confirmar", ImVec2(S(100.f), 0))) {
@@ -652,7 +722,7 @@ void DrawAdminLicenses() {
             }
             if (ImGui::BeginPopupModal("AssignLicensePopup", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
                 static char username[128]{};
-                ImGui::Text("Atribuir licença %s a:", keyStr.c_str());
+                ImGui::Text("Atribuir licença %s a:", maskedKey.c_str());
                 ImGui::InputTextWithHint("##assign_user", "Username", username, sizeof(username));
                 if (ImGui::Button("Confirmar", ImVec2(S(100.f), 0))) {
                     auto resp = api->AssignLicense(keyStr, username);
@@ -691,7 +761,7 @@ void DrawAdminLicenses() {
             }
             if (ImGui::BeginPopupModal("DeleteLicensePopup", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
                 static bool userToo = false;
-                ImGui::Text("Eliminar licença: %s", keyStr.c_str());
+                ImGui::Text("Eliminar licença: %s", maskedKey.c_str());
                 ImGui::Checkbox("Eliminar utilizador também", &userToo);
                 if (ImGui::Button("Confirmar", ImVec2(S(100.f), 0))) {
                     auto resp = api->DeleteLicense(keyStr, userToo);
@@ -734,40 +804,70 @@ void DrawAdminAnalytics() {
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0.f, S(12.f)));
-    for (const GameRuntime& runtime : g_games) {
-        if (!runtime.definition) continue;
-        const GameHistory history = GetGameHistory(runtime.definition->launch_id);
-        ImGui::PushID(runtime.definition->id);
-        CyberWidgets::BeginCard(runtime.definition->name, 0.f);
-        CyberWidgets::KeyValueRow(OGS_CSTR("Sessões"), std::to_string(history.sessionCount).c_str());
-        const std::string gameDuration = FormatActiveDuration(history.totalActiveSeconds);
-        CyberWidgets::KeyValueRow(OGS_CSTR("Tempo acumulado"), gameDuration.c_str());
-        CyberWidgets::KeyValueRow(OGS_CSTR("Último resultado"), SessionResultDisplay(history.lastResult));
-        CyberWidgets::EndCard();
-        ImGui::PopID();
-        ImGui::Dummy(ImVec2(0.f, S(8.f)));
+    CyberWidgets::BeginCard("Comparação local por produto", 0.f);
+    if (!totalSessions) {
+        CyberWidgets::EmptyState("SEM ATIVIDADE LOCAL", "As comparações aparecem quando existirem sessões registadas neste dispositivo.");
+    } else {
+        CyberWidgets::TextLine("Todas as sessões registadas neste dispositivo; não representam dados globais.", CyberWidgets::TextTone::Secondary);
+        for (const GameRuntime& runtime : g_games) {
+            if (!runtime.definition) continue;
+            const GameHistory history = GetGameHistory(runtime.definition->launch_id);
+            ImGui::PushID(runtime.definition->id);
+            const std::string summary = std::to_string(history.sessionCount) + " sessões";
+            CyberWidgets::KeyValueRow(runtime.definition->name, summary.c_str());
+            ImGui::ProgressBar(mostSessions ? static_cast<float>(history.sessionCount) / static_cast<float>(mostSessions) : 0.f,
+                ImVec2(-1.f, S(10.f)), "");
+            ImGui::PopID();
+        }
     }
+    CyberWidgets::EndCard();
 
     // Remote analytics
     auto* api = GetApiClient();
     ImGui::Dummy(ImVec2(0.f, S(12.f)));
     CyberWidgets::BeginCard(OGS_CSTR("ANALYTICS GLOBAL (KEYAUTH)"), 0.f);
-    if (api) {
-        auto resp = api->GetAnalyticsSummary();
-        if (resp.success()) {
-            ParsedJson* a = ParseAdminResponse(resp);
-            CyberWidgets::KeyValueRow(OGS_CSTR("Utilizadores totais"), std::to_string(JsonGetInt(a, "users.total", 0)).c_str());
-            CyberWidgets::KeyValueRow(OGS_CSTR("Utilizadores banidos"), std::to_string(JsonGetInt(a, "users.banned", 0)).c_str());
-            CyberWidgets::KeyValueRow(OGS_CSTR("Licenças totais"), std::to_string(JsonGetInt(a, "licenses.total", 0)).c_str());
-            CyberWidgets::KeyValueRow(OGS_CSTR("Licenças usadas"), std::to_string(JsonGetInt(a, "licenses.used", 0)).c_str());
-            CyberWidgets::KeyValueRow(OGS_CSTR("Licenças livres"), std::to_string(JsonGetInt(a, "licenses.unused", 0)).c_str());
-            FreeParsedJson(a);
-        } else {
-            CyberWidgets::TextLine(resp.error.c_str(), CyberWidgets::TextTone::Error);
-        }
-    } else {
-        CyberWidgets::TextLine(OGS_CSTR("Configure a Admin API para ver analytics remotos."), CyberWidgets::TextTone::Secondary);
+    static std::future<LauncherAdmin::AdminResponse> analyticsRequest;
+    static bool analyticsPending = false;
+    static std::string analyticsBody;
+    static std::string analyticsMessage;
+    if (!api) { analyticsBody.clear(); analyticsMessage.clear(); }
+    if (analyticsPending && analyticsRequest.valid() && analyticsRequest.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        try {
+            const auto response = analyticsRequest.get();
+            if (api && response.success()) { analyticsBody = response.body; analyticsMessage = "Consulta remota concluída."; }
+            else { analyticsBody.clear(); analyticsMessage = "Não foi possível consultar os dados remotos."; }
+        } catch (...) { analyticsBody.clear(); analyticsMessage = "Não foi possível consultar os dados remotos."; }
+        analyticsPending = false;
     }
+    if (api && CyberWidgets::LoadingButton("Atualizar dados", "A consultar...", analyticsPending,
+            CyberWidgets::ButtonStyle::Secondary, ImVec2(S(180.f), S(34.f)))) {
+        LauncherAdmin::AdminConfig config{State().adminApiUrl, State().adminApiKey};
+        analyticsPending = true;
+        analyticsRequest = std::async(std::launch::async, [config = std::move(config)]() mutable {
+            LauncherAdmin::AdminApiClient client(config);
+            if (!config.apiKey.empty()) SecureZeroMemory(config.apiKey.data(), config.apiKey.size());
+            return client.GetAnalyticsSummary();
+        });
+    }
+    CyberWidgets::TextLine(api ? "Dados globais fornecidos pelo servidor, sujeitos às permissões da conta." : "Dados globais indisponíveis sem ligação à Admin API.", CyberWidgets::TextTone::Secondary);
+    if (!analyticsMessage.empty()) CyberWidgets::TextLine(analyticsMessage.c_str(), CyberWidgets::TextTone::Secondary);
+    if (api && !analyticsBody.empty()) {
+        LauncherAdmin::AdminResponse response; response.body = analyticsBody;
+        ParsedJson* data = ParseAdminResponse(response);
+        ParsedJson* users = JsonGetObject(data, "users");
+        ParsedJson* licenses = JsonGetObject(data, "licenses");
+        const auto showCount = [](ParsedJson* object, const char* key, const char* label) {
+            const std::string value = JsonHasKey(object, key) ? std::to_string(JsonGetInt(object, key, 0)) : "Indisponível";
+            CyberWidgets::KeyValueRow(label, value.c_str());
+        };
+        showCount(users, "total", "Utilizadores");
+        showCount(licenses, "total", "Licenças");
+        showCount(licenses, "used", "Licenças usadas");
+        FreeParsedJson(users);
+        FreeParsedJson(licenses);
+        FreeParsedJson(data);
+    }
+    if (!api && CyberWidgets::Button("Configurar Admin API", CyberWidgets::ButtonStyle::Secondary, ImVec2(S(190.f), S(34.f)))) State().section = Section::ApiConfig;
     CyberWidgets::EndCard();
 }
 
@@ -797,6 +897,8 @@ void DrawAdminGameConfig() {
         const ActiveGame active = ToActiveGame(game.launch_id);
         const auto compatibility = OmniGhost::OffsetAuto::Compatibility(active);
         ImGui::PushID(game.id);
+        const std::string heading = std::string(game.name) + "  ·  " + OffsetStateText(compatibility.state);
+        if (!ImGui::CollapsingHeader(heading.c_str())) { ImGui::PopID(); continue; }
         CyberWidgets::BeginCard(game.name, 0.f);
         CyberWidgets::HealthRow(OGS_CSTR("Instalação"), runtime.installed ? OGS_CSTR("Detetada") : OGS_CSTR("Não detetada"),
             runtime.installed ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
@@ -872,14 +974,12 @@ void DrawAdminSecurity() {
     auto* api = GetApiClient();
     UiState& state = State();
 
-    DrawApiConfig();
-    if (!api) return;
+    if (!RequireAdminApi()) return;
 
-    const bool protectedFeatures = true;
     const auto dma = mem.GetDiagnosticsSnapshot();
     CyberWidgets::BeginCard(OGS_CSTR("POSTURA DE SEGURANÇA"), 0.f);
-    CyberWidgets::HealthRow(OGS_CSTR("Funcionalidades protegidas"), protectedFeatures ? OGS_CSTR("Autorizadas") : OGS_CSTR("Bloqueadas"),
-        protectedFeatures ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Error);
+    CyberWidgets::HealthRow(OGS_CSTR("Ligação à Admin API"), OGS_CSTR("Autorizada"), CyberWidgets::HealthStatus::Ok);
+    CyberWidgets::TextLine(OGS_CSTR("As permissões são verificadas pelo servidor em cada pedido."), CyberWidgets::TextTone::Secondary);
     CyberWidgets::HealthRow(OGS_CSTR("Dependências DMA"), dma.dependencyIntegrityOk ? OGS_CSTR("Íntegras") : OGS_CSTR("Falha de integridade"),
         dma.dependencyIntegrityOk ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Error);
     CyberWidgets::KeyValueRow(OGS_CSTR("Session generation"), std::to_string(dma.sessionGeneration).c_str());
@@ -901,7 +1001,7 @@ void DrawAdminSecurity() {
     }
     if (CyberWidgets::Button(OGS_CSTR("EXPORTAR EVENTOS LOCAIS"), CyberWidgets::ButtonStyle::Ghost, ImVec2(S(200.f), S(28.f)))) {
         std::string allEvents;
-        for (const auto& e : OmniGhost::SessionLog::RecentEvents(1000)) allEvents += e + "\n";
+        for (const auto& e : OmniGhost::SessionLog::RecentEvents(1000)) allEvents += OmniGhost::SessionLog::RedactForSupport(e) + "\n";
         CyberWidgets::CopyToClipboard(allEvents.c_str(), OGS_CSTR("Eventos locais copiados"));
     }
     CyberWidgets::EndCard();
@@ -1076,8 +1176,7 @@ void DrawAdminSupport() {
     auto* api = GetApiClient();
     UiState& state = State();
 
-    DrawApiConfig();
-    if (!api) return;
+    if (!RequireAdminApi()) return;
 
     // Tickets
     CyberWidgets::BeginCard(OGS_CSTR("TICKETS DE SUPORTE"), 0.f);
@@ -1361,6 +1460,10 @@ void DrawAdminSupport() {
 
 void DrawContent() {
     const Section section = State().section;
+    const bool connected = GetApiClient() != nullptr;
+    CyberWidgets::Badge(connected ? "ADMIN API LIGADA" : "ADMIN API NÃO LIGADA",
+        connected ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
+    ImGui::Dummy(ImVec2(0.f, S(6.f)));
     CyberWidgets::SectionTitle(SectionTitle(section));
     ImGui::Dummy(ImVec2(0.f, S(8.f)));
     switch (section) {
@@ -1373,6 +1476,18 @@ void DrawContent() {
     case Section::Security: DrawAdminSecurity(); break;
     case Section::Developer: DrawAdminDevTools(); break;
     case Section::Support: DrawAdminSupport(); break;
+    case Section::ApiConfig: DrawApiConfig(); break;
+    case Section::Marketplace:
+        CyberWidgets::BeginCard("Moderação do Marketplace", 0.f);
+        CyberWidgets::EmptyState("SERVIÇO INDISPONÍVEL", "A revisão de temas ainda não está integrada neste serviço.");
+        CyberWidgets::EndCard();
+        break;
+    case Section::Preferences:
+        CyberWidgets::BeginCard("Preferências administrativas", 0.f);
+        CyberWidgets::TextLine("A navegação pode ser recolhida no botão acima da barra lateral.", CyberWidgets::TextTone::Secondary);
+        CyberWidgets::TextLine("A ligação administrativa local expira após 15 minutos e não guarda a credencial no disco.", CyberWidgets::TextTone::Secondary);
+        CyberWidgets::EndCard();
+        break;
     }
 }
 
@@ -1380,9 +1495,10 @@ void DrawContent() {
 
 void DrawAdmin(ImVec2 display) {
     BeginControlPage(OGS_CSTR("##launcher_admin"), display);
-    DrawPageHeading(Loc::Tr("launcher.admin"), Loc::Tr("launcher.admin.subtitle"));
+    DrawPageHeading(LauncherText("Administração", "Administration"), Loc::Tr("launcher.admin.subtitle"));
 
     if (!OmniGhost::Licensing::IsAdmin()) {
+        AdminPanel::EndAdminApiSession();
         CyberWidgets::BeginCard(OGS_CSTR("ACESSO NEGADO"), 0.f);
         CyberWidgets::HealthRow(OGS_CSTR("Admin"), OGS_CSTR("Subscrição administrativa necessária"), CyberWidgets::HealthStatus::Error);
         CyberWidgets::TextLine(OGS_CSTR("A sessão deixou de possuir autorização. Reautentica a conta para continuar."), CyberWidgets::TextTone::Secondary);
@@ -1391,14 +1507,14 @@ void DrawAdmin(ImVec2 display) {
         return;
     }
 
-    const float sidebarWidth = S(220.f);
+    const float sidebarWidth = S(AdminPanel::State().compactNavigation ? 68.f : 230.f);
     const float gap = S(14.f);
     ImGui::BeginChild(OGS_CSTR("##admin_navigation"), ImVec2(sidebarWidth, -1.f), true, ImGuiWindowFlags_NoSavedSettings);
     ImGui::SetScrollX(0.0f);
     AdminPanel::DrawSectionNavigation();
     ImGui::EndChild();
     ImGui::SameLine(0.f, gap);
-    ImGui::BeginChild(OGS_CSTR("##admin_content"), ImVec2(0.f, -1.f), false);
+    ImGui::BeginChild(OGS_CSTR("##admin_content"), ImVec2((std::min)(ImGui::GetContentRegionAvail().x, S(1120.f)), -1.f), false);
     AdminPanel::DrawContent();
     ImGui::EndChild();
 

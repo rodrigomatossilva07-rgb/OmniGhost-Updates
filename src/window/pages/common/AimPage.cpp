@@ -3,6 +3,7 @@
 #include "../../localization.h"
 #include "aimbot/aim_type.h"
 #include "config/app_settings.h"
+#include "gameplay/triggerbot_ui.h"
 #ifdef UI_PREVIEW
 #include "preview/preview_runtime.h"
 #else
@@ -233,6 +234,48 @@ void DrawAim()
         if (aimbot::config.respect_weapon_range)
             CyberWidgets::ToggleSwitch(Loc::Tr("aim.trigger_range"),
                 &aimbot::config.trigger_respect_weapon_range);
+
+        // Advanced triggerbot config button
+        ImGui::Separator();
+        if (ImGui::Button(ICON_FA_COGS " Configuração Avançada Triggerbot", ImVec2(-1, 0))) {
+            ImGui::OpenPopup("##triggerbot_advanced");
+        }
+        if (ImGui::BeginPopupModal("##triggerbot_advanced", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+            static Gameplay::TriggerIntegrationConfig adv_config;
+            
+            // Sync from aimbot config on first open
+            static bool first_open = true;
+            if (first_open) {
+                adv_config.enabled = aimbot::config.trigger_enabled;
+                adv_config.visible_only = aimbot::config.trigger_visibility_check;
+                adv_config.fire_without_aim = aimbot::config.trigger_always_on;
+                adv_config.mode = aimbot::config.trigger_burst ? 4 : 3;
+                adv_config.pre_fire_ms = aimbot::config.trigger_delay * 1000.0f;
+                adv_config.post_fire_ms = aimbot::config.trigger_cooldown * 1000.0f;
+                adv_config.min_time_between_shots = aimbot::config.trigger_cooldown * 1000.0f;
+                adv_config.deadzone_px = aimbot::config.trigger_fov;
+                adv_config.max_distance_m = aimbot::config.max_distance;
+                first_open = false;
+            }
+            
+            if (Gameplay::UI::DrawTriggerbotConfig("Triggerbot Avançado (FiveM)", adv_config, "FiveM")) {
+                // Sync back to aimbot config
+                aimbot::config.trigger_enabled = adv_config.enabled;
+                aimbot::config.trigger_visibility_check = adv_config.visible_only;
+                aimbot::config.trigger_always_on = adv_config.fire_without_aim;
+                aimbot::config.trigger_burst = (adv_config.mode == 4);
+                aimbot::config.trigger_delay = adv_config.pre_fire_ms / 1000.0f;
+                aimbot::config.trigger_cooldown = adv_config.post_fire_ms / 1000.0f;
+                aimbot::config.trigger_fov = adv_config.deadzone_px;
+            }
+            
+            ImGui::Separator();
+            if (ImGui::Button("Fechar", ImVec2(-1, 0))) {
+                ImGui::CloseCurrentPopup();
+                first_open = true;
+            }
+            ImGui::EndPopup();
+        }
     }
     CyberWidgets::EndCard();
     ImGui::EndGroup();
