@@ -6,9 +6,17 @@ namespace OmniGhost.AdminApi;
 
 public sealed record BanUserRequest(string Reason);
 public sealed record GenerateLicenseRequest(int Days, int Level, int Amount, string? Mask, string? Note);
+public sealed record ExtendLicenseRequest(int Days, string? Note);
+public sealed record TransferLicenseRequest(string NewUsername, string? Note);
+public sealed record CreatePromoCodeRequest(string Code, int Days, int Level, int MaxUses, string? Note);
 public sealed record LicenseActionRequest(string? Reason, bool UserToo = false);
 public sealed record AssignLicenseRequest(string Username);
 public sealed record BulkUserActionRequest(IReadOnlyList<string> Usernames, string Action, string? Reason);
+
+public sealed record CreateTicketResponseRequest(string Response, bool Close = false);
+public sealed record CreateAnnouncementRequest(string Title, string Body, string Severity, string[] TargetGames);
+public sealed record UpdateAnnouncementRequest(string? Title, string? Body, string? Severity, string[]? TargetGames, bool? IsActive);
+public sealed record CreateMaintenanceWindowRequest(string Title, string Description, DateTimeOffset StartsAt, DateTimeOffset EndsAt, string[] AffectedGames);
 
 public static class AdminEndpoints
 {
@@ -46,12 +54,34 @@ public static class AdminEndpoints
         admin.MapPost("/licenses/{key}/unban", UnbanLicenseAsync);
         admin.MapDelete("/licenses/{key}", DeleteLicenseAsync);
         admin.MapPost("/licenses/{key}/assign", AssignLicenseAsync);
+        admin.MapPost("/licenses/{key}/extend", ExtendLicenseAsync);
+        admin.MapPost("/licenses/{key}/transfer", TransferLicenseAsync);
+        admin.MapPost("/promo-codes", CreatePromoCodeAsync);
         admin.MapGet("/analytics/summary", AnalyticsSummaryAsync);
 
         admin.MapGet("/audit-log", async (HttpContext context, AuditLog audit, int? limit) => {
             var records = await audit.ReadRecentAsync(Math.Clamp(limit ?? 100, 1, 500), context.RequestAborted);
             return Results.Ok(new { items = records, count = records.Count });
         });
+
+        // Security: IP bans, login attempts
+        admin.MapGet("/security/ip-bans", ListIpBansAsync);
+        admin.MapPost("/security/ip-bans", CreateIpBanAsync);
+        admin.MapDelete("/security/ip-bans/{ip}", DeleteIpBanAsync);
+        admin.MapGet("/security/login-attempts", ListLoginAttemptsAsync);
+
+        // Support: tickets, announcements, maintenance
+        admin.MapGet("/support/tickets", ListTicketsAsync);
+        admin.MapGet("/support/tickets/{id}", GetTicketAsync);
+        admin.MapPost("/support/tickets/{id}/respond", RespondToTicketAsync);
+        admin.MapPost("/support/tickets/{id}/close", CloseTicketAsync);
+        admin.MapGet("/support/announcements", ListAnnouncementsAsync);
+        admin.MapPost("/support/announcements", CreateAnnouncementAsync);
+        admin.MapPatch("/support/announcements/{id}", UpdateAnnouncementAsync);
+        admin.MapDelete("/support/announcements/{id}", DeleteAnnouncementAsync);
+        admin.MapGet("/support/maintenance", ListMaintenanceWindowsAsync);
+        admin.MapPost("/support/maintenance", CreateMaintenanceWindowAsync);
+        admin.MapDelete("/support/maintenance/{id}", DeleteMaintenanceWindowAsync);
 
         return endpoints;
     }
@@ -347,5 +377,206 @@ public static class AdminEndpoints
     {
         var text = value?.ToString();
         return string.Equals(text, "true", StringComparison.OrdinalIgnoreCase) || text == "1";
+    }
+
+    // ─── License extensions ───
+    private static async Task<IResult> ExtendLicenseAsync(
+        HttpContext context, KeyAuthSellerClient keyAuth, AuditLog audit, string key, ExtendLicenseRequest request)
+    {
+        if (!ValidIdentifier(key, 256) || request.Days is < 1 or > 3650 || request.Note?.Length > 256)
+            return Results.BadRequest(new { error = "Invalid license, days (1-3650), or note." });
+        var response = await keyAuth.CallAsync("extend", context.RequestAborted,
+            Parameter("key", key), Parameter("expiry", request.Days.ToString(CultureInfo.InvariantCulture)),
+            Parameter("note", request.Note?.Trim()));
+        await audit.WriteAsync(context.Actor(), context, "license.extend", response.Success,
+            $"key={Fingerprint(key)}; days={request.Days}; result={response.Message}");
+        return SellerResult(response);
+    }
+
+    private static async Task<IResult> TransferLicenseAsync(
+        HttpContext context, KeyAuthSellerClient keyAuth, AuditLog audit, string key, TransferLicenseRequest request)
+    {
+        if (!ValidIdentifier(key, 256) || !ValidIdentifier(request.NewUsername, 128) || request.Note?.Length > 256)
+            return Results.BadRequest(new { error = "Invalid license, username, or note." });
+        var response = await keyAuth.CallAsync("assignkey", context.RequestAborted,
+            Parameter("key", key), Parameter("user", request.NewUsername));
+        await audit.WriteAsync(context.Actor(), context, "license.transfer", response.Success,
+            $"key={Fingerprint(key)}; new_owner={request.NewUsername}; result={response.Message}");
+        return SellerResult(response);
+    }
+
+    private static async Task<IResult> CreatePromoCodeAsync(
+        HttpContext context, KeyAuthSellerClient keyAuth, AuditLog audit, CreatePromoCodeRequest request)
+    {
+        if (!ValidIdentifier(request.Code, 64) || request.Days is < 1 or > 3650 ||
+            request.Level is < 1 or > 100 || request.MaxUses is < 1 or > 10000 || request.Note?.Length > 256)
+            return Results.BadRequest(new { error = "Invalid promo code parameters." });
+        var response = await keyAuth.CallAsync("addpromo", context.RequestAborted,
+            Parameter("code", request.Code.Trim()),
+            Parameter("expiry", request.Days.ToString(CultureInfo.InvariantCulture)),
+            Parameter("level", request.Level.ToString(CultureInfo.InvariantCulture)),
+            Parameter("maxuses", request.MaxUses.ToString(CultureInfo.InvariantCulture)),
+            Parameter("note", request.Note?.Trim()));
+        await audit.WriteAsync(context.Actor(), context, "promo.create", response.Success,
+            $"code={request.Code}; days={request.Days}; level={request.Level}; max_uses={request.MaxUses}; result={response.Message}");
+        return SellerResult(response);
+    }
+
+    // ─── Security: IP bans & login attempts ───
+    private static async Task<IResult> ListIpBansAsync(HttpContext context, KeyAuthSellerClient keyAuth)
+    {
+        var response = await keyAuth.CallAsync("fetchallbans", context.RequestAborted);
+        if (!response.Success) return UpstreamFailure(response);
+        var bans = response.Payload["bans"] as JsonArray ?? [];
+        return Results.Ok(new { items = bans.Select(node => node.DeepClone()).ToList(), count = bans.Count });
+    }
+
+    private static async Task<IResult> CreateIpBanAsync(HttpContext context, KeyAuthSellerClient keyAuth, AuditLog audit, JsonObject body)
+    {
+        var ip = body["ip"]?.ToString()?.Trim();
+        var reason = body["reason"]?.ToString()?.Trim();
+        if (string.IsNullOrWhiteSpace(ip) || !System.Net.IPAddress.TryParse(ip, out _) || string.IsNullOrWhiteSpace(reason) || reason.Length > 256)
+            return Results.BadRequest(new { error = "Valid IP address and reason (max 256 chars) required." });
+        var response = await keyAuth.CallAsync("banip", context.RequestAborted, Parameter("ip", ip), Parameter("reason", reason));
+        await audit.WriteAsync(context.Actor(), context, "ip.ban", response.Success, $"ip={ip}; result={response.Message}");
+        return SellerResult(response);
+    }
+
+    private static async Task<IResult> DeleteIpBanAsync(HttpContext context, KeyAuthSellerClient keyAuth, AuditLog audit, string ip)
+    {
+        if (!System.Net.IPAddress.TryParse(ip, out _)) return Results.BadRequest(new { error = "Invalid IP address." });
+        var response = await keyAuth.CallAsync("unbanip", context.RequestAborted, Parameter("ip", ip));
+        await audit.WriteAsync(context.Actor(), context, "ip.unban", response.Success, $"ip={ip}; result={response.Message}");
+        return SellerResult(response);
+    }
+
+    private static async Task<IResult> ListLoginAttemptsAsync(HttpContext context, KeyAuthSellerClient keyAuth, string? filter, int? page, int? pageSize)
+    {
+        var response = await keyAuth.CallAsync("fetchlogs", context.RequestAborted, Parameter("type", "login"));
+        if (!response.Success) return UpstreamFailure(response);
+        var logs = response.Payload["logs"] as JsonArray ?? [];
+        var filtered = FilterAndPage(logs, filter, page, pageSize, out var total, node => node.DeepClone());
+        return Results.Ok(new { items = filtered, total, page = NormalizePage(page), pageSize = NormalizePageSize(pageSize) });
+    }
+
+    // ─── Support: Tickets, Announcements, Maintenance ───
+    private static async Task<IResult> ListTicketsAsync(HttpContext context, KeyAuthSellerClient keyAuth, string? filter, int? page, int? pageSize)
+    {
+        var response = await keyAuth.CallAsync("fetchtickets", context.RequestAborted);
+        if (!response.Success) return UpstreamFailure(response);
+        var tickets = response.Payload["tickets"] as JsonArray ?? [];
+        var filtered = FilterAndPage(tickets, filter, page, pageSize, out var total, node => node.DeepClone());
+        return Results.Ok(new { items = filtered, total, page = NormalizePage(page), pageSize = NormalizePageSize(pageSize) });
+    }
+
+    private static async Task<IResult> GetTicketAsync(HttpContext context, KeyAuthSellerClient keyAuth, string id)
+    {
+        if (!ValidIdentifier(id, 64)) return Results.BadRequest(new { error = "Invalid ticket ID." });
+        var response = await keyAuth.CallAsync("ticketdata", context.RequestAborted, Parameter("id", id));
+        if (!response.Success) return UpstreamFailure(response);
+        return Results.Ok(response.Payload.DeepClone());
+    }
+
+    private static async Task<IResult> RespondToTicketAsync(HttpContext context, KeyAuthSellerClient keyAuth, AuditLog audit, string id, CreateTicketResponseRequest request)
+    {
+        if (!ValidIdentifier(id, 64) || string.IsNullOrWhiteSpace(request.Response) || request.Response.Length > 4096)
+            return Results.BadRequest(new { error = "Response required (max 4096 chars)." });
+        var response = await keyAuth.CallAsync("replyticket", context.RequestAborted,
+            Parameter("id", id), Parameter("response", request.Response.Trim()), Parameter("close", request.Close ? "true" : "false"));
+        await audit.WriteAsync(context.Actor(), context, "ticket.respond", response.Success, $"id={id}; close={request.Close}; result={response.Message}");
+        return SellerResult(response);
+    }
+
+    private static async Task<IResult> CloseTicketAsync(HttpContext context, KeyAuthSellerClient keyAuth, AuditLog audit, string id)
+    {
+        if (!ValidIdentifier(id, 64)) return Results.BadRequest(new { error = "Invalid ticket ID." });
+        var response = await keyAuth.CallAsync("closeticket", context.RequestAborted, Parameter("id", id));
+        await audit.WriteAsync(context.Actor(), context, "ticket.close", response.Success, $"id={id}; result={response.Message}");
+        return SellerResult(response);
+    }
+
+    private static async Task<IResult> ListAnnouncementsAsync(HttpContext context, KeyAuthSellerClient keyAuth)
+    {
+        var response = await keyAuth.CallAsync("fetchannouncements", context.RequestAborted);
+        if (!response.Success) return UpstreamFailure(response);
+        var anns = response.Payload["announcements"] as JsonArray ?? [];
+        return Results.Ok(new { items = anns.Select(node => node.DeepClone()).ToList(), count = anns.Count });
+    }
+
+    private static async Task<IResult> CreateAnnouncementAsync(HttpContext context, KeyAuthSellerClient keyAuth, AuditLog audit, CreateAnnouncementRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Title) || request.Title.Length > 128 ||
+            string.IsNullOrWhiteSpace(request.Body) || request.Body.Length > 8192 ||
+            !new[] { "info", "warning", "critical" }.Contains(request.Severity?.ToLowerInvariant()))
+            return Results.BadRequest(new { error = "Title (max 128), body (max 8192), severity (info/warning/critical) required." });
+        var games = request.TargetGames is not null && request.TargetGames.Length > 0
+            ? string.Join(",", request.TargetGames.Where(g => ValidIdentifier(g, 32)))
+            : string.Empty;
+        var response = await keyAuth.CallAsync("addannouncement", context.RequestAborted,
+            Parameter("title", request.Title.Trim()), Parameter("body", request.Body.Trim()),
+            Parameter("severity", request.Severity.Trim()), Parameter("games", games));
+        await audit.WriteAsync(context.Actor(), context, "announcement.create", response.Success,
+            $"title={request.Title}; severity={request.Severity}; result={response.Message}");
+        return SellerResult(response);
+    }
+
+    private static async Task<IResult> UpdateAnnouncementAsync(HttpContext context, KeyAuthSellerClient keyAuth, AuditLog audit, string id, UpdateAnnouncementRequest request)
+    {
+        if (!ValidIdentifier(id, 64)) return Results.BadRequest(new { error = "Invalid announcement ID." });
+        var parameters = new List<KeyValuePair<string, string?>> { Parameter("id", id) };
+        if (!string.IsNullOrWhiteSpace(request.Title)) parameters.Add(Parameter("title", request.Title.Trim()));
+        if (!string.IsNullOrWhiteSpace(request.Body)) parameters.Add(Parameter("body", request.Body.Trim()));
+        if (!string.IsNullOrWhiteSpace(request.Severity)) parameters.Add(Parameter("severity", request.Severity.Trim()));
+        if (request.TargetGames is not null) {
+            var games = string.Join(",", request.TargetGames.Where(g => ValidIdentifier(g, 32)));
+            parameters.Add(Parameter("games", games));
+        }
+        if (request.IsActive.HasValue) parameters.Add(Parameter("active", request.IsActive.Value ? "true" : "false"));
+        var response = await keyAuth.CallAsync("editannouncement", context.RequestAborted, parameters);
+        await audit.WriteAsync(context.Actor(), context, "announcement.update", response.Success, $"id={id}; result={response.Message}");
+        return SellerResult(response);
+    }
+
+    private static async Task<IResult> DeleteAnnouncementAsync(HttpContext context, KeyAuthSellerClient keyAuth, AuditLog audit, string id)
+    {
+        if (!ValidIdentifier(id, 64)) return Results.BadRequest(new { error = "Invalid announcement ID." });
+        var response = await keyAuth.CallAsync("delannouncement", context.RequestAborted, Parameter("id", id));
+        await audit.WriteAsync(context.Actor(), context, "announcement.delete", response.Success, $"id={id}; result={response.Message}");
+        return SellerResult(response);
+    }
+
+    private static async Task<IResult> ListMaintenanceWindowsAsync(HttpContext context, KeyAuthSellerClient keyAuth)
+    {
+        var response = await keyAuth.CallAsync("fetchmaintenance", context.RequestAborted);
+        if (!response.Success) return UpstreamFailure(response);
+        var windows = response.Payload["maintenance"] as JsonArray ?? [];
+        return Results.Ok(new { items = windows.Select(node => node.DeepClone()).ToList(), count = windows.Count });
+    }
+
+    private static async Task<IResult> CreateMaintenanceWindowAsync(HttpContext context, KeyAuthSellerClient keyAuth, AuditLog audit, CreateMaintenanceWindowRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Title) || request.Title.Length > 128 ||
+            string.IsNullOrWhiteSpace(request.Description) || request.Description.Length > 4096 ||
+            request.StartsAt >= request.EndsAt)
+            return Results.BadRequest(new { error = "Title, description, and valid start/end times required." });
+        var games = request.AffectedGames is not null && request.AffectedGames.Length > 0
+            ? string.Join(",", request.AffectedGames.Where(g => ValidIdentifier(g, 32)))
+            : string.Empty;
+        var response = await keyAuth.CallAsync("addmaintenance", context.RequestAborted,
+            Parameter("title", request.Title.Trim()), Parameter("description", request.Description.Trim()),
+            Parameter("starts", request.StartsAt.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)),
+            Parameter("ends", request.EndsAt.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)),
+            Parameter("games", games));
+        await audit.WriteAsync(context.Actor(), context, "maintenance.create", response.Success,
+            $"title={request.Title}; starts={request.StartsAt:O}; ends={request.EndsAt:O}; result={response.Message}");
+        return SellerResult(response);
+    }
+
+    private static async Task<IResult> DeleteMaintenanceWindowAsync(HttpContext context, KeyAuthSellerClient keyAuth, AuditLog audit, string id)
+    {
+        if (!ValidIdentifier(id, 64)) return Results.BadRequest(new { error = "Invalid maintenance window ID." });
+        var response = await keyAuth.CallAsync("delmaintenance", context.RequestAborted, Parameter("id", id));
+        await audit.WriteAsync(context.Actor(), context, "maintenance.delete", response.Success, $"id={id}; result={response.Message}");
+        return SellerResult(response);
     }
 }

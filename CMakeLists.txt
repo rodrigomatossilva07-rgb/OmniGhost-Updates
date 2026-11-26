@@ -162,6 +162,14 @@ FetchContent_Declare(
         -DGLFW_BUILD_DOCS=OFF
 )
 
+# cpp-httplib (header-only HTTP server for Admin API)
+FetchContent_Declare(
+    cpphttplib
+    URL https://codeload.github.com/yhirose/cpp-httplib/zip/refs/tags/v0.15.3
+    TIMEOUT 120
+    INACTIVITY_TIMEOUT 30
+)
+
 # Configure spdlog before FetchContent_MakeAvailable
 set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(SPDLOG_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -184,6 +192,7 @@ FetchContent_MakeAvailable(
     tl_expected
     imgui
     glfw
+    cpphttplib
 )
 
 # Alias targets for consistency

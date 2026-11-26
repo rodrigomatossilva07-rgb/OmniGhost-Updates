@@ -1124,12 +1124,6 @@ void DrawRegister() {
         SetScreen(Screen::Login);
     }
     ImGui::EndDisabled();
-    DrawOfficialLink(AuthLabel("Onde encontro a minha chave?", "Where do I find my key?"),
-                     L"https://omnighost.store/conta");
-    DrawLinkPair(AuthLabel("Comprar licença", "Buy a license"), L"https://omnighost.store/comprar",
-                 AuthLabel("Suporte", "Support"), L"https://omnighost.store/suporte");
-    DrawLinkPair(AuthLabel("Termos", "Terms"), L"https://omnighost.store/termos",
-                 AuthLabel("Privacidade", "Privacy"), L"https://omnighost.store/privacidade");
 }
 
 void DrawActivate() {
@@ -1243,7 +1237,7 @@ bool AuthCaptionButton(const char* id, const ImVec2& position, float size, bool 
         1.f);
     const ImU32 packed = CyberTheme::U32(color);
     const float stroke = S(1.5f);
-    const float r = size * 0.26f;
+    const float r = size * 0.20f;
     const float cx = position.x + size * 0.5f;
     const float cy = position.y + size * 0.5f;
     if (closeGlyph) {

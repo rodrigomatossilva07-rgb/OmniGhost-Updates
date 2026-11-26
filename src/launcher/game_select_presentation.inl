@@ -196,7 +196,7 @@ void DrawBackground(
 void ChangeNavigation(int page) {
     if (page < static_cast<int>(NavPage::Home) || page > static_cast<int>(NavPage::Admin))
         page = static_cast<int>(NavPage::Home);
-    if (page == static_cast<int>(NavPage::Admin))
+    if (page == static_cast<int>(NavPage::Admin) && !OmniGhost::Licensing::IsAdmin())
         page = static_cast<int>(NavPage::Home);
     if (page == g_nav) return;
     g_nav = page;
@@ -265,14 +265,17 @@ void DrawHeader(ImDrawList* draw, ImVec2 display) {
     if (body) ImGui::PushFont(body);
 
     struct NavItem { NavPage page; const char* key; };
-    static constexpr NavItem kTabs[] = {
-        {NavPage::Home, "launcher.home"},
-        {NavPage::Library, "launcher.library"},
-        {NavPage::Marketplace, "launcher.marketplace"},
-        {NavPage::Diagnostics, "launcher.diagnostics"},
-    };
+    const bool isAdmin = OmniGhost::Licensing::IsAdmin();
+    const int tabCount = 4 + (isAdmin ? 1 : 0);
+    std::vector<NavItem> tabs;
+    tabs.reserve(tabCount);
+    tabs.push_back({NavPage::Home, "launcher.home"});
+    tabs.push_back({NavPage::Library, "launcher.library"});
+    tabs.push_back({NavPage::Marketplace, "launcher.marketplace"});
+    tabs.push_back({NavPage::Diagnostics, "launcher.diagnostics"});
+    if (isAdmin) tabs.push_back({NavPage::Admin, "launcher.admin"});
     float x = display.x < S(900.f) ? S(92.f) : S(112.f);
-    for (const NavItem& item : kTabs) {
+    for (const NavItem& item : tabs) {
         const char* text = Loc::Tr(item.key);
         const ImVec2 size = ImGui::CalcTextSize(text);
         const ImVec2 min(x - S(8.f), S(7.f));

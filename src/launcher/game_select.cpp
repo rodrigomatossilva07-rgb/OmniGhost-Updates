@@ -45,6 +45,8 @@
 #include "../ferrum/ferrum_device.h"
 #include "window/fonts.h"
 #include "imgui.h"
+#include <misc/cpp/imgui_stdlib.h>
+#include "admin_api_client.h"
 
 #include <Windows.h>
 #include <TlHelp32.h>
@@ -80,6 +82,17 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
+
+struct ParsedJson;
+ParsedJson* ParseAdminResponse(const LauncherAdmin::AdminResponse& resp);
+void FreeParsedJson(ParsedJson* json);
+bool JsonGetBool(ParsedJson* json, const char* key, bool defaultValue = false);
+int JsonGetInt(ParsedJson* json, const char* key, int defaultValue = 0);
+const char* JsonGetString(ParsedJson* json, const char* key, const char* defaultValue = "");
+ParsedJson* JsonGetArray(ParsedJson* json, const char* key);
+int JsonArraySize(ParsedJson* array);
+ParsedJson* JsonArrayGet(ParsedJson* array, int index);
+bool JsonHasKey(ParsedJson* json, const char* key);
 
 namespace Launcher {
 namespace {
@@ -354,7 +367,7 @@ bool Draw() {
         });
     }
 
-    if (g_nav == static_cast<int>(NavPage::Admin))
+    if (g_nav == static_cast<int>(NavPage::Admin) && !OmniGhost::Licensing::IsAdmin())
         ChangeNavigation(static_cast<int>(NavPage::Home));
 
     const PerformanceMode::State performance = PerformanceMode::Update(
