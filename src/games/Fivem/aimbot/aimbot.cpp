@@ -1,4 +1,4 @@
-#pragma warning(disable: 4100 4244 4505)
+﻿#pragma warning(disable: 4100 4244 4505)
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
@@ -1007,92 +1007,76 @@ static bool g_trigger_initialized = false;
     }
 
     static void RunTriggerLogic() {
-        const auto triggerNow = std::chrono::steady_clock::now();
-        if (trigger_pressed) {
-            if (!config.trigger_enabled || triggerNow >= trigger_release_at) {
-                aim_type::LeftClickRelease();
-                trigger_pressed = false;
-            } else {
-                return;
-            }
-        }
-        if (!config.trigger_enabled) {
-            trigger_target = 0;
-            trigger_burst_started = {};
-            return;
-        }
+    // Sync config to integration
+    Gameplay::TriggerIntegrationConfig tcfg;
+    tcfg.enabled = config.trigger_enabled;
+    tcfg.visible_only = config.trigger_visibility_check;
+    tcfg.fire_without_aim = config.trigger_always_on;
+    tcfg.mode = config.trigger_burst ? 4 : 3;
+    tcfg.pre_fire_ms = config.trigger_delay * 1000.0f;
+    tcfg.post_fire_ms = config.trigger_cooldown * 1000.0f;
+    tcfg.min_time_between_shots = config.trigger_cooldown * 1000.0f;
+    tcfg.deadzone_px = config.trigger_fov;
+    tcfg.max_distance_m = EffectiveMaxDistance(true);
+    tcfg.weapon_mask = ~0ULL;
+    tcfg.reaction_variance_ms = config.trigger_random_extra * 1000.0f;
+    tcfg.simulate_human_reaction = true;
+    tcfg.burst_shots = 3;
+    tcfg.burst_interval_ms = config.trigger_burst_duration * 1000.0f;
+    tcfg.burst_cooldown_ms = config.trigger_burst_interval * 1000.0f;
+    tcfg.ignore_knocked = true;
+    tcfg.ignore_teammates = config.trigger_team_check;
+    tcfg.ignore_npcs = false;
+    tcfg.min_health_percent = 1.0f;
+    
+    g_trigger_integration.SetConfig(tcfg);
 
-        const bool active = config.trigger_always_on || BindDown(config.trigger_bind);
-        if (!active) {
-            trigger_target = 0;
-            trigger_burst_started = {};
-            return;
-        }
-
-        TargetInfo tgt{};
-        bool found = false;
-        if (config.trigger_head_only) {
-            found = FindBestTargetForHitbox(tgt, config.trigger_fov,
-                                            EffectiveMaxDistance(true), Hitbox::Head, false);
-        } else {
-
-
-
-
-            found = FindBestTriggerTarget(tgt, config.trigger_fov,
-                                           EffectiveMaxDistance(true));
-        }
-        if (!found) {
-            trigger_target = 0;
-            trigger_burst_started = {};
-            return;
-        }
-
-
-        current_target = tgt;
-
-        auto now = std::chrono::steady_clock::now();
-        if (tgt.ped != trigger_target) {
-            trigger_target = tgt.ped;
-            trigger_target_entered = now;
-            trigger_burst_started = {};
-            trigger_target_delay = (std::max)(config.trigger_delay, 0.f);
-            if (config.trigger_random_extra > 0.f) {
-                std::uniform_real_distribution<float> randomDelay(0.f, config.trigger_random_extra);
-                trigger_target_delay += randomDelay(rng);
-            }
-        }
-        const float reactionElapsed = std::chrono::duration<float>(now - trigger_target_entered).count();
-        const float shotElapsed = std::chrono::duration<float>(now - last_trigger).count();
-        if (reactionElapsed < trigger_target_delay || now < trigger_next_allowed)
-            return;
-
-        if (config.trigger_burst) {
-            if (trigger_burst_started.time_since_epoch().count() == 0)
-                trigger_burst_started = now;
-            const float burstElapsed = std::chrono::duration<float>(now - trigger_burst_started).count();
-            if (burstElapsed >= (std::max)(.02f, config.trigger_burst_duration)) {
-                trigger_burst_started = {};
-                trigger_next_allowed = now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-                    std::chrono::duration<float>((std::max)(config.trigger_burst_interval,
-                                                           config.trigger_cooldown)));
-                return;
-            }
-        }
-
-        const float minimumShotInterval = config.trigger_burst
-            ? .06f : (std::max)(.06f, config.trigger_cooldown);
-        if (shotElapsed < minimumShotInterval)
-            return;
-
-        last_trigger = now;
-        aim_type::LeftClick();
-        trigger_pressed = true;
-        trigger_release_at = now + std::chrono::milliseconds(20);
-        if (!config.trigger_burst)
-            trigger_next_allowed = now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-                std::chrono::duration<float>((std::max)(0.f, config.trigger_cooldown)));
+    if (!config.trigger_enabled) {
+        return;
     }
+
+    const bool active = config.trigger_always_on || BindDown(config.trigger_bind);
+    if (!active) {
+        return;
+    }
+
+    TargetInfo tgt{};
+    bool found = false;
+    if (config.trigger_head_only) {
+        found = FindBestTargetForHitbox(tgt, config.trigger_fov,
+                                        EffectiveMaxDistance(true), Hitbox::Head, false);
+    } else {
+        found = FindBestTriggerTarget(tgt, config.trigger_fov,
+                                       EffectiveMaxDistance(true));
+    }
+    if (!found) {
+        return;
+    }
+
+    current_target = tgt;
+
+    // Convert to integration target info
+    Gameplay::TriggerTargetInfo target_info;
+    target_info.entity_id = tgt.ped;
+    target_info.screen_x = tgt.screen_pos.x;
+    target_info.screen_y = tgt.screen_pos.y;
+    target_info.distance_m = tgt.distance;
+    target_info.visible = true;
+    target_info.knocked = false;
+    target_info.teammate = false;
+    target_info.npc = false;
+    target_info.health_percent = 100.0f;
+    target_info.weapon_index = 0;
+
+    bool aim_key_held = AimHoldDown();
+    bool crosshair_on_target = (tgt.crosshair_dist <= config.trigger_fov);
+
+    bool should_fire = g_trigger_integration.Update(target_info, aim_key_held, crosshair_on_target);
+    
+    if (should_fire) {
+        aim_type::LeftClick();
+    }
+}
 
     void DrawFOV() {
         ImDrawList* dl = ImGui::GetForegroundDrawList();
@@ -1170,3 +1154,10 @@ static bool g_trigger_initialized = false;
 }
 
 #endif
+
+
+
+
+
+
+
