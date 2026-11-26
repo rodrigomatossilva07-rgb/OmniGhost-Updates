@@ -76,14 +76,14 @@ public:
 
     // Debug
     const char* GetPhaseName() const;
-    OmniGhost::Gameplay::Triggerbot::TriggerbotState::Phase GetPhase() const;
-    const OmniGhost::Gameplay::Triggerbot& GetTriggerbot() const { return triggerbot_; }
+    TriggerbotState::Phase GetPhase() const;
+    const Triggerbot& GetTriggerbot() const { return triggerbot_; }
 
     // Static helper to convert config
-    static OmniGhost::Gameplay::TriggerbotConfig ConvertConfig(const TriggerIntegrationConfig& cfg);
+    static TriggerbotConfig ConvertConfig(const TriggerIntegrationConfig& cfg);
 
 private:
-    OmniGhost::Gameplay::Triggerbot triggerbot_;
+    Triggerbot triggerbot_;
     TriggerIntegrationConfig current_config_;
 };
 

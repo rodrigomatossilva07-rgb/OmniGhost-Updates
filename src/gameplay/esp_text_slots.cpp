@@ -1,7 +1,7 @@
 #include "esp_text_slots.h"
 #include <algorithm>
-#include "theme.h"
-#include "icons.h"
+#include "../window/theme.h"
+#include "../window/icons.h"
 
 namespace OmniGhost::Gameplay::ESPText {
 

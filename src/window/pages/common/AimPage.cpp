@@ -1,4 +1,6 @@
 #include "../../widgets.h"
+#include "../../widgets_input.h"
+#include "../../widgets_layout.h"
 #include "../../theme.h"
 #include "../../localization.h"
 #include "aimbot/aim_type.h"
@@ -12,6 +14,7 @@
 #include <Windows.h>
 #include <cstdio>
 #include <cstring>
+#include "../../fa_icons.h"
 
 namespace {
 
@@ -237,7 +240,7 @@ void DrawAim()
 
         // Advanced triggerbot config button
         ImGui::Separator();
-        if (ImGui::Button(ICON_FA_COGS " Configuração Avançada Triggerbot", ImVec2(-1, 0))) {
+        if (ImGui::Button("[...] Configuração Avançada Triggerbot", ImVec2(-1, 0))) {
             ImGui::OpenPopup("##triggerbot_advanced");
         }
         if (ImGui::BeginPopupModal("##triggerbot_advanced", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {

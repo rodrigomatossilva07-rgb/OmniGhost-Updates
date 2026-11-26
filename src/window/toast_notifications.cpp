@@ -1,6 +1,7 @@
 #include "toast_notifications.h"
 #include "theme.h"
 #include "icons.h"
+#include "fa_icons.h"
 #include <algorithm>
 #include <random>
 
@@ -353,7 +354,7 @@ void Render() {
                     IM_COL32((color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, alpha(200)), badge_radius, 0, 1.0f * scale);
 
         // Icon text
-        ImGui::PushFont(CyberFonts::GetFontAwesome(18.0f * scale));
+        ImGui::PushFont(CyberFonts::GetBodyFont());
         ImVec2 icon_size = ImGui::CalcTextSize(toast.icon.c_str());
         ImGui::PopFont();
         dl->AddText(ImVec2(

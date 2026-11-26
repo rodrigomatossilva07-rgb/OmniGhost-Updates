@@ -15,7 +15,10 @@ float BezierCurve::Evaluate(float t) const {
     float tt = t * t;
     float ttt = tt * t;
 
-    ImVec2 result = uuu * p0 + 3 * uu * t * p1 + 3 * u * tt * p2 + ttt * p3;
+    ImVec2 result(
+        uuu * p0.x + 3 * uu * t * p1.x + 3 * u * tt * p2.x + ttt * p3.x,
+        uuu * p0.y + 3 * uu * t * p1.y + 3 * u * tt * p2.y + ttt * p3.y
+    );
     return result.y; // Assume x = t, retorna y
 }
 
@@ -143,7 +146,8 @@ float BSplineCurve::Evaluate(float t) const {
     for (int j = 0; j <= degree; ++j) {
         int idx = span - degree + j;
         if (idx >= 0 && idx < static_cast<int>(control_points.size())) {
-            result += control_points[idx] * N[j];
+            result.x += control_points[idx].x * N[j];
+            result.y += control_points[idx].y * N[j];
         }
     }
 
@@ -228,8 +232,14 @@ std::vector<ImVec2> ChaikinCurve::GetSubdividedPoints() const {
 
             // Chaikin corner cutting: Q = 0.75*P0 + 0.25*P1, R = 0.25*P0 + 0.75*P1
             float w = corner_weight;
-            ImVec2 q = p0 * (1.0f - w) + p1 * w;
-            ImVec2 r = p0 * w + p1 * (1.0f - w);
+            ImVec2 q(
+                p0.x * (1.0f - w) + p1.x * w,
+                p0.y * (1.0f - w) + p1.y * w
+            );
+            ImVec2 r(
+                p0.x * w + p1.x * (1.0f - w),
+                p0.y * w + p1.y * (1.0f - w)
+            );
 
             next.push_back(q);
             next.push_back(r);

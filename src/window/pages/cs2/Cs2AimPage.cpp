@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <algorithm>
 #include <cmath>
+#include "../../../fa_icons.h"
 
 namespace {
 
@@ -248,7 +249,7 @@ void DrawCs2Aim() {
 
         // Advanced triggerbot config button
         ImGui::Separator();
-        if (ImGui::Button(ICON_FA_COGS " Configuração Avançada Triggerbot", ImVec2(-1, 0))) {
+        if (ImGui::Button("[...] Configuração Avançada Triggerbot", ImVec2(-1, 0))) {
             ImGui::OpenPopup("##triggerbot_advanced_cs2");
         }
         if (ImGui::BeginPopupModal("##triggerbot_advanced_cs2", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {

@@ -216,6 +216,7 @@ std::optional<Profile> TryGetCurrentProfile() {
         auto profile = DoHandshakeAndReadProfile(*pipe);
         CloseHandle(*pipe);
 
+        (void)profile; // Suppress nodiscard warning in Release
         if (profile) {
             std::lock_guard lock(g_cache_mutex);
             g_cached_profile = profile;

@@ -2,6 +2,9 @@
 
 #include <cstdint>
 #include <optional>
+#include <vector>
+#include <algorithm>
+#include <cmath>
 #include "src/project/third_party/ImGui/imgui.h"
 
 namespace OmniGhost::Gameplay {

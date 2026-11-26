@@ -13,14 +13,14 @@ void TriggerIntegration::SetConfig(const TriggerIntegrationConfig& cfg) {
     triggerbot_.SetConfig(ConvertConfig(cfg));
 }
 
-OmniGhost::Gameplay::TriggerbotConfig TriggerIntegration::ConvertConfig(const TriggerIntegrationConfig& cfg) {
-    OmniGhost::Gameplay::TriggerbotConfig out;
+TriggerbotConfig TriggerIntegration::ConvertConfig(const TriggerIntegrationConfig& cfg) {
+    TriggerbotConfig out;
     
     out.enabled = cfg.enabled;
     out.visible_only = cfg.visible_only;
     out.fire_without_aim = cfg.fire_without_aim;
     out.require_target_lock = cfg.require_target_lock;
-    out.mode = static_cast<OmniGhost::Gameplay::TriggerMode>(cfg.mode);
+    out.mode = static_cast<TriggerMode>(cfg.mode);
     out.pre_fire_ms = cfg.pre_fire_ms;
     out.post_fire_ms = cfg.post_fire_ms;
     out.min_time_between_shots = cfg.min_time_between_shots;
@@ -73,7 +73,7 @@ const char* TriggerIntegration::GetPhaseName() const {
     return triggerbot_.GetPhaseName();
 }
 
-OmniGhost::Gameplay::Triggerbot::TriggerbotState::Phase TriggerIntegration::GetPhase() const {
+TriggerbotState::Phase TriggerIntegration::GetPhase() const {
     return triggerbot_.GetState().phase;
 }
 

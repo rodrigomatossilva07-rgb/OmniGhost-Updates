@@ -5,7 +5,9 @@
 #include <chrono>
 #include <vector>
 #include <mutex>
+#include <functional>
 #include "discord_ipc.h"
+#include "src/project/third_party/ImGui/imgui.h"
 
 namespace OmniGhost::Auth {
 

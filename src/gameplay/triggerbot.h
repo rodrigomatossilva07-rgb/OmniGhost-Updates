@@ -4,6 +4,8 @@
 #include <array>
 #include <optional>
 #include <chrono>
+#include <random>
+#include <functional>
 
 namespace OmniGhost::Gameplay {
 

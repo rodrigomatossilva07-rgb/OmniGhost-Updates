@@ -5,6 +5,7 @@
 #include <array>
 #include <optional>
 #include <cstdint>
+#include <functional>
 #include "src/project/third_party/ImGui/imgui.h"
 
 namespace OmniGhost::Gameplay::ESPText {

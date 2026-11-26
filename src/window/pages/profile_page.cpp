@@ -1,8 +1,9 @@
-#include "../../widgets.h"
-#include "../../theme.h"
-#include "../../../auth/user_profile.h"
-#include "../../../auth/discord_ipc.h"
+#include "../widgets.h"
+#include "../theme.h"
+#include "../../auth/user_profile.h"
+#include "../../auth/discord_ipc.h"
 #include "imgui.h"
+#include "../fa_icons.h"
 
 namespace {
 
