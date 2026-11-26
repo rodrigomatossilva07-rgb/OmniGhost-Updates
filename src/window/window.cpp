@@ -30,6 +30,7 @@
 #include "src/games/Rust/rust_game.h"
 #include "src/auth/discord_ipc.h"
 #include "src/auth/user_profile.h"
+#include "src/gameplay/triggerbot_integration.h"
 #include "src/window/pages/profile_page.cpp"
 #include <shellapi.h>
 #ifndef UI_PREVIEW
@@ -196,7 +197,6 @@ namespace {
         case MenuTab::TAB_UNIFIED_AIM:       DrawUnifiedAim(); break;
         case MenuTab::TAB_SOUND_ESP:         DrawSoundESP(); break;
         case MenuTab::TAB_SPECTATOR_LIST:    DrawSpectatorList(); break;
-        case MenuTab::TAB_TRIGGERBOT:        DrawTriggerbot(); break;
         case MenuTab::TAB_RECOIL_CONTROL:    DrawRecoilControl(); break;
         case MenuTab::TAB_PREDICTION:        DrawPrediction(); break;
         case MenuTab::TAB_VISIBILITY:        DrawVisibility(); break;
@@ -250,7 +250,6 @@ namespace {
         add("Configurações", MenuTab::TAB_CONFIGS, "Interface e desempenho");
         add("Guardar configurações", MenuTab::TAB_SAVECONFIG, "Perfis");
         add("Perfil", MenuTab::TAB_PROFILE, "Conta e Discord");
-        add("Triggerbot", MenuTab::TAB_TRIGGERBOT, "Disparo automático");
     }
 
     void DrawTechGrid(ImDrawList* dl, const ImVec2& window_pos, const ImVec2& window_size,
@@ -418,6 +417,58 @@ void Overlay::Render()
         current_tab = DefaultTabForGame(ctx.GetActiveGame());
         transition_tab = current_tab;
         tab_transition = app_settings::MotionEnabled() ? 0.0f : 1.0f;
+
+        // ===== AUTO-SYNC TRIGGERBOT CONFIG =====
+        // Sync unified triggerbot config to the new game's config
+        using namespace OmniGhost::Gameplay;
+        static TriggerIntegrationConfig s_unified_trigger_config;
+        static bool s_trigger_initialized = false;
+
+        if (!s_trigger_initialized) {
+            // Initialize with FiveM defaults on first run
+            s_unified_trigger_config.enabled = false;
+            s_unified_trigger_config.visible_only = true;
+            s_unified_trigger_config.fire_without_aim = false;
+            s_unified_trigger_config.mode = 3; // PrePost
+            s_unified_trigger_config.pre_fire_ms = 20.0f;
+            s_unified_trigger_config.post_fire_ms = 50.0f;
+            s_unified_trigger_config.min_time_between_shots = 50.0f;
+            s_unified_trigger_config.deadzone_px = 5.0f;
+            s_unified_trigger_config.max_distance_m = 100.0f;
+            s_unified_trigger_config.weapon_mask = ~0ULL;
+            s_unified_trigger_config.reaction_variance_ms = 5.0f;
+            s_unified_trigger_config.jitter_px = 0.5f;
+            s_unified_trigger_config.simulate_human_reaction = true;
+            s_unified_trigger_config.burst_shots = 3;
+            s_unified_trigger_config.burst_interval_ms = 80.0f;
+            s_unified_trigger_config.burst_cooldown_ms = 500.0f;
+            s_unified_trigger_config.ignore_knocked = true;
+            s_unified_trigger_config.ignore_teammates = true;
+            s_unified_trigger_config.ignore_npcs = false;
+            s_unified_trigger_config.min_health_percent = 1.0f;
+            s_trigger_initialized = true;
+        }
+
+        // Apply unified config to the new game
+        auto new_game = ctx.GetActiveGame();
+        if (new_game == OmniGhost::ActiveGame::FiveM) {
+            aimbot::config.trigger_enabled = s_unified_trigger_config.enabled;
+            aimbot::config.trigger_visibility_check = s_unified_trigger_config.visible_only;
+            aimbot::config.trigger_always_on = s_unified_trigger_config.fire_without_aim;
+            aimbot::config.trigger_burst = (s_unified_trigger_config.mode == 4);
+            aimbot::config.trigger_delay = s_unified_trigger_config.pre_fire_ms / 1000.0f;
+            aimbot::config.trigger_cooldown = s_unified_trigger_config.post_fire_ms / 1000.0f;
+            aimbot::config.trigger_fov = s_unified_trigger_config.deadzone_px;
+            aimbot::config.max_distance = s_unified_trigger_config.max_distance_m;
+        } else if (new_game == OmniGhost::ActiveGame::CS2 || new_game == OmniGhost::ActiveGame::Rust) {
+            CS2::config.trigger_enabled = s_unified_trigger_config.enabled;
+            CS2::config.trigger_visibility_check = s_unified_trigger_config.visible_only;
+            CS2::config.trigger_always_on = s_unified_trigger_config.fire_without_aim;
+            CS2::config.trigger_delay_ms = static_cast<int>(s_unified_trigger_config.pre_fire_ms);
+            CS2::config.trigger_head_only = false; // unified doesn't have head-only, default false
+        } else if (new_game == OmniGhost::ActiveGame::Fortnite) {
+            // Fortnite uses unified config directly via static in FortniteAimPage
+        }
     }
 
 #ifndef UI_PREVIEW
@@ -597,6 +648,56 @@ const PerformanceMode::State performance = PerformanceMode::Update(
             build = "FiveM";
             players = static_cast<int>(FiveM::ESP::GetValidPedsSnapshot().validPeds.size());
             break;
+        }
+
+        // ===== REVERSE SYNC: Game config -> Unified config =====
+        // Keep unified config in sync with current game's settings
+        using namespace OmniGhost::Gameplay;
+        static TriggerIntegrationConfig s_unified_trigger_config_rev;
+        static bool s_rev_initialized = false;
+        if (!s_rev_initialized) {
+            s_unified_trigger_config_rev.enabled = false;
+            s_unified_trigger_config_rev.visible_only = true;
+            s_unified_trigger_config_rev.fire_without_aim = false;
+            s_unified_trigger_config_rev.mode = 3;
+            s_unified_trigger_config_rev.pre_fire_ms = 20.0f;
+            s_unified_trigger_config_rev.post_fire_ms = 50.0f;
+            s_unified_trigger_config_rev.min_time_between_shots = 50.0f;
+            s_unified_trigger_config_rev.deadzone_px = 5.0f;
+            s_unified_trigger_config_rev.max_distance_m = 100.0f;
+            s_unified_trigger_config_rev.weapon_mask = ~0ULL;
+            s_unified_trigger_config_rev.reaction_variance_ms = 5.0f;
+            s_unified_trigger_config_rev.jitter_px = 0.5f;
+            s_unified_trigger_config_rev.simulate_human_reaction = true;
+            s_unified_trigger_config_rev.burst_shots = 3;
+            s_unified_trigger_config_rev.burst_interval_ms = 80.0f;
+            s_unified_trigger_config_rev.burst_cooldown_ms = 500.0f;
+            s_unified_trigger_config_rev.ignore_knocked = true;
+            s_unified_trigger_config_rev.ignore_teammates = true;
+            s_unified_trigger_config_rev.ignore_npcs = false;
+            s_unified_trigger_config_rev.min_health_percent = 1.0f;
+            s_rev_initialized = true;
+        }
+
+        auto current_game = ctx.GetActiveGame();
+        if (current_game == OmniGhost::ActiveGame::FiveM) {
+            s_unified_trigger_config_rev.enabled = aimbot::config.trigger_enabled;
+            s_unified_trigger_config_rev.visible_only = aimbot::config.trigger_visibility_check;
+            s_unified_trigger_config_rev.fire_without_aim = aimbot::config.trigger_always_on;
+            s_unified_trigger_config_rev.mode = aimbot::config.trigger_burst ? 4 : 3;
+            s_unified_trigger_config_rev.pre_fire_ms = aimbot::config.trigger_delay * 1000.0f;
+            s_unified_trigger_config_rev.post_fire_ms = aimbot::config.trigger_cooldown * 1000.0f;
+            s_unified_trigger_config_rev.deadzone_px = aimbot::config.trigger_fov;
+            s_unified_trigger_config_rev.max_distance_m = aimbot::config.max_distance;
+        } else if (current_game == OmniGhost::ActiveGame::CS2 || current_game == OmniGhost::ActiveGame::Rust) {
+            s_unified_trigger_config_rev.enabled = CS2::config.trigger_enabled;
+            s_unified_trigger_config_rev.visible_only = CS2::config.trigger_visibility_check;
+            s_unified_trigger_config_rev.fire_without_aim = CS2::config.trigger_always_on;
+            s_unified_trigger_config_rev.mode = 3;
+            s_unified_trigger_config_rev.pre_fire_ms = CS2::config.trigger_delay_ms;
+            s_unified_trigger_config_rev.post_fire_ms = 50.0f;
+            s_unified_trigger_config_rev.deadzone_px = 5.0f;
+            s_unified_trigger_config_rev.max_distance_m = CS2::config.aim_max_dist;
         }
 
         CyberWidgets::DrawHeader(window_pos, window_size, fps, connected, build, -1, players);

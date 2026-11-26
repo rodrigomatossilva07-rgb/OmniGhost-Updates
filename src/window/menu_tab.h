@@ -25,7 +25,6 @@ enum class MenuTab : int {
     TAB_UNIFIED_AIM = 600,
     TAB_SOUND_ESP,
     TAB_SPECTATOR_LIST,
-    TAB_TRIGGERBOT,
     TAB_RECOIL_CONTROL,
     TAB_PREDICTION,
     TAB_VISIBILITY,
@@ -70,7 +69,6 @@ void DrawFortniteAim();
 void DrawUnifiedAim();
 void DrawSoundESP();
 void DrawSpectatorList();
-void DrawTriggerbot();
 void DrawRecoilControl();
 void DrawPrediction();
 void DrawVisibility();

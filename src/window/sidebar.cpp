@@ -90,7 +90,6 @@ namespace CyberWidgets {
         static const TabItem fivemTabs[] = {
             { "nav.visuals", MenuTab::TAB_VISUALS,    CyberIcons::DrawESPIcon },
             { "nav.aim",     MenuTab::TAB_AIM,        CyberIcons::DrawAimIcon },
-            { "nav.trigger", MenuTab::TAB_TRIGGERBOT, CyberIcons::DrawTriggerIcon },
             { "nav.vehicles", MenuTab::TAB_VEHICLES,   CyberIcons::DrawVehicleIcon },
             { "nav.radar",   MenuTab::TAB_RADAR,      CyberIcons::DrawRadarIcon },
             { "nav.friends", MenuTab::TAB_FRIENDS,    CyberIcons::DrawUserIcon },
@@ -102,7 +101,6 @@ namespace CyberWidgets {
         static const TabItem cs2Tabs[] = {
             { "nav.visuals", MenuTab::TAB_CS2_VISUALS, CyberIcons::DrawESPIcon },
             { "nav.aim",     MenuTab::TAB_CS2_AIM,     CyberIcons::DrawAimIcon },
-            { "nav.trigger", MenuTab::TAB_TRIGGERBOT, CyberIcons::DrawTriggerIcon },
             { "nav.misc",    MenuTab::TAB_CS2_MISC,    CyberIcons::DrawWrenchIcon },
             { "nav.radar",   MenuTab::TAB_CS2_RADAR,   CyberIcons::DrawRadarIcon },
             { "nav.status",  MenuTab::TAB_CS2_STATUS,  CyberIcons::DrawStatusIcon },
@@ -113,7 +111,6 @@ namespace CyberWidgets {
         static const TabItem fortniteTabs[] = {
             { "nav.visuals", MenuTab::TAB_FORTNITE_VISUALS, CyberIcons::DrawESPIcon },
             { "nav.aim", MenuTab::TAB_FORTNITE_AIM,     CyberIcons::DrawAimIcon },
-            { "nav.trigger", MenuTab::TAB_TRIGGERBOT, CyberIcons::DrawTriggerIcon },
             { "nav.configs", MenuTab::TAB_CONFIGS, CyberIcons::DrawSettingsIcon },
             { "nav.save", MenuTab::TAB_SAVECONFIG, CyberIcons::DrawSaveIcon },
         };
